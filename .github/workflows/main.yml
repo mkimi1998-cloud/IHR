@@ -72,7 +72,7 @@ jobs:
           IHR_EOF
           cat > 'App.js' <<'IHR_EOF'
           import React, { useCallback, useEffect, useRef, useState } from 'react';
-          import { ActivityIndicator, Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+          import { ActivityIndicator, Image, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, View } from 'react-native';
           import { StatusBar } from 'expo-status-bar';
           import * as Location from 'expo-location';
           import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -251,7 +251,7 @@ jobs:
             else if (view === 'qr') body = <Cam mode="qr" sess={sess} back={home} />;
             else if (view === 'geo') body = <Cam mode="photo" sess={sess} back={home} />;
             else body = <Dashboard sess={sess} go={setView} logout={logout} />;
-            return (<SafeAreaView style={s.root}><StatusBar style="light" backgroundColor={C.forest} />{body}</SafeAreaView>);
+            return (<SafeAreaView style={s.root}><StatusBar style="light" backgroundColor={C.forest} />{Platform.OS === 'android' ? <View style={{ height: RNBar.currentHeight || 0, backgroundColor: C.forest }} /> : null}{body}</SafeAreaView>);
           }
 
           const s = StyleSheet.create({
@@ -299,26 +299,40 @@ jobs:
 
           export const deviceId = () => Application.getAndroidId() || 'unknown';
 
+          async function once(ep, body, kind, signal) {
+            const get = ep.method === 'GET';
+            const headers = { Accept: 'application/json' };
+            let payload, qs = '';
+            if (get) qs = '?' + Object.entries(body).map(([k, v]) => `${k}=${encodeURIComponent(v ?? '')}`).join('&');
+            else if (kind === 'json') { headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body); }
+            else if (kind === 'form') {
+              headers['Content-Type'] = 'application/x-www-form-urlencoded';
+              payload = Object.entries(body).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v ?? '')}`).join('&');
+            } else { payload = new FormData(); Object.entries(body).forEach(([k, v]) => payload.append(k, String(v ?? ''))); }
+            const res = await fetch(BASE_URL + ep.path + qs, { method: ep.method, headers, body: payload, signal });
+            return { status: res.status, ok: res.ok, text: await res.text() };
+          }
+
+          // Tries JSON, then form-urlencoded, then multipart when the server rejects the body format.
           export async function call(ep, body = {}) {
-            const ctl = new AbortController();
-            const t = setTimeout(() => ctl.abort(), 20000);
-            try {
-              const get = ep.method === 'GET';
-              const qs = get ? '?' + Object.entries(body).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&') : '';
-              const res = await fetch(BASE_URL + ep.path + qs, {
-                method: ep.method, signal: ctl.signal,
-                headers: { Accept: 'application/json', ...(get ? {} : { 'Content-Type': 'application/json' }) },
-                body: get ? undefined : JSON.stringify(body),
-              });
-              const text = await res.text();
-              let data; try { data = JSON.parse(text); } catch { data = { raw: text }; }
-              if (res.status === 413) throw new Error(`[${ep.code}413] Ralat Pelayan. Sila cuba sekali lagi`);
-              if (!res.ok) throw new Error(`[${ep.code}00${res.status === 404 ? 1 : 2}] Ralat. Sila hubungi Bahagian Sumber Manusia untuk bantuan`);
-              return data;
-            } catch (e) {
-              if (e.name === 'AbortError') throw new Error(`[${ep.code}001] Sambungan ke pelayan tamat masa`);
-              throw e;
-            } finally { clearTimeout(t); }
+            const kinds = ep.method === 'GET' ? ['json'] : ['json', 'form', 'multipart'];
+            let last = { status: 0, text: '' };
+            for (const kind of kinds) {
+              const ctl = new AbortController();
+              const t = setTimeout(() => ctl.abort(), 20000);
+              try {
+                const r = await once(ep, body, kind, ctl.signal);
+                if (r.ok) { try { return JSON.parse(r.text); } catch { return { raw: r.text }; } }
+                last = r;
+                if (![400, 405, 415, 422, 500].includes(r.status)) break;
+              } catch (e) {
+                if (e.name === 'AbortError') throw new Error(`[${ep.code}001] Sambungan ke pelayan tamat masa`);
+                throw new Error(`[${ep.code}003] Tiada sambungan ke pelayan (${e.message})`);
+              } finally { clearTimeout(t); }
+            }
+            if (last.status === 413) throw new Error(`[${ep.code}413] Ralat Pelayan. Sila cuba sekali lagi`);
+            const snip = String(last.text).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 220);
+            throw new Error(`[${ep.code}00${last.status === 404 ? 1 : 2}] Ralat. Sila hubungi Bahagian Sumber Manusia untuk bantuan\nHTTP ${last.status}: ${snip}`);
           }
 
           const K = { no: 'STAFF_NO', id: 'STAFF_ID', name: 'STAFF_NAME' };
