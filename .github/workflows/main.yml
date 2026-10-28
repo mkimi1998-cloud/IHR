@@ -328,8 +328,8 @@ jobs:
             geotag:    { path: 'api/geotagging',        method: 'POST', code: 'G' },
             qr:        { path: 'api/qr_scanner',        method: 'POST', code: 'Q' },
             mia:       { path: 'api/mia_report',        method: 'POST', code: 'M' },
-            reason:    { path: 'api/reason',            method: 'POST',  code: 'P' },
-            reference: { path: 'api/reference',         method: 'POST',  code: 'P' },
+            reason:    { path: 'api/reason',            method: 'POST', code: 'P', flip: true },
+            reference: { path: 'api/reference',         method: 'POST', code: 'P', flip: true },
           };
 
           let override = null;
