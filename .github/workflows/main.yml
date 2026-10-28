@@ -1,0 +1,296 @@
+name: Build iHR APK
+on:
+  workflow_dispatch:
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create project files
+        run: |
+          set -e
+          mkdir -p app/src
+          cd app
+          cat > 'package.json' <<'IHR_EOF'
+          {
+            "name": "ihr",
+            "version": "1.0.3",
+            "main": "node_modules/expo/AppEntry.js",
+            "scripts": { "start": "expo start", "android": "expo run:android" },
+            "dependencies": {
+              "expo": "~51.0.28",
+              "expo-application": "~5.9.1",
+              "expo-camera": "~15.0.16",
+              "expo-location": "~17.0.1",
+              "expo-secure-store": "~13.0.2",
+              "expo-status-bar": "~1.12.1",
+              "react": "18.2.0",
+              "react-native": "0.74.5"
+            },
+            "devDependencies": { "@babel/core": "^7.24.0" },
+            "private": true
+          }
+          IHR_EOF
+          cat > 'babel.config.js' <<'IHR_EOF'
+          module.exports = function (api) { api.cache(true); return { presets: ['babel-preset-expo'] }; };
+          IHR_EOF
+          cat > 'app.json' <<'IHR_EOF'
+          {
+            "expo": {
+              "name": "iHR 2",
+              "slug": "iHr2",
+              "version": "1.0.3",
+              "orientation": "portrait",
+              "userInterfaceStyle": "light",
+              "android": {
+                "package": "my.gov.mtib.ihr.v2",
+                "versionCode": 4,
+                "permissions": [
+                  "android.permission.CAMERA",
+                  "android.permission.ACCESS_COARSE_LOCATION",
+                  "android.permission.ACCESS_FINE_LOCATION"
+                ]
+              },
+              "plugins": [
+                [
+                  "expo-camera",
+                  {
+                    "cameraPermission": "Allow iHR to access the camera for QR scanning and attendance photos."
+                  }
+                ],
+                [
+                  "expo-location",
+                  {
+                    "locationWhenInUsePermission": "Allow iHR to use your location for geotagging attendance."
+                  }
+                ],
+                "expo-secure-store"
+              ],
+              "scheme": "ihr2"
+            }
+          }
+          IHR_EOF
+          cat > 'App.js' <<'IHR_EOF'
+          import React, { useCallback, useEffect, useRef, useState } from 'react';
+          import { ActivityIndicator, Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+          import { StatusBar } from 'expo-status-bar';
+          import * as Location from 'expo-location';
+          import { CameraView, useCameraPermissions } from 'expo-camera';
+          import { C } from './src/theme';
+          import { EP, call, clearSession, deviceId, loadSession, rows, saveSession, unwrap } from './src/api';
+
+          const Btn = ({ label, onPress, kind = 'main', busy, disabled }) => (
+            <Pressable onPress={onPress} disabled={busy || disabled} style={({ pressed }) => [s.btn, kind === 'ghost' && s.btnGhost, (busy || disabled) && { opacity: 0.5 }, pressed && { opacity: 0.8 }]}>
+              {busy ? <ActivityIndicator color={kind === 'ghost' ? C.forest : '#fff'} /> : <Text style={[s.btnTx, kind === 'ghost' && { color: C.forest }]}>{label}</Text>}
+            </Pressable>
+          );
+          const Card = ({ title, children }) => (<View style={s.card}>{title ? <Text style={s.cardT}>{title}</Text> : null}{children}</View>);
+          const Err = ({ msg }) => (msg ? <View style={s.err}><Text style={{ color: C.bad }}>{msg}</Text></View> : null);
+          const Top = ({ title, onBack }) => (
+            <View style={s.top}>{onBack ? <Pressable onPress={onBack} hitSlop={12}><Text style={s.back}>‹ Kembali</Text></Pressable> : null}<Text style={s.topT}>{title}</Text></View>
+          );
+
+          function Register({ onDone }) {
+            const [name, setName] = useState(''); const [no, setNo] = useState('');
+            const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+            const submit = async () => {
+              if (!name.trim() || !no.trim()) return setErr('Sila masukkan nama dan nombor staff');
+              setBusy(true); setErr('');
+              try {
+                const r = unwrap(await call(EP.register, { name: name.trim(), staff_no: no.trim(), imei: deviceId() }));
+                const sess = { staff_no: no.trim(), staff_id: r?.staff_id ?? r?.id ?? '', name: r?.name ?? name.trim() };
+                await saveSession(sess); onDone(sess);
+              } catch (e) { setErr(e.message); } finally { setBusy(false); }
+            };
+            return (
+              <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+                <View style={s.hero}><Text style={s.logo}>iHR</Text><Text style={s.heroSub}>Lembaga Perindustrian Kayu Malaysia</Text></View>
+                <View style={{ padding: 16 }}>
+                  <Card title="Daftar Pengguna Baru">
+                    <Text style={s.lbl}>Nama penuh</Text>
+                    <TextInput style={s.in} value={name} onChangeText={setName} placeholder="Seperti dalam kad pengenalan" />
+                    <Text style={s.lbl}>Nombor staff</Text>
+                    <TextInput style={s.in} value={no} onChangeText={setNo} autoCapitalize="characters" placeholder="Contoh: 01234" />
+                    <Err msg={err} />
+                    <Btn label="Daftar" onPress={submit} busy={busy} />
+                  </Card>
+                  <Text style={s.hint}>Peranti ini akan didaftarkan bersama nombor staff anda.</Text>
+                </View>
+              </ScrollView>
+            );
+          }
+
+          function Dashboard({ sess, go, logout }) {
+            const [data, setData] = useState(null); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+            const [online, setOnline] = useState(null); const [at, setAt] = useState('');
+            const load = useCallback(async () => {
+              setBusy(true); setErr('');
+              try {
+                setData(unwrap(await call(EP.dashboard, { staff_no: sess.staff_no, staff_id: sess.staff_id, imei: deviceId() })));
+                setOnline(true); setAt(new Date().toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' }));
+              } catch (e) { setOnline(false); setErr(e.message.startsWith('[') ? e.message : `[D001] - Dashboard Http Error`); } finally { setBusy(false); }
+            }, [sess]);
+            useEffect(() => { load(); }, [load]);
+            const list = rows(data);
+            const acts = [['Lapor Diri', 'mia'], ['Imbas QR', 'qr'], ['Geotagging', 'geo']];
+            return (
+              <ScrollView>
+                <View style={s.hero}>
+                  <Text style={s.heroHi}>Selamat datang,</Text>
+                  <Text style={s.heroName}>{sess.name || 'Pengguna'}</Text>
+                  <View style={s.chips}>
+                    <View style={s.chip}><Text style={s.chipT}>No. staff {sess.staff_no}</Text></View>
+                    <View style={s.chip}><View style={[s.dot, { backgroundColor: online == null ? C.mute : online ? '#6FD08F' : '#FF8A80' }]} /><Text style={s.chipT}>{online == null ? 'Menyemak…' : online ? `Dalam talian ${at}` : 'Luar talian'}</Text></View>
+                  </View>
+                </View>
+                <View style={{ padding: 16, gap: 14 }}>
+                  <View style={s.grid}>{acts.map(([l, k]) => (
+                    <Pressable key={k} style={s.tile} onPress={() => go(k)}><View style={s.tileI}><Text style={s.tileIT}>{l[0]}</Text></View><Text style={s.tileT}>{l}</Text></Pressable>))}
+                  </View>
+                  <Card title="Maklumat daripada pelayan">
+                    {busy && !data ? <ActivityIndicator color={C.forest} /> : null}
+                    <Err msg={err} />
+                    {list.length === 0 && !busy && !err ? <Text style={{ color: C.mute }}>Tiada data untuk dipaparkan.</Text> : null}
+                    {list.map(([k, v], i) => (<View key={i} style={s.row}><Text style={s.rowK}>{k}</Text><Text style={s.rowV}>{v}</Text></View>))}
+                    <Btn kind="ghost" label="Muat semula" onPress={load} busy={busy} />
+                  </Card>
+                  <Card title="Peranti">
+                    <View style={s.row}><Text style={s.rowK}>ID peranti</Text><Text style={s.rowV}>{String(deviceId()).slice(0, 4)}••••{String(deviceId()).slice(-3)}</Text></View>
+                    <View style={s.row}><Text style={s.rowK}>Pelayan</Text><Text style={s.rowV}>ihr.mtib.gov.my</Text></View>
+                  </Card>
+                  <Btn kind="ghost" label="Log keluar" onPress={logout} />
+                </View>
+              </ScrollView>
+            );
+          }
+
+          function useFix() {
+            const [fix, setFix] = useState(null); const [err, setErr] = useState('');
+            const get = useCallback(async () => {
+              setErr('');
+              const p = await Location.requestForegroundPermissionsAsync();
+              if (p.status !== 'granted') return setErr('Tiada akses lokasi');
+              try { const l = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }); setFix(l.coords); }
+              catch { setErr('Peranti tidak dapat mengesan lokasi anda'); }
+            }, []);
+            useEffect(() => { get(); }, [get]);
+            return { fix, err, get };
+          }
+          const Loc = ({ fix, err, get }) => (
+            <Card title="Lokasi semasa">
+              {fix ? <><View style={s.row}><Text style={s.rowK}>Latitud</Text><Text style={s.rowV}>{fix.latitude.toFixed(6)}</Text></View>
+                <View style={s.row}><Text style={s.rowK}>Longitud</Text><Text style={s.rowV}>{fix.longitude.toFixed(6)}</Text></View>
+                <View style={s.row}><Text style={s.rowK}>Ketepatan</Text><Text style={s.rowV}>± {Math.round(fix.accuracy || 0)} m</Text></View></>
+                : <Text style={{ color: C.mute }}>{err || 'Mengesan lokasi…'}</Text>}
+              <Err msg={fix ? '' : err} /><Btn kind="ghost" label="Kesan semula" onPress={get} />
+            </Card>
+          );
+
+          function Mia({ sess, back }) {
+            const loc = useFix(); const [reasons, setReasons] = useState([]); const [pick, setPick] = useState(null);
+            const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [ok, setOk] = useState('');
+            useEffect(() => { (async () => {
+              try {
+                const r = unwrap(await call(EP.reason, {})); const arr = Array.isArray(r) ? r : r?.reasons || [];
+                setReasons(arr.map((x, i) => typeof x === 'string' ? { id: x, label: x } : { id: x.id ?? x.reason_id ?? i, label: x.reason ?? x.name ?? x.description ?? JSON.stringify(x) }));
+              } catch (e) { setErr(e.message); }
+            })(); }, []);
+            const send = async () => {
+              if (!pick) return setErr('Sila pilih sebab');
+              if (!loc.fix) return setErr('Tiada akses lokasi');
+              setBusy(true); setErr('');
+              try { await call(EP.mia, { staff_no: sess.staff_no, staff_id: sess.staff_id, imei: deviceId(), reason: pick.label, reason_id: pick.id, latitude: loc.fix.latitude, longitude: loc.fix.longitude }); setOk('Lapor diri berjaya dihantar.'); }
+              catch (e) { setErr(e.message); } finally { setBusy(false); }
+            };
+            return (<ScrollView><Top title="Lapor Diri" onBack={back} /><View style={{ padding: 16, gap: 14 }}>
+              <Loc {...loc} />
+              <Card title="Sebab">{reasons.length === 0 ? <Text style={{ color: C.mute }}>Tiada senarai sebab.</Text> : null}
+                {reasons.map((r) => (<Pressable key={r.id} onPress={() => setPick(r)} style={[s.opt, pick?.id === r.id && s.optOn]}><Text style={{ color: pick?.id === r.id ? '#fff' : C.ink }}>{r.label}</Text></Pressable>))}</Card>
+              <Err msg={err} />{ok ? <View style={s.okBox}><Text style={{ color: C.ok }}>{ok}</Text></View> : null}
+              <Btn label="Hantar lapor diri" onPress={send} busy={busy} />
+            </View></ScrollView>);
+          }
+
+          function Cam({ mode, sess, back }) {
+            const [perm, ask] = useCameraPermissions(); const ref = useRef(null); const loc = useFix();
+            const [shot, setShot] = useState(null); const [done, setDone] = useState(false);
+            const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [ok, setOk] = useState('');
+            useEffect(() => { if (perm && !perm.granted) ask(); }, [perm]);
+            const base = { staff_no: sess.staff_no, staff_id: sess.staff_id, imei: deviceId() };
+            const onQr = async ({ data }) => {
+              if (done) return; setDone(true); setBusy(true); setErr('');
+              try { await call(EP.qr, { ...base, qr_code: data, latitude: loc.fix?.latitude, longitude: loc.fix?.longitude }); setOk('Imbasan QR berjaya.'); }
+              catch (e) { setErr(e.message); setDone(false); } finally { setBusy(false); }
+            };
+            const snap = async () => { const p = await ref.current?.takePictureAsync({ quality: 0.4, base64: true }); if (p) setShot(p); };
+            const sendPhoto = async () => {
+              if (!shot) return setErr('Sila muat naik gambar'); if (!loc.fix) return setErr('Tiada akses lokasi');
+              setBusy(true); setErr('');
+              try { await call(EP.geotag, { ...base, latitude: loc.fix.latitude, longitude: loc.fix.longitude, image: shot.base64 }); setOk('Geotagging berjaya dihantar.'); }
+              catch (e) { setErr(e.message); } finally { setBusy(false); }
+            };
+            if (!perm?.granted) return (<View style={{ flex: 1 }}><Top title="Kamera" onBack={back} /><View style={{ padding: 16 }}><Text>Tiada akses kamera.</Text><Btn label="Benarkan kamera" onPress={ask} /></View></View>);
+            return (<ScrollView><Top title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} onBack={back} /><View style={{ padding: 16, gap: 14 }}>
+              {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
+                <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
+              <Loc {...loc} /><Err msg={err} />{ok ? <View style={s.okBox}><Text style={{ color: C.ok }}>{ok}</Text></View> : null}
+              {mode === 'photo' ? (shot ? <><Btn label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn label="Ambil Gambar" onPress={snap} />)
+                : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>}
+            </View></ScrollView>);
+          }
+
+          export default function App() {
+            const [sess, setSess] = useState(undefined); const [view, setView] = useState('home');
+            useEffect(() => { loadSession().then(setSess); }, []);
+            const home = () => setView('home');
+            const logout = async () => { await clearSession(); setSess(null); setView('home'); };
+            let body;
+            if (sess === undefined) body = <View style={s.center}><ActivityIndicator size="large" color={C.forest} /></View>;
+            else if (!sess) body = <Register onDone={setSess} />;
+            else if (view === 'mia') body = <Mia sess={sess} back={home} />;
+            else if (view === 'qr') body = <Cam mode="qr" sess={sess} back={home} />;
+            else if (view === 'geo') body = <Cam mode="photo" sess={sess} back={home} />;
+            else body = <Dashboard sess={sess} go={setView} logout={logout} />;
+            return (<SafeAreaView style={s.root}><StatusBar style="light" backgroundColor={C.forest} />{body}</SafeAreaView>);
+          }
+
+          const s = StyleSheet.create({
+            root: { flex: 1, backgroundColor: C.bone }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+            hero: { backgroundColor: C.forest, padding: 20, paddingTop: 28, paddingBottom: 26, borderBottomLeftRadius: 28 },
+            logo: { color: '#fff', fontSize: 40, fontWeight: '800', letterSpacing: 1 }, heroSub: { color: '#BFD3C8', marginTop: 4 },
+            heroHi: { color: '#BFD3C8', fontSize: 14 }, heroName: { color: '#fff', fontSize: 24, fontWeight: '700', marginTop: 2 },
+            chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
+            chip: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.forestSoft, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14 },
+            chipT: { color: '#fff', fontSize: 12 }, dot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
+            top: { backgroundColor: C.forest, padding: 16, paddingBottom: 20 }, topT: { color: '#fff', fontSize: 22, fontWeight: '700', marginTop: 6 }, back: { color: '#BFD3C8' },
+            card: { backgroundColor: C.card, borderRadius: 14, padding: 16, gap: 10, borderWidth: 1, borderColor: C.line },
+            cardT: { fontSize: 16, fontWeight: '700', color: C.ink },
+            row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: C.line, gap: 12 },
+            rowK: { color: C.mute, textTransform: 'capitalize', flexShrink: 1 }, rowV: { color: C.ink, fontWeight: '600', flexShrink: 1, textAlign: 'right' },
+            grid: { flexDirection: 'row', gap: 10 },
+            tile: { flex: 1, backgroundColor: C.card, borderRadius: 14, padding: 14, alignItems: 'center', gap: 8, borderWidth: 1, borderColor: C.line },
+            tileI: { width: 44, height: 44, borderRadius: 12, backgroundColor: C.amber, alignItems: 'center', justifyContent: 'center' },
+            tileIT: { color: '#fff', fontSize: 20, fontWeight: '800' }, tileT: { color: C.ink, fontWeight: '600', fontSize: 13, textAlign: 'center' },
+            lbl: { color: C.mute, fontSize: 13 }, in: { borderWidth: 1, borderColor: C.line, borderRadius: 10, padding: 12, fontSize: 16, backgroundColor: C.bone },
+            btn: { backgroundColor: C.forest, borderRadius: 12, padding: 14, alignItems: 'center' }, btnGhost: { backgroundColor: 'transparent', borderWidth: 1, borderColor: C.forest },
+            btnTx: { color: '#fff', fontWeight: '700', fontSize: 15 },
+            err: { backgroundColor: C.badBg, padding: 10, borderRadius: 10 }, okBox: { backgroundColor: '#E5F3EA', padding: 10, borderRadius: 10 },
+            hint: { color: C.mute, textAlign: 'center', marginTop: 8 },
+            opt: { padding: 12, borderRadius: 10, borderWidth: 1, borderColor: C.line }, optOn: { backgroundColor: C.forest, borderColor: C.forest },
+            cam: { height: 300, borderRadius: 14, overflow: 'hidden', backgroundColor: '#000' },
+          });
+          IHR_EOF
+          cat > 'src/api.js' <<'IHR_EOF'
+          import * as SecureStore from 'expo-secure-store';
+          import * as Application from 'expo-application';
+
+          // Recovered from the original iHR 1.0.2 bundle. Method and body shapes are inferred:
+          // confirm them against the backend and adjust here only.
+          export const BASE_URL = 'https://ihr.mtib.gov.my/';
+          export const EP = {
+            register:  { path: 'api/user_registration', method: 'POST', code: 'R' },
+            dashboard: { path: 'api/dashboard',         method: 'POST', code: 'D' },
+            geotag:    { path: 'api/geotagging',        method: 'POST', code: 'G' },
+            qr:        { path: 'api/qr_scanner',        method: 'POST', code: 'Q' },
+            mia:       { path: 'api/mia_report',        method: 'POST', code: 'M' },
+            reason:    { path: 'api/reason',            meth
