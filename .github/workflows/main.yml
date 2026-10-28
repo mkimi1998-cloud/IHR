@@ -77,7 +77,7 @@ jobs:
           import * as Location from 'expo-location';
           import { CameraView, useCameraPermissions } from 'expo-camera';
           import { C } from './src/theme';
-          import { EP, call, clearSession, deviceId, loadSession, rows, saveSession, unwrap } from './src/api';
+          import { EP, call, clearSession, deviceId, loadSession, rows, saveDeviceId, saveSession, unwrap } from './src/api';
 
           const Btn = ({ label, onPress, kind = 'main', busy, disabled }) => (
             <Pressable onPress={onPress} disabled={busy || disabled} style={({ pressed }) => [s.btn, kind === 'ghost' && s.btnGhost, (busy || disabled) && { opacity: 0.5 }, pressed && { opacity: 0.8 }]}>
@@ -92,11 +92,16 @@ jobs:
 
           function Register({ onDone }) {
             const [name, setName] = useState(''); const [no, setNo] = useState('');
-            const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+            const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [dev, setDev] = useState(String(deviceId()));
+            const cont = async () => {
+              if (!no.trim()) return setErr('Sila masukkan nombor staff');
+              await saveDeviceId(dev); const sess = { staff_no: no.trim(), staff_id: '', name: name.trim() }; await saveSession(sess); onDone(sess);
+            };
             const submit = async () => {
               if (!name.trim() || !no.trim()) return setErr('Sila masukkan nama dan nombor staff');
               setBusy(true); setErr('');
               try {
+                await saveDeviceId(dev);
                 const r = unwrap(await call(EP.register, { name: name.trim(), staff_no: no.trim(), imei: deviceId() }));
                 const sess = { staff_no: no.trim(), staff_id: r?.staff_id ?? r?.id ?? '', name: r?.name ?? name.trim() };
                 await saveSession(sess); onDone(sess);
@@ -112,11 +117,14 @@ jobs:
                     <Text style={s.lbl}>Nombor staff</Text>
                     <TextInput style={s.in} value={no} onChangeText={setNo} autoCapitalize="characters" placeholder="Contoh: 01234" />
                     <Err msg={err} />
-                    {/telah didaftarkan/i.test(err) ? <Btn kind="ghost" label="Telefon sudah didaftar - teruskan" onPress={async () => { const sess = { staff_no: no.trim(), staff_id: '', name: name.trim() }; await saveSession(sess); onDone(sess); }} /> : null}
+                    <Btn kind="ghost" label="Sudah berdaftar - teruskan" onPress={cont} />
                     <Btn label="Daftar" onPress={submit} busy={busy} />
                   </Card>
                   <Text style={s.hint}>Peranti ini akan didaftarkan bersama nombor staff anda.</Text>
-                  <Text style={s.hint} selectable>ID peranti: {String(deviceId())}</Text>
+                  <View style={{ marginTop: 14 }}><Card title="ID peranti (lanjutan)">
+                    <Text style={s.lbl}>Tukar hanya jika perlu guna ID yang sudah didaftarkan untuk telefon ini.</Text>
+                    <TextInput style={s.in} value={dev} onChangeText={setDev} autoCapitalize="none" autoCorrect={false} />
+                  </Card></View>
                 </View>
               </ScrollView>
             );
@@ -323,7 +331,15 @@ jobs:
             reference: { path: 'api/reference',         method: 'GET',  code: 'P' },
           };
 
-          export const deviceId = () => Application.getAndroidId() || 'unknown';
+          let override = null;
+          const realId = () => Application.getAndroidId() || 'unknown';
+          export const deviceId = () => override || realId();
+          // Lets the user reuse the ID the server already has for this phone (e.g. from the old iHR app).
+          export async function saveDeviceId(v) {
+            const t = (v || '').trim();
+            if (!t || t === realId()) { override = null; await SecureStore.deleteItemAsync('DEVICE_ID'); }
+            else { override = t; await SecureStore.setItemAsync('DEVICE_ID', t); }
+          }
 
           async function once(ep, body, kind, signal) {
             const get = ep.method === 'GET';
@@ -367,6 +383,7 @@ jobs:
 
           const K = { no: 'STAFF_NO', id: 'STAFF_ID', name: 'STAFF_NAME' };
           export async function loadSession() {
+            const dev = await SecureStore.getItemAsync('DEVICE_ID'); if (dev) override = dev;
             const [staff_no, staff_id, name] = await Promise.all(Object.values(K).map((k) => SecureStore.getItemAsync(k)));
             return staff_no ? { staff_no, staff_id, name } : null;
           }
