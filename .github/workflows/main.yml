@@ -112,9 +112,11 @@ jobs:
                     <Text style={s.lbl}>Nombor staff</Text>
                     <TextInput style={s.in} value={no} onChangeText={setNo} autoCapitalize="characters" placeholder="Contoh: 01234" />
                     <Err msg={err} />
+                    {/telah didaftarkan/i.test(err) ? <Btn kind="ghost" label="Telefon sudah didaftar - teruskan" onPress={async () => { const sess = { staff_no: no.trim(), staff_id: '', name: name.trim() }; await saveSession(sess); onDone(sess); }} /> : null}
                     <Btn label="Daftar" onPress={submit} busy={busy} />
                   </Card>
                   <Text style={s.hint}>Peranti ini akan didaftarkan bersama nombor staff anda.</Text>
+                  <Text style={s.hint} selectable>ID peranti: {String(deviceId())}</Text>
                 </View>
               </ScrollView>
             );
