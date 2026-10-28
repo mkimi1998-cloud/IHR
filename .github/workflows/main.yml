@@ -296,4 +296,178 @@ jobs:
             row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: C.line, gap: 12 },
             rowK: { color: C.mute, flexShrink: 0 }, rowV: { color: C.ink, fontWeight: '600', flex: 1, textAlign: 'right' },
             grid: { flexDirection: 'row', gap: 10 },
-            rowCol: { paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: C.line }, rowVL: { color: C.ink, fontWeight: '600', marginTop:
+            rowCol: { paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: C.line }, rowVL: { color: C.ink, fontWeight: '600', marginTop: 2 },
+            avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: C.amber, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+            avatarT: { color: '#fff', fontSize: 24, fontWeight: '800' },
+            swatchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 }, swatch: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: C.line },
+            tile: { flex: 1, backgroundColor: C.card, borderRadius: 14, padding: 14, alignItems: 'center', gap: 8, borderWidth: 1, borderColor: C.line },
+            tileI: { width: 44, height: 44, borderRadius: 12, backgroundColor: C.amber, alignItems: 'center', justifyContent: 'center' },
+            tileIT: { color: '#fff', fontSize: 20, fontWeight: '800' }, tileT: { color: C.ink, fontWeight: '600', fontSize: 13, textAlign: 'center' },
+            lbl: { color: C.mute, fontSize: 13 }, in: { borderWidth: 1, borderColor: C.line, borderRadius: 10, padding: 12, fontSize: 16, backgroundColor: C.bone },
+            btn: { backgroundColor: C.forest, borderRadius: 12, padding: 14, alignItems: 'center' }, btnGhost: { backgroundColor: 'transparent', borderWidth: 1, borderColor: C.forest },
+            btnTx: { color: '#fff', fontWeight: '700', fontSize: 15 },
+            err: { backgroundColor: C.badBg, padding: 10, borderRadius: 10 }, okBox: { backgroundColor: '#E5F3EA', padding: 10, borderRadius: 10 },
+            hint: { color: C.mute, textAlign: 'center', marginTop: 8 },
+            opt: { padding: 12, borderRadius: 10, borderWidth: 1, borderColor: C.line }, optOn: { backgroundColor: C.forest, borderColor: C.forest },
+            cam: { height: 300, borderRadius: 14, overflow: 'hidden', backgroundColor: '#000' },
+          });
+          IHR_EOF
+          cat > 'src/api.js' <<'IHR_EOF'
+          import * as SecureStore from 'expo-secure-store';
+          import * as Application from 'expo-application';
+
+          // Recovered from the original iHR 1.0.2 bundle. Method and body shapes are inferred:
+          // confirm them against the backend and adjust here only.
+          export const BASE_URL = 'https://ihr.mtib.gov.my/';
+          export const EP = {
+            register:  { path: 'api/user_registration', method: 'POST', code: 'R' },
+            dashboard: { path: 'api/dashboard',         method: 'POST', code: 'D', flip: true },
+            geotag:    { path: 'api/geotagging',        method: 'POST', code: 'G' },
+            qr:        { path: 'api/qr_scanner',        method: 'POST', code: 'Q' },
+            mia:       { path: 'api/mia_report',        method: 'POST', code: 'M' },
+            reason:    { path: 'api/reason',            method: 'POST', code: 'P', flip: true },
+            reference: { path: 'api/reference',         method: 'POST', code: 'P', flip: true },
+          };
+
+          let override = null;
+          const realId = () => Application.getAndroidId() || 'unknown';
+          export const deviceId = () => override || realId();
+          // Lets the user reuse the ID the server already has for this phone (e.g. from the old iHR app).
+          export async function saveDeviceId(v) {
+            const t = (v || '').trim();
+            if (!t || t === realId()) { override = null; await SecureStore.deleteItemAsync('DEVICE_ID'); }
+            else { override = t; await SecureStore.setItemAsync('DEVICE_ID', t); }
+          }
+
+          async function once(ep, body, kind, signal) {
+            const get = ep.method === 'GET';
+            const headers = { Accept: 'application/json', imei: String(deviceId()) };
+            let payload, qs = '';
+            if (get) qs = '?' + Object.entries(body).map(([k, v]) => `${k}=${encodeURIComponent(v ?? '')}`).join('&');
+            else if (kind === 'json') { headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body); }
+            else if (kind === 'form') {
+              headers['Content-Type'] = 'application/x-www-form-urlencoded';
+              payload = Object.entries(body).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v ?? '')}`).join('&');
+            } else { payload = new FormData(); Object.entries(body).forEach(([k, v]) => payload.append(k, String(v ?? ''))); }
+            const res = await fetch(BASE_URL + ep.path + qs, { method: ep.method, headers, body: payload, signal });
+            return { status: res.status, ok: res.ok, text: await res.text() };
+          }
+
+          // Tries JSON, then form-urlencoded, then multipart when the server rejects the body format.
+          export async function call(ep, body = {}) {
+            const kinds = ep.method === 'GET' ? ['json'] : ['json', 'form', 'multipart'];
+            let last = { status: 0, text: '' };
+            for (let i = 0; i < kinds.length; i++) {
+              const kind = kinds[i];
+              if (kind === 'multipart' && Object.keys(body).length === 0) break; // empty FormData fails on Android
+              const ctl = new AbortController();
+              const t = setTimeout(() => ctl.abort(), 20000);
+              try {
+                const r = await once(ep, body, kind, ctl.signal);
+                if (r.ok) { try { return JSON.parse(r.text); } catch { return { raw: r.text }; } }
+                if (r.status === 405 && ep.flip) {
+                  try {
+                    const g = await once({ ...ep, method: ep.method === 'GET' ? 'POST' : 'GET' }, body, 'json', ctl.signal);
+                    if (g.ok) { try { return JSON.parse(g.text); } catch { return { raw: g.text }; } }
+                  } catch (_) { /* keep the original HTTP error */ }
+                }
+                last = r;
+                if (![400, 405, 415, 422, 500].includes(r.status)) break;
+              } catch (e) {
+                if (i > 0 && last.status) break; // keep the real HTTP error, not a later retry's network error
+                if (e.name === 'AbortError') throw new Error(`[${ep.code}001] Sambungan ke pelayan tamat masa`);
+                throw new Error(`[${ep.code}003] Tiada sambungan ke pelayan (${e.message})`);
+              } finally { clearTimeout(t); }
+            }
+            if (last.status === 413) throw new Error(`[${ep.code}413] Ralat Pelayan. Sila cuba sekali lagi`);
+            const snip = String(last.text).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 220);
+            throw new Error(`[${ep.code}00${last.status === 404 ? 1 : 2}] Ralat. Sila hubungi Bahagian Sumber Manusia untuk bantuan\nHTTP ${last.status}: ${snip}`);
+          }
+
+          const K = { no: 'STAFF_NO', id: 'STAFF_ID', name: 'STAFF_NAME' };
+          export async function loadSession() {
+            const dev = await SecureStore.getItemAsync('DEVICE_ID'); if (dev) override = dev;
+            const [staff_no, staff_id, name] = await Promise.all(Object.values(K).map((k) => SecureStore.getItemAsync(k)));
+            return staff_no ? { staff_no, staff_id, name } : null;
+          }
+          export async function saveSession(s) {
+            await SecureStore.setItemAsync(K.no, String(s.staff_no));
+            await SecureStore.setItemAsync(K.id, String(s.staff_id ?? ''));
+            await SecureStore.setItemAsync(K.name, String(s.name ?? ''));
+          }
+          export const clearSession = () => Promise.all(Object.values(K).map((k) => SecureStore.deleteItemAsync(k)));
+
+          // Turns any server JSON into label/value rows so the dashboard shows whatever the API returns.
+          export function rows(obj, prefix = '', out = []) {
+            if (obj == null || out.length > 30) return out;
+            if (typeof obj !== 'object') { out.push([prefix, String(obj)]); return out; }
+            Object.entries(obj).forEach(([k, v]) => {
+              const key = prefix ? `${prefix} · ${k}` : k;
+              if (v && typeof v === 'object') rows(v, key, out);
+              else if (v !== '' && String(v).length < 120) out.push([key.replace(/_/g, ' '), String(v)]);
+            });
+            return out;
+          }
+          export const unwrap = (r) => (r && (r.data ?? r.staff_data ?? r.result)) ?? r;
+          IHR_EOF
+          cat > 'src/theme.js' <<'IHR_EOF'
+          // Timber-industry palette: deep forest, heartwood amber, bone white.
+          export const C = {
+            forest: '#0F3D2E', forestSoft: '#1D5A44', amber: '#C8841A', bone: '#F4F6F3',
+            card: '#FFFFFF', ink: '#1B2A24', mute: '#5E7068', line: '#D5DDD8',
+            ok: '#2E7D4F', bad: '#B3261E', badBg: '#FBE9E7',
+          };
+          IHR_EOF
+          ls -R . | head -20
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Install packages
+        run: npm install --legacy-peer-deps
+        working-directory: app
+      - name: Generate Android project
+        run: npx expo prebuild --platform android --no-install
+        working-directory: app
+      - name: Fix missing splash color
+        run: |
+          F=android/app/src/main/res/values/colors.xml
+          mkdir -p "$(dirname "$F")"
+          [ -f "$F" ] || printf '<resources>\n</resources>\n' > "$F"
+          grep -q splashscreen_background "$F" || sed -i 's|</resources>|  <color name="splashscreen_background">#0F3D2E</color>\n</resources>|' "$F"
+          cat "$F"
+        working-directory: app
+      - name: Point Gradle at the SDK and harden downloads
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          {
+            echo "systemProp.org.gradle.internal.http.connectionTimeout=180000"
+            echo "systemProp.org.gradle.internal.http.socketTimeout=180000"
+            echo "systemProp.org.gradle.internal.repository.max.retries=8"
+            echo "systemProp.org.gradle.internal.repository.initial.backoff=2000"
+          } >> android/gradle.properties
+        working-directory: app
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('app/package.json') }}
+          restore-keys: gradle-${{ runner.os }}-
+      - name: Build APK (retries on network errors)
+        run: |
+          chmod +x gradlew
+          n=0
+          until ./gradlew assembleRelease --no-daemon; do
+            n=$((n+1))
+            if [ "$n" -ge 3 ]; then echo "Build failed after $n tries"; exit 1; fi
+            echo "Retrying in 30s (try $((n+1)) of 3)..."; sleep 30
+          done
+        working-directory: app/android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iHR-apk
+          path: app/android/app/build/outputs/apk/release/*.apk
