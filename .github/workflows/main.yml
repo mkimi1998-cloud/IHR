@@ -368,6 +368,14 @@ jobs:
       - name: Generate Android project
         run: npx expo prebuild --platform android --no-install
         working-directory: app
+      - name: Fix missing splash color
+        run: |
+          F=android/app/src/main/res/values/colors.xml
+          mkdir -p "$(dirname "$F")"
+          [ -f "$F" ] || printf '<resources>\n</resources>\n' > "$F"
+          grep -q splashscreen_background "$F" || sed -i 's|</resources>|  <color name="splashscreen_background">#0F3D2E</color>\n</resources>|' "$F"
+          cat "$F"
+        working-directory: app
       - name: Point Gradle at the SDK
         run: echo "sdk.dir=$ANDROID_HOME" > android/local.properties
         working-directory: app
