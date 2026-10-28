@@ -122,26 +122,37 @@ jobs:
             );
           }
 
+          const colorOf = (c) => { const v = String(c ?? '').trim(); return /^[0-9a-f]{6}$/i.test(v) ? '#' + v : v || C.mute; };
+
           function Dashboard({ sess, go, logout }) {
             const [data, setData] = useState(null); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
             const [online, setOnline] = useState(null); const [at, setAt] = useState('');
             const load = useCallback(async () => {
               setBusy(true); setErr('');
               try {
-                setData(unwrap(await call(EP.dashboard, { staff_no: sess.staff_no, staff_id: sess.staff_id, imei: deviceId() })));
-                setOnline(true); setAt(new Date().toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' }));
-              } catch (e) { setOnline(false); setErr(e.message.startsWith('[') ? e.message : `[D001] - Dashboard Http Error`); } finally { setBusy(false); }
+                const r = await call(EP.dashboard, { staff_no: sess.staff_no, staff_id: sess.staff_id });
+                setData(r); setOnline(true); setAt(new Date().toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' }));
+                const sd = r?.staff_data;
+                if (sd?.staff_id && String(sd.staff_id) !== String(sess.staff_id)) saveSession({ staff_no: String(sd.staff_no ?? sess.staff_no), staff_id: sd.staff_id, name: sd.name || sess.name });
+              } catch (e) {
+                setOnline(false);
+                setErr(e.message.includes('HTTP 500') ? e.message + '\n\nPeranti ini belum dikaitkan dengan akaun di pelayan. ID peranti: ' + deviceId() : e.message);
+              } finally { setBusy(false); }
             }, [sess]);
             useEffect(() => { load(); }, [load]);
-            const list = rows(data);
+            const sd = data?.staff_data || {};
+            const name = sd.name || sess.name || 'Pengguna';
+            const mia = data?.is_mia;
+            const miaTxt = !mia ? 'Tiada' : typeof mia === 'object' ? rows(mia).map(([k, v]) => `${k}: ${v}`).join(', ') || 'Ada' : String(mia);
             const acts = [['Lapor Diri', 'mia'], ['Imbas QR', 'qr'], ['Geotagging', 'geo']];
             return (
               <ScrollView>
                 <View style={s.hero}>
+                  <View style={s.avatar}><Text style={s.avatarT}>{name.trim()[0]?.toUpperCase() || 'I'}</Text></View>
                   <Text style={s.heroHi}>Selamat datang,</Text>
-                  <Text style={s.heroName}>{sess.name || 'Pengguna'}</Text>
+                  <Text style={s.heroName}>{name}</Text>
                   <View style={s.chips}>
-                    <View style={s.chip}><Text style={s.chipT}>No. staff {sess.staff_no}</Text></View>
+                    <View style={s.chip}><Text style={s.chipT}>No. staff {sd.staff_no ?? sess.staff_no}</Text></View>
                     <View style={s.chip}><View style={[s.dot, { backgroundColor: online == null ? C.mute : online ? '#6FD08F' : '#FF8A80' }]} /><Text style={s.chipT}>{online == null ? 'Menyemak…' : online ? `Dalam talian ${at}` : 'Luar talian'}</Text></View>
                   </View>
                 </View>
@@ -149,15 +160,25 @@ jobs:
                   <View style={s.grid}>{acts.map(([l, k]) => (
                     <Pressable key={k} style={s.tile} onPress={() => go(k)}><View style={s.tileI}><Text style={s.tileIT}>{l[0]}</Text></View><Text style={s.tileT}>{l}</Text></Pressable>))}
                   </View>
-                  <Card title="Maklumat daripada pelayan">
-                    {busy && !data ? <ActivityIndicator color={C.forest} /> : null}
-                    <Err msg={err} />
-                    {list.length === 0 && !busy && !err ? <Text style={{ color: C.mute }}>Tiada data untuk dipaparkan.</Text> : null}
-                    {list.map(([k, v], i) => (<View key={i} style={s.row}><Text style={s.rowK}>{k}</Text><Text style={s.rowV}>{v}</Text></View>))}
-                    <Btn kind="ghost" label="Muat semula" onPress={load} busy={busy} />
-                  </Card>
+                  {busy && !data ? <ActivityIndicator color={C.forest} /> : null}
+                  <Err msg={err} />
+                  {data ? (<>
+                    <Card title="Kehadiran bulan ini">
+                      <View style={s.swatchRow}><View style={[s.swatch, { backgroundColor: colorOf(data.att_color) }]} /><Text style={{ color: C.mute }}>Kod warna kad: {String(data.att_color ?? '-')}</Text></View>
+                    </Card>
+                    <Card title="Hari ini">
+                      <Text style={{ color: C.ink }}>{data.msg?.clock_in || 'Belum ada rekod waktu masuk hari ini.'}</Text>
+                      <View style={s.row}><Text style={s.rowK}>Status MIA</Text><Text style={s.rowV}>{miaTxt}</Text></View>
+                    </Card>
+                    <Card title="Profil">
+                      <View style={s.row}><Text style={s.rowK}>Nama</Text><Text style={s.rowV}>{name}</Text></View>
+                      <View style={s.row}><Text style={s.rowK}>No. staff</Text><Text style={s.rowV}>{String(sd.staff_no ?? sess.staff_no)}</Text></View>
+                      {sd.staff_id ? <View style={s.row}><Text style={s.rowK}>ID staff</Text><Text style={s.rowV}>{String(sd.staff_id)}</Text></View> : null}
+                    </Card>
+                  </>) : null}
+                  <Btn kind="ghost" label="Muat semula" onPress={load} busy={busy} />
                   <Card title="Peranti">
-                    <View style={s.row}><Text style={s.rowK}>ID peranti</Text><Text style={s.rowV}>{String(deviceId()).slice(0, 4)}••••{String(deviceId()).slice(-3)}</Text></View>
+                    <View style={s.row}><Text style={s.rowK}>ID peranti</Text><Text style={s.rowV} selectable>{String(deviceId())}</Text></View>
                     <View style={s.row}><Text style={s.rowK}>Pelayan</Text><Text style={s.rowV}>ihr.mtib.gov.my</Text></View>
                   </Card>
                   <Btn kind="ghost" label="Log keluar" onPress={logout} />
@@ -270,6 +291,9 @@ jobs:
             row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: C.line, gap: 12 },
             rowK: { color: C.mute, textTransform: 'capitalize', flexShrink: 1 }, rowV: { color: C.ink, fontWeight: '600', flexShrink: 1, textAlign: 'right' },
             grid: { flexDirection: 'row', gap: 10 },
+            avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: C.amber, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+            avatarT: { color: '#fff', fontSize: 24, fontWeight: '800' },
+            swatchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 }, swatch: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: C.line },
             tile: { flex: 1, backgroundColor: C.card, borderRadius: 14, padding: 14, alignItems: 'center', gap: 8, borderWidth: 1, borderColor: C.line },
             tileI: { width: 44, height: 44, borderRadius: 12, backgroundColor: C.amber, alignItems: 'center', justifyContent: 'center' },
             tileIT: { color: '#fff', fontSize: 20, fontWeight: '800' }, tileT: { color: C.ink, fontWeight: '600', fontSize: 13, textAlign: 'center' },
@@ -291,7 +315,7 @@ jobs:
           export const BASE_URL = 'https://ihr.mtib.gov.my/';
           export const EP = {
             register:  { path: 'api/user_registration', method: 'POST', code: 'R' },
-            dashboard: { path: 'api/dashboard',         method: 'POST', code: 'D' },
+            dashboard: { path: 'api/dashboard',         method: 'POST', code: 'D', flip: true },
             geotag:    { path: 'api/geotagging',        method: 'POST', code: 'G' },
             qr:        { path: 'api/qr_scanner',        method: 'POST', code: 'Q' },
             mia:       { path: 'api/mia_report',        method: 'POST', code: 'M' },
@@ -303,7 +327,7 @@ jobs:
 
           async function once(ep, body, kind, signal) {
             const get = ep.method === 'GET';
-            const headers = { Accept: 'application/json' };
+            const headers = { Accept: 'application/json', imei: String(deviceId()) };
             let payload, qs = '';
             if (get) qs = '?' + Object.entries(body).map(([k, v]) => `${k}=${encodeURIComponent(v ?? '')}`).join('&');
             else if (kind === 'json') { headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body); }
@@ -325,6 +349,10 @@ jobs:
               try {
                 const r = await once(ep, body, kind, ctl.signal);
                 if (r.ok) { try { return JSON.parse(r.text); } catch { return { raw: r.text }; } }
+                if (r.status === 405 && ep.flip) {
+                  const g = await once({ ...ep, method: ep.method === 'GET' ? 'POST' : 'GET' }, body, 'json', ctl.signal);
+                  if (g.ok) { try { return JSON.parse(g.text); } catch { return { raw: g.text }; } }
+                }
                 last = r;
                 if (![400, 405, 415, 422, 500].includes(r.status)) break;
               } catch (e) {
