@@ -293,4 +293,88 @@ jobs:
             geotag:    { path: 'api/geotagging',        method: 'POST', code: 'G' },
             qr:        { path: 'api/qr_scanner',        method: 'POST', code: 'Q' },
             mia:       { path: 'api/mia_report',        method: 'POST', code: 'M' },
-            reason:    { path: 'api/reason',            meth
+            reason:    { path: 'api/reason',            method: 'GET',  code: 'P' },
+            reference: { path: 'api/reference',         method: 'GET',  code: 'P' },
+          };
+
+          export const deviceId = () => Application.getAndroidId() || 'unknown';
+
+          export async function call(ep, body = {}) {
+            const ctl = new AbortController();
+            const t = setTimeout(() => ctl.abort(), 20000);
+            try {
+              const get = ep.method === 'GET';
+              const qs = get ? '?' + Object.entries(body).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&') : '';
+              const res = await fetch(BASE_URL + ep.path + qs, {
+                method: ep.method, signal: ctl.signal,
+                headers: { Accept: 'application/json', ...(get ? {} : { 'Content-Type': 'application/json' }) },
+                body: get ? undefined : JSON.stringify(body),
+              });
+              const text = await res.text();
+              let data; try { data = JSON.parse(text); } catch { data = { raw: text }; }
+              if (res.status === 413) throw new Error(`[${ep.code}413] Ralat Pelayan. Sila cuba sekali lagi`);
+              if (!res.ok) throw new Error(`[${ep.code}00${res.status === 404 ? 1 : 2}] Ralat. Sila hubungi Bahagian Sumber Manusia untuk bantuan`);
+              return data;
+            } catch (e) {
+              if (e.name === 'AbortError') throw new Error(`[${ep.code}001] Sambungan ke pelayan tamat masa`);
+              throw e;
+            } finally { clearTimeout(t); }
+          }
+
+          const K = { no: 'STAFF_NO', id: 'STAFF_ID', name: 'STAFF_NAME' };
+          export async function loadSession() {
+            const [staff_no, staff_id, name] = await Promise.all(Object.values(K).map((k) => SecureStore.getItemAsync(k)));
+            return staff_no ? { staff_no, staff_id, name } : null;
+          }
+          export async function saveSession(s) {
+            await SecureStore.setItemAsync(K.no, String(s.staff_no));
+            await SecureStore.setItemAsync(K.id, String(s.staff_id ?? ''));
+            await SecureStore.setItemAsync(K.name, String(s.name ?? ''));
+          }
+          export const clearSession = () => Promise.all(Object.values(K).map((k) => SecureStore.deleteItemAsync(k)));
+
+          // Turns any server JSON into label/value rows so the dashboard shows whatever the API returns.
+          export function rows(obj, prefix = '', out = []) {
+            if (obj == null || out.length > 30) return out;
+            if (typeof obj !== 'object') { out.push([prefix, String(obj)]); return out; }
+            Object.entries(obj).forEach(([k, v]) => {
+              const key = prefix ? `${prefix} · ${k}` : k;
+              if (v && typeof v === 'object') rows(v, key, out);
+              else if (v !== '' && String(v).length < 120) out.push([key.replace(/_/g, ' '), String(v)]);
+            });
+            return out;
+          }
+          export const unwrap = (r) => (r && (r.data ?? r.staff_data ?? r.result)) ?? r;
+          IHR_EOF
+          cat > 'src/theme.js' <<'IHR_EOF'
+          // Timber-industry palette: deep forest, heartwood amber, bone white.
+          export const C = {
+            forest: '#0F3D2E', forestSoft: '#1D5A44', amber: '#C8841A', bone: '#F4F6F3',
+            card: '#FFFFFF', ink: '#1B2A24', mute: '#5E7068', line: '#D5DDD8',
+            ok: '#2E7D4F', bad: '#B3261E', badBg: '#FBE9E7',
+          };
+          IHR_EOF
+          ls -R . | head -20
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Install packages
+        run: npm install --legacy-peer-deps
+        working-directory: app
+      - name: Generate Android project
+        run: npx expo prebuild --platform android --no-install
+        working-directory: app
+      - name: Point Gradle at the SDK
+        run: echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+        working-directory: app
+      - name: Build APK
+        run: chmod +x gradlew && ./gradlew assembleRelease --no-daemon
+        working-directory: app/android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iHR-apk
+          path: app/android/app/build/outputs/apk/release/*.apk
