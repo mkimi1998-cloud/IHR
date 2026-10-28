@@ -4,6 +4,7 @@ on:
 jobs:
   apk:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Create project files
@@ -437,11 +438,32 @@ jobs:
           grep -q splashscreen_background "$F" || sed -i 's|</resources>|  <color name="splashscreen_background">#0F3D2E</color>\n</resources>|' "$F"
           cat "$F"
         working-directory: app
-      - name: Point Gradle at the SDK
-        run: echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+      - name: Point Gradle at the SDK and harden downloads
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          {
+            echo "systemProp.org.gradle.internal.http.connectionTimeout=180000"
+            echo "systemProp.org.gradle.internal.http.socketTimeout=180000"
+            echo "systemProp.org.gradle.internal.repository.max.retries=8"
+            echo "systemProp.org.gradle.internal.repository.initial.backoff=2000"
+          } >> android/gradle.properties
         working-directory: app
-      - name: Build APK
-        run: chmod +x gradlew && ./gradlew assembleRelease --no-daemon
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('app/package.json') }}
+          restore-keys: gradle-${{ runner.os }}-
+      - name: Build APK (retries on network errors)
+        run: |
+          chmod +x gradlew
+          n=0
+          until ./gradlew assembleRelease --no-daemon; do
+            n=$((n+1))
+            if [ "$n" -ge 3 ]; then echo "Build failed after $n tries"; exit 1; fi
+            echo "Retrying in 30s (try $((n+1)) of 3)..."; sleep 30
+          done
         working-directory: app/android
       - uses: actions/upload-artifact@v4
         with:
