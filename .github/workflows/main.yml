@@ -298,7 +298,7 @@ jobs:
             card: { backgroundColor: C.card, borderRadius: 14, padding: 16, gap: 10, borderWidth: 1, borderColor: C.line },
             cardT: { fontSize: 16, fontWeight: '700', color: C.ink },
             row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: C.line, gap: 12 },
-            rowK: { color: C.mute, textTransform: 'capitalize', flexShrink: 1 }, rowV: { color: C.ink, fontWeight: '600', flexShrink: 1, textAlign: 'right' },
+            rowK: { color: C.mute, flexShrink: 0 }, rowV: { color: C.ink, fontWeight: '600', flex: 1, textAlign: 'right' },
             grid: { flexDirection: 'row', gap: 10 },
             avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: C.amber, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
             avatarT: { color: '#fff', fontSize: 24, fontWeight: '800' },
@@ -328,8 +328,8 @@ jobs:
             geotag:    { path: 'api/geotagging',        method: 'POST', code: 'G' },
             qr:        { path: 'api/qr_scanner',        method: 'POST', code: 'Q' },
             mia:       { path: 'api/mia_report',        method: 'POST', code: 'M' },
-            reason:    { path: 'api/reason',            method: 'GET',  code: 'P' },
-            reference: { path: 'api/reference',         method: 'GET',  code: 'P' },
+            reason:    { path: 'api/reason',            method: 'POST',  code: 'P' },
+            reference: { path: 'api/reference',         method: 'POST',  code: 'P' },
           };
 
           let override = null;
