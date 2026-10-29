@@ -120,7 +120,7 @@ jobs:
 
           function Register({ onDone }) {
             const [name, setName] = useState(''); const [no, setNo] = useState('');
-            const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [dev, setDev] = useState(String(deviceId()));
+            const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [dev, setDev] = useState(String(deviceId())); const [adv, setAdv] = useState(false);
             const cont = async () => {
               if (!no.trim()) return setErr('Sila masukkan nombor staff');
               await saveDeviceId(dev); const sess = { staff_no: no.trim(), staff_id: '', name: name.trim() }; await saveSession(sess); onDone(sess);
@@ -137,7 +137,10 @@ jobs:
             };
             return (
               <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
-                <View style={s.regTop}><Text style={s.logo}>iHR</Text><Text style={s.sub}>Lembaga Perindustrian Kayu Malaysia</Text></View>
+                <View style={s.regTop}>
+                  <View style={{ flex: 1 }}><Text style={s.logo}>iHR</Text><Text style={s.sub}>Lembaga Perindustrian Kayu Malaysia</Text></View>
+                  <Pressable onPress={() => setAdv(!adv)} hitSlop={8} style={[s.gear, adv && s.gearOn]}><Text style={s.gearT}>⚙️</Text></Pressable>
+                </View>
                 <View style={{ padding: 16, gap: 14 }}>
                   <Card title="Daftar Pengguna Baru" icon="👤" tint={C.navy}>
                     <Text style={s.lbl}>Nama penuh</Text>
@@ -146,12 +149,12 @@ jobs:
                     <TextInput style={s.in} value={no} onChangeText={setNo} autoCapitalize="characters" placeholder="Contoh: 01234" />
                     <Err msg={err} />
                     <Btn label="Daftar" onPress={submit} busy={busy} />
-                    <Btn kind="ghost" label="Sudah berdaftar - teruskan" onPress={cont} />
                   </Card>
-                  <Card title="ID peranti (lanjutan)" icon="🔑" tint={C.accent}>
-                    <Text style={s.lbl}>Tukar hanya jika perlu guna ID yang sudah didaftarkan untuk telefon ini.</Text>
+                  {adv ? (<Card title="Tetapan lanjutan" icon="⚙️" tint={C.navy}>
+                    <Text style={s.lbl}>ID peranti. Tukar hanya jika perlu guna ID yang sudah didaftarkan untuk telefon ini.</Text>
                     <TextInput style={s.in} value={dev} onChangeText={setDev} autoCapitalize="none" autoCorrect={false} />
-                  </Card>
+                    <Btn kind="ghost" label="Sudah berdaftar - teruskan" onPress={cont} />
+                  </Card>) : null}
                   <Text style={s.hint}>Peranti ini akan didaftarkan bersama nombor staff anda.</Text>
                 </View>
               </ScrollView>
@@ -216,17 +219,7 @@ jobs:
                   <View style={{ gap: 10 }}>
                     <Btn icon="📍" label="Geo Tagging" onPress={() => go('geo')} />
                     <Btn icon="📷" label="Imbas QR" onPress={() => go('qr')} />
-                    <Btn kind="ghost" icon="📝" label="Lapor Diri" onPress={() => go('mia')} />
                   </View>
-                  {data ? (
-                    <Card title="Kehadiran bulan ini" icon="📊" tint={C.accent}>
-                      <View style={s.swatchRow}><View style={[s.swatch, { backgroundColor: ring }]} /><View style={{ flex: 1 }}><Text style={s.rowK}>Warna kad</Text><Text style={s.rowV2}>{String(data.att_color ?? '-')}</Text></View></View>
-                    </Card>
-                  ) : null}
-                  <Card title="Peranti" icon="📱" tint={C.navy}>
-                    <Row stack icon="🔑" k="ID peranti" v={String(deviceId())} tint={C.accent} selectable />
-                    <Row icon="🌐" k="Pelayan" v="ihr.mtib.gov.my" tint={C.navy} last />
-                  </Card>
                   <Btn kind="ghost" icon="🔄" label="Muat semula" onPress={load} busy={busy} />
                   <Btn kind="ghost" icon="🚪" label="Log keluar" onPress={logout} />
                 </View>
@@ -256,26 +249,6 @@ jobs:
               <Err msg={fix ? '' : err} /><Btn kind="ghost" icon="🔄" label="Kesan semula" onPress={get} />
             </Card>
           );
-
-          function Mia({ sess, back }) {
-            const loc = useFix();
-            const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [ok, setOk] = useState('');
-            const send = async () => {
-              if (!sess.staff_id) return setErr('ID staff belum dimuatkan. Kembali ke Dashboard dan tunggu data dimuat.');
-              if (!loc.fix) return setErr('Tiada akses lokasi');
-              setBusy(true); setErr('');
-              try {
-                const r = await call(EP.mia, { staff_id: sess.staff_id, latitude: loc.fix.latitude, longitude: loc.fix.longitude });
-                setOk(typeof r === 'string' ? r : 'Lapor diri berjaya dihantar.');
-              } catch (e) { setErr(e.message); } finally { setBusy(false); }
-            };
-            return (<ScrollView><Top title="Lapor Diri" onBack={back} /><View style={{ padding: 16, gap: 14 }}>
-              <Loc {...loc} />
-              <Card title="Pengesahan" icon="📝" tint={C.primary}><Text style={{ color: C.ink }}>Lokasi semasa anda akan dihantar sebagai lapor diri.</Text></Card>
-              <Err msg={err} /><Ok msg={ok} />
-              <Btn icon="📝" label="Hantar lapor diri" onPress={send} busy={busy} />
-            </View></ScrollView>);
-          }
 
           function Cam({ mode, sess, back }) {
             const [perm, ask] = useCameraPermissions(); const ref = useRef(null); const loc = useFix();
@@ -334,7 +307,6 @@ jobs:
             let body;
             if (sess === undefined) body = <View style={s.center}><ActivityIndicator size="large" color={C.primary} /></View>;
             else if (!sess) body = <Register onDone={setSess} />;
-            else if (view === 'mia') body = <Mia sess={sess} back={home} />;
             else if (view === 'qr') body = <Cam mode="qr" sess={sess} back={home} />;
             else if (view === 'geo') body = <Cam mode="photo" sess={sess} back={home} />;
             else body = <Dashboard sess={sess} go={setView} logout={logout} onSess={setSess} />;
@@ -344,7 +316,9 @@ jobs:
           const s = StyleSheet.create({
             root: { flex: 1, backgroundColor: C.bg }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
             logo: { color: C.ink, fontSize: 38, fontWeight: '800', letterSpacing: 0.5 }, sub: { color: C.mute, marginTop: 2 },
-            regTop: { padding: 20, paddingTop: 16 },
+            regTop: { flexDirection: 'row', alignItems: 'flex-start', padding: 20, paddingTop: 16 },
+            gear: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center' },
+            gearOn: { borderColor: C.primary, backgroundColor: '#F6E4DF' }, gearT: { fontSize: 20 },
             dashTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 10 },
             status: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
             statusT: { color: C.ink, fontSize: 12, fontWeight: '600' }, dot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
@@ -352,7 +326,7 @@ jobs:
             ring: { width: 150, height: 150, borderRadius: 75, borderWidth: 11, alignItems: 'center', justifyContent: 'center' },
             ringIn: { width: 112, height: 112, borderRadius: 56, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center' },
             ringT: { color: C.primary, fontSize: 48, fontWeight: '800' },
-            pName: { color: C.ink, fontSize: 20, fontWeight: '700', textAlign: 'center' },
+            pName: { color: C.ink, fontSize: 20, fontWeight: '700', textAlign: 'center', alignSelf: 'stretch', paddingHorizontal: 8 },
             chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
             chip: { backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 5 }, chipT: { color: C.ink, fontSize: 12, fontWeight: '600' },
             pill: { backgroundColor: C.pill, borderRadius: 22, paddingHorizontal: 18, paddingVertical: 10, alignSelf: 'stretch' },
