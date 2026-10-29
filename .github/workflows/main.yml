@@ -73,7 +73,7 @@ jobs:
           IHR_EOF
           cat > 'App.js' <<'IHR_EOF'
           import React, { useCallback, useEffect, useRef, useState } from 'react';
-          import { ActivityIndicator, Image, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, View } from 'react-native';
+          import { ActivityIndicator, Alert, Image, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, View } from 'react-native';
           import { StatusBar } from 'expo-status-bar';
           import * as Location from 'expo-location';
           import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -131,6 +131,9 @@ jobs:
             );
           }
 
+          const todayStr = () => { const d = new Date(); const q = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${q(d.getMonth() + 1)}-${q(d.getDate())}`; };
+          // 2 = BDR and 3 = Kerja Luar are confirmed by GeotaggingController; 1 for normal attendance is still to be confirmed.
+          const ACTS = [[1, 'Kehadiran Biasa'], [2, 'BDR'], [3, 'Kerja Luar']];
           const colorOf = (c) => { const v = String(c ?? '').trim(); return /^[0-9a-f]{6}$/i.test(v) ? '#' + v : v || C.mute; };
 
           function Dashboard({ sess, go, logout, onSess }) {
@@ -241,6 +244,7 @@ jobs:
           function Cam({ mode, sess, back }) {
             const [perm, ask] = useCameraPermissions(); const ref = useRef(null); const loc = useFix();
             const [shot, setShot] = useState(null); const [done, setDone] = useState(false);
+            const [act, setAct] = useState(null); const [sd, setSd] = useState(todayStr()); const [ed, setEd] = useState(todayStr());
             const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [ok, setOk] = useState('');
             useEffect(() => { if (perm && !perm.granted) ask(); }, [perm]);
             const base = { staff_id: sess.staff_id };
@@ -251,17 +255,34 @@ jobs:
               catch (e) { setErr(e.message); setDone(false); } finally { setBusy(false); }
             };
             const snap = async () => { const p = await ref.current?.takePictureAsync({ quality: 0.4, base64: true }); if (p) setShot(p); };
-            const sendPhoto = async () => {
-              if (need()) return setErr(need()); if (!shot) return setErr('Sila muat naik gambar'); if (!loc.fix) return setErr('Tiada akses lokasi');
-              setBusy(true); setErr('');
-              try { await call(EP.geotag, { ...base, latitude: loc.fix.latitude, longitude: loc.fix.longitude, imej: shot.base64 }); setOk('Geotagging berjaya dihantar.'); }
-              catch (e) { setErr(e.message); } finally { setBusy(false); }
+            const sendPhoto = () => {
+              if (need()) return setErr(need()); if (!act) return setErr('Sila pilih jenis kehadiran');
+              if (!shot) return setErr('Sila muat naik gambar'); if (!loc.fix) return setErr('Tiada akses lokasi');
+              const payload = { ...base, activity_type: act, latitude: loc.fix.latitude, longitude: loc.fix.longitude, imej: shot.base64 };
+              if (act === 3) { payload.start_date = sd.trim(); payload.end_date = ed.trim(); }
+              const label = ACTS.find(([v]) => v === act)[1];
+              Alert.alert('Sahkan penghantaran', `Rekod kehadiran "${label}" akan disimpan dalam sistem iHR.`, [
+                { text: 'Batal', style: 'cancel' },
+                { text: 'Hantar', onPress: async () => {
+                  setBusy(true); setErr('');
+                  try { const r = await call(EP.geotag, payload); setOk(typeof r === 'string' ? r : 'Geotagging berjaya dihantar.'); }
+                  catch (e) { setErr(e.message); } finally { setBusy(false); }
+                } },
+              ]);
             };
             if (!perm?.granted) return (<View style={{ flex: 1 }}><Top title="Kamera" onBack={back} /><View style={{ padding: 16 }}><Text>Tiada akses kamera.</Text><Btn label="Benarkan kamera" onPress={ask} /></View></View>);
             return (<ScrollView><Top title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} onBack={back} /><View style={{ padding: 16, gap: 14 }}>
               {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
                 <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
-              <Loc {...loc} /><Err msg={err} />{ok ? <View style={s.okBox}><Text style={{ color: C.ok }}>{ok}</Text></View> : null}
+              <Loc {...loc} />
+              {mode === 'photo' ? (<Card title="Jenis kehadiran">
+                {ACTS.map(([v, l]) => (<Pressable key={v} onPress={() => setAct(v)} style={[s.opt, act === v && s.optOn]}><Text style={{ color: act === v ? '#fff' : C.ink }}>{l}</Text></Pressable>))}
+                {act === 3 ? (<>
+                  <Text style={s.lbl}>Tarikh mula (mesti hari ini, YYYY-MM-DD)</Text><TextInput style={s.in} value={sd} onChangeText={setSd} autoCapitalize="none" />
+                  <Text style={s.lbl}>Tarikh tamat (YYYY-MM-DD)</Text><TextInput style={s.in} value={ed} onChangeText={setEd} autoCapitalize="none" />
+                </>) : null}
+              </Card>) : null}
+              <Err msg={err} />{ok ? <View style={s.okBox}><Text style={{ color: C.ok }}>{ok}</Text></View> : null}
               {mode === 'photo' ? (shot ? <><Btn label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn label="Ambil Gambar" onPress={snap} />)
                 : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>}
             </View></ScrollView>);
@@ -321,12 +342,12 @@ jobs:
           export const BASE_URL = 'https://ihr.mtib.gov.my/';
           export const EP = {
             register:  { path: 'api/user_registration', method: 'POST', code: 'R' },
-            dashboard: { path: 'api/dashboard',         method: 'POST', code: 'D', flip: true },
+            dashboard: { path: 'api/dashboard',         method: 'POST', code: 'D', flip: true, retry: true },
             geotag:    { path: 'api/geotagging',        method: 'POST', code: 'G' },
             qr:        { path: 'api/qr_scanner',        method: 'POST', code: 'Q' },
             mia:       { path: 'api/mia_report',        method: 'POST', code: 'M' },
-            reason:    { path: 'api/reason',            method: 'POST', code: 'P', flip: true },
-            reference: { path: 'api/reference',         method: 'POST', code: 'P', flip: true },
+            reason:    { path: 'api/reason',            method: 'POST', code: 'P', flip: true, retry: true },
+            reference: { path: 'api/reference',         method: 'POST', code: 'P', flip: true, retry: true },
           };
 
           let override = null;
@@ -355,7 +376,8 @@ jobs:
 
           // Tries JSON, then form-urlencoded, then multipart when the server rejects the body format.
           export async function call(ep, body = {}) {
-            const kinds = ep.method === 'GET' ? ['json'] : ['json', 'form', 'multipart'];
+            // Only read-only endpoints may retry in other body formats; writes are sent exactly once.
+            const kinds = ep.method === 'GET' || !ep.retry ? ['json'] : ['json', 'form', 'multipart'];
             let last = { status: 0, text: '' };
             for (let i = 0; i < kinds.length; i++) {
               const kind = kinds[i];
