@@ -612,10 +612,11 @@ jobs:
           cat > 'package.json' <<'IHR_EOF'
           {
             "name": "ihr",
-            "version": "1.0.4",
+            "version": "1.0.5",
             "main": "node_modules/expo/AppEntry.js",
             "scripts": { "start": "expo start", "android": "expo run:android" },
             "dependencies": {
+              "@react-native-community/datetimepicker": "7.7.0",
               "expo": "~51.0.28",
               "expo-application": "~5.9.1",
               "expo-camera": "~15.0.16",
@@ -638,13 +639,13 @@ jobs:
             "expo": {
               "name": "iHR",
               "slug": "iHr",
-              "version": "1.0.4",
+              "version": "1.0.5",
               "orientation": "portrait",
               "userInterfaceStyle": "automatic",
               "icon": "./assets/icon.png",
               "android": {
                 "package": "my.gov.mtib.ihr.v2",
-                "versionCode": 5,
+                "versionCode": 6,
               "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#FFFFFF" },
                 "permissions": [
                   "android.permission.CAMERA",
@@ -677,13 +678,17 @@ jobs:
           import { StatusBar } from 'expo-status-bar';
           import * as Location from 'expo-location';
           import { CameraView, useCameraPermissions } from 'expo-camera';
+          import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
           import { themes } from './src/theme';
-          import { EP, addLocalTag, call, deviceId, getLocalTags, loadSession, saveDeviceId, saveSession, unwrap } from './src/api';
+          import { EP, KERJA_LUAR_TYPES, addLocalTag, call, deviceId, findPhoto, getLocalTags, kerjaLuarFields, loadSession, matchReasons, saveDeviceId, saveSession, unwrap } from './src/api';
           const pad = (n) => String(n).padStart(2, '0');
           const t12 = (h, m) => `${pad(h % 12 || 12)}:${pad(m)} ${h < 12 ? 'AM' : 'PM'}`;
           const fromServer = (v) => { const m = /(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/.exec(String(v || '')); return m ? t12(+m[2], +m[3]) : null; };
           const fromMs = (ms) => { const d = new Date(ms); return t12(d.getHours(), d.getMinutes()); };
           const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+          const parseYMD = (v) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v || '').trim()); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(); };
+          const toYMD = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+          const toDMY = (v) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v || '').trim()); return m ? `${m[3]}/${m[2]}/${m[1]}` : String(v || ''); };
           // 2 = BDR and 3 = Kerja Luar come from GeotaggingController; 1 = Kehadiran Biasa was confirmed by a real record.
           const ACTS = [[1, 'Kehadiran Biasa'], [2, 'BDR'], [3, 'Kerja Luar']];
           const PORTAL = 'https://ihr.mtib.gov.my/user/leave_attendance/attendance_record';
@@ -744,6 +749,29 @@ jobs:
               <View style={s.top}>{onBack ? <Pressable onPress={onBack} hitSlop={12}><Text style={s.back}>‹ Kembali</Text></Pressable> : null}<Text style={s.topT}>{title}</Text></View>
             );
           };
+                    const Select = ({ value, placeholder, options, onPick }) => {
+            const { C, s } = useT(); const [open, setOpen] = useState(false);
+            return (
+              <View style={{ gap: 6 }}>
+                <Pressable onPress={() => setOpen(!open)} style={[s.in, s.sel]}>
+                  <Text style={{ color: value ? C.ink : C.mute, fontSize: 16, flex: 1 }}>{value || placeholder}</Text>
+                  <Text style={{ color: C.mute }}>{open ? '▲' : '▼'}</Text>
+                </Pressable>
+                {open ? (<View style={s.selList}>{options.map((o, i) => (
+                  <Pressable key={o} onPress={() => { onPick(o); setOpen(false); }} style={[s.selItem, i === options.length - 1 && { borderBottomWidth: 0 }, o === value && { backgroundColor: C.primarySoft }]}>
+                    <Text style={{ color: C.ink, fontSize: 16 }}>{o}</Text>
+                  </Pressable>))}</View>) : null}
+              </View>
+            );
+          };
+          const DateField = ({ value, onPick, min }) => {
+            const { C, s } = useT();
+            const open = () => DateTimePickerAndroid.open({
+              value: parseYMD(value), mode: 'date', minimumDate: min ? parseYMD(min) : undefined,
+              onChange: (e, d) => { if (e?.type === 'set' && d) onPick(toYMD(d)); },
+            });
+            return (<Pressable onPress={open} style={[s.in, s.sel]}><Text style={{ color: C.ink, fontSize: 16, flex: 1 }}>{toDMY(value)}</Text><Text style={{ fontSize: 16 }}>📅</Text></Pressable>);
+          };
           function Register({ onDone }) {
             const { C, s } = useT();
             const [name, setName] = useState(''); const [no, setNo] = useState('');
@@ -791,12 +819,14 @@ jobs:
             const { C, s } = useT();
             const [data, setData] = useState(null); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
             const [online, setOnline] = useState(null); const [at, setAt] = useState(''); const [tags, setTags] = useState([]);
+                      const [photo, setPhoto] = useState(null); const [badPhoto, setBadPhoto] = useState(false);
             const load = useCallback(async () => {
               setBusy(true); setErr('');
               try {
                 const r = await call(EP.dashboard, { staff_no: sess.staff_no, staff_id: sess.staff_id });
                 setData(r); setOnline(true); setAt(new Date().toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' }));
                 setTags(await getLocalTags());
+                { const p = findPhoto(r); if (p) { setPhoto(p); setBadPhoto(false); } }
                 const sd = r?.staff_data;
                 if (sd?.staff_id && String(sd.staff_id) !== String(sess.staff_id)) { const ns = { staff_no: String(sd.staff_no ?? sess.staff_no), staff_id: String(sd.staff_id), name: sd.name || sess.name }; saveSession(ns); onSess && onSess(ns); }
               } catch (e) {
@@ -819,7 +849,11 @@ jobs:
                   <View style={s.status}><View style={[s.dot, { backgroundColor: online == null ? C.mute : online ? C.ok : C.bad }]} /><Text style={s.statusT}>{online == null ? 'Menyemak…' : online ? `Dalam talian ${at}` : 'Luar talian'}</Text></View>
                 </View>
                 <View style={s.profile}>
-                  <View style={[s.ring, { borderColor: ring }]}><View style={s.ringIn}><Text style={s.ringT}>{name.trim()[0]?.toUpperCase() || 'I'}</Text></View></View>
+                  <Pressable onLongPress={() => Alert.alert('Medan data pelayan', data ? `${Object.keys(data).join(', ')}\n\nstaff_data: ${Object.keys(sd).join(', ') || '-'}\n\nGambar: ${photo ? 'dijumpai' : 'tiada'}` : 'Tiada data')}>
+                              <View style={[s.ring, { borderColor: ring }]}><View style={s.ringIn}>
+                                {photo && !badPhoto ? <Image source={photo.startsWith('data:') ? { uri: photo } : { uri: photo, headers: { imei: String(deviceId()) } }} style={s.ringImg} resizeMode="cover" onError={() => setBadPhoto(true)} /> : <Text style={s.ringT}>{name.trim()[0]?.toUpperCase() || 'I'}</Text>}
+                              </View></View>
+                            </Pressable>
                   <View style={s.pNameBox}>{wrapName(name).map((l, i) => <Text key={i} style={s.pName} numberOfLines={1}>{l}</Text>)}</View>
                   <View style={s.chips}>
                     <View style={s.chip}><Text style={s.chipT}>No. staff {sd.staff_no ?? sess.staff_no}</Text></View>
@@ -878,8 +912,15 @@ jobs:
             const [perm, ask] = useCameraPermissions(); const ref = useRef(null); const loc = useFix();
             const [shot, setShot] = useState(null); const [done, setDone] = useState(false);
             const [act, setAct] = useState(null); const [sd, setSd] = useState(todayStr()); const [ed, setEd] = useState(todayStr());
+                      const [klType, setKlType] = useState(''); const [reason, setReason] = useState(''); const [opts, setOpts] = useState(KERJA_LUAR_TYPES.map((label) => ({ label })));
             const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [ok, setOk] = useState('');
             useEffect(() => { if (perm && !perm.granted) ask(); }, [perm]);
+          // Same list as the original app; ids are taken from the server's reason list when it matches.
+          useEffect(() => {
+            if (mode !== 'photo') return undefined; let on = true;
+            call(EP.reason, {}).then((r) => { const m = matchReasons(r); if (on && m) setOpts(m); }).catch(() => {});
+            return () => { on = false; };
+          }, [mode]);
             const base = { staff_id: sess.staff_id };
             const need = () => (sess.staff_id ? '' : 'ID staff belum dimuatkan. Kembali ke Dashboard dan tunggu data dimuat.');
             const onQr = async ({ data }) => {
@@ -894,7 +935,13 @@ jobs:
               if (need()) return setErr(need()); if (!act) return setErr('Sila pilih jenis kehadiran');
               if (!shot) return setErr('Sila muat naik gambar'); if (!loc.fix) return setErr('Tiada akses lokasi');
               const payload = { ...base, activity_type: act, latitude: loc.fix.latitude, longitude: loc.fix.longitude, img: shot.base64 };
-              if (act === 3) { payload.start_date = sd.trim(); payload.end_date = ed.trim(); }
+              if (act === 3) {
+                          if (!klType) return setErr('Sila pilih jenis kerja luar');
+                          if (!reason.trim()) return setErr('Sila isi alasan');
+                          if (ed < sd) return setErr('Tarikh akhir tidak boleh sebelum tarikh mula');
+                          payload.start_date = sd; payload.end_date = ed;
+                          Object.assign(payload, kerjaLuarFields(opts.find((o) => o.label === klType), reason.trim()));
+                        }
               const label = ACTS.find(([v]) => v === act)[1];
               Alert.alert('Sahkan penghantaran', `Rekod kehadiran "${label}" akan disimpan dalam sistem iHR.`, [
                 { text: 'Batal', style: 'cancel' },
@@ -906,15 +953,21 @@ jobs:
               ]);
             };
             if (!perm?.granted) return (<View style={{ flex: 1 }}><Top title="Kamera" onBack={back} /><View style={{ padding: 16, gap: 12 }}><Text style={{ color: C.ink }}>Tiada akses kamera.</Text><Btn label="Benarkan kamera" onPress={ask} /></View></View>);
-            return (<ScrollView><Top title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} onBack={back} /><View style={{ padding: 16, gap: 14 }}>
+            return (<ScrollView keyboardShouldPersistTaps="handled"><Top title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} onBack={back} /><View style={{ padding: 16, gap: 14 }}>
               {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
                 <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
               <Loc {...loc} />
               {mode === 'photo' ? (<Card title="Jenis kehadiran" icon="🗂" tint={C.primary}>
                 {ACTS.map(([v, l]) => (<Pressable key={v} onPress={() => setAct(v)} style={[s.opt, act === v && s.optOn]}><Text style={{ color: act === v ? C.onPrimary : C.ink, fontWeight: '600' }}>{l}</Text></Pressable>))}
                 {act === 3 ? (<>
-                  <Text style={s.lbl}>Tarikh mula (mesti hari ini, YYYY-MM-DD)</Text><TextInput style={s.in} value={sd} onChangeText={setSd} autoCapitalize="none" />
-                  <Text style={s.lbl}>Tarikh tamat (YYYY-MM-DD)</Text><TextInput style={s.in} value={ed} onChangeText={setEd} autoCapitalize="none" />
+                  <Text style={s.lbl}>Jenis Kerja Luar</Text>
+                  <Select value={klType} placeholder="Pilih Jenis Kerja Luar" options={opts.map((o) => o.label)} onPick={setKlType} />
+                  <Text style={s.lbl}>Alasan</Text>
+                  <TextInput style={[s.in, { minHeight: 48 }]} value={reason} onChangeText={setReason} placeholder="Nyatakan alasan" placeholderTextColor={C.mute} multiline />
+                  <Text style={s.lbl}>Tarikh Mula</Text>
+                  <DateField value={sd} min={todayStr()} onPick={(v) => { setSd(v); if (ed < v) setEd(v); }} />
+                  <Text style={s.lbl}>Tarikh Akhir</Text>
+                  <DateField value={ed} min={sd} onPick={setEd} />
                 </>) : null}
               </Card>) : null}
               <Err msg={err} /><Ok msg={ok} />
@@ -948,7 +1001,11 @@ jobs:
             statusT: { color: C.ink, fontSize: 12, fontWeight: '600' }, dot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
             profile: { alignItems: 'center', paddingHorizontal: 20, paddingVertical: 18, gap: 12 },
             ring: { width: 150, height: 150, borderRadius: 75, borderWidth: 11, alignItems: 'center', justifyContent: 'center' },
-            ringIn: { width: 112, height: 112, borderRadius: 56, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center' },
+            ringIn: { width: 112, height: 112, borderRadius: 56, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+            ringImg: { width: '100%', height: '100%' },
+            sel: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+            selList: { borderWidth: 1, borderColor: C.line, borderRadius: 12, backgroundColor: C.field, overflow: 'hidden' },
+            selItem: { paddingVertical: 13, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.line },
             ringT: { color: C.primaryText, fontSize: 48, fontWeight: '800' },
             pNameBox: { alignItems: 'center' },
             pName: { color: C.ink, fontSize: 20, fontWeight: '700', textAlign: 'center' },
@@ -1084,6 +1141,49 @@ jobs:
             return out;
           }
           export const unwrap = (r) => (r && (r.data ?? r.staff_data ?? r.result)) ?? r;
+          // ---- Staff photo (shown inside the yellow ring) ----
+          // Finds a photo in the dashboard JSON whatever the field is called: full URL, relative path, or base64.
+          const PHOTO_KEY = /(photo|image|img|picture|pic|avatar|gambar|foto|profile)/i;
+          const NOT_PHOTO = /(color|colour|type|count|msg|status|path_id)/i;
+          function toUri(v) {
+            const s = String(v).trim();
+            if (/^data:image\//i.test(s)) return s;
+            if (/^https?:\/\//i.test(s)) return s.replace(/^http:\/\/ihr\.mtib\.gov\.my/i, 'https://ihr.mtib.gov.my');
+            if (/^[A-Za-z0-9+/=\s]{200,}$/.test(s)) return 'data:image/jpeg;base64,' + s.replace(/\s+/g, '');
+            if (s.length < 300 && !/\s/.test(s) && /[\/.]/.test(s)) return BASE_URL + s.replace(/^\/+/, '');
+            return null;
+          }
+          export function findPhoto(r) {
+            const seen = new Set();
+            const walk = (o, d) => {
+              if (!o || typeof o !== 'object' || d > 3 || seen.has(o)) return null;
+              seen.add(o);
+              for (const [k, v] of Object.entries(o)) {
+                if (typeof v === 'string' && v.length > 3 && PHOTO_KEY.test(k) && !NOT_PHOTO.test(k)) { const u = toUri(v); if (u) return u; }
+              }
+              for (const v of Object.values(o)) { if (v && typeof v === 'object') { const u = walk(v, d + 1); if (u) return u; } }
+              return null;
+            };
+            return walk(r, 0);
+          }
+          // ---- Kerja Luar (outside work) ----
+          export const KERJA_LUAR_TYPES = ['Mesyuarat', 'Kursus', 'Bengkel', 'Lawatan Tapak', 'Pameran', 'Lain-lain'];
+          const norm = (x) => String(x || '').toLowerCase().replace(/[^a-z]/g, '');
+          // Looks for the same six types in the server's reason list and keeps their ids; null if the list is something else.
+          export function matchReasons(r) {
+            const arr = Array.isArray(r) ? r : [r?.data, r?.reasons, r?.reason, r?.result].find(Array.isArray);
+            if (!arr) return null;
+            const items = arr.map((x) => (typeof x === 'string' ? { label: x } : { id: x?.id ?? x?.value ?? x?.code, label: x?.name ?? x?.label ?? x?.reason ?? x?.description ?? x?.title }));
+            const out = KERJA_LUAR_TYPES.map((label) => ({ label, id: items.find((i) => norm(i.label) === norm(label))?.id }));
+            return out.filter((o) => o.id !== undefined).length >= 3 ? out : null;
+          }
+          // Field names are inferred (not recovered from the original). Change them here only if the server ignores them.
+          export const kerjaLuarFields = (opt, reason) => {
+            const label = opt?.label || '';
+            const o = { reason_type: label, outstation_type: label, kerja_luar_type: label, reason, remark: reason, alasan: reason };
+            if (opt?.id !== undefined) o.reason_id = opt.id;
+            return o;
+          };
           IHR_EOF
           cat > 'src/theme.js' <<'IHR_EOF'
           // Palette taken from the original iHR screen: warm grey, terracotta buttons, card-color yellow, navy text.
