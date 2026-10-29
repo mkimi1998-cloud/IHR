@@ -73,20 +73,47 @@ jobs:
           IHR_EOF
           cat > 'App.js' <<'IHR_EOF'
           import React, { useCallback, useEffect, useRef, useState } from 'react';
-          import { ActivityIndicator, Alert, Image, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, View } from 'react-native';
+          import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, View } from 'react-native';
           import { StatusBar } from 'expo-status-bar';
           import * as Location from 'expo-location';
           import { CameraView, useCameraPermissions } from 'expo-camera';
           import { C } from './src/theme';
-          import { EP, call, clearSession, deviceId, loadSession, rows, saveDeviceId, saveSession, unwrap } from './src/api';
+          import { EP, addLocalTag, call, clearSession, deviceId, getLocalTags, loadSession, rows, saveDeviceId, saveSession, unwrap } from './src/api';
 
-          const Btn = ({ label, onPress, kind = 'main', busy, disabled }) => (
-            <Pressable onPress={onPress} disabled={busy || disabled} style={({ pressed }) => [s.btn, kind === 'ghost' && s.btnGhost, (busy || disabled) && { opacity: 0.5 }, pressed && { opacity: 0.8 }]}>
-              {busy ? <ActivityIndicator color={kind === 'ghost' ? C.forest : '#fff'} /> : <Text style={[s.btnTx, kind === 'ghost' && { color: C.forest }]}>{label}</Text>}
+          const pad = (n) => String(n).padStart(2, '0');
+          const t12 = (h, m) => `${pad(h % 12 || 12)}:${pad(m)} ${h < 12 ? 'AM' : 'PM'}`;
+          const fromServer = (v) => { const m = /(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/.exec(String(v || '')); return m ? t12(+m[2], +m[3]) : null; };
+          const fromMs = (ms) => { const d = new Date(ms); return t12(d.getHours(), d.getMinutes()); };
+          const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+          // 2 = BDR and 3 = Kerja Luar come from GeotaggingController; 1 = Kehadiran Biasa was confirmed by a real record.
+          const ACTS = [[1, 'Kehadiran Biasa'], [2, 'BDR'], [3, 'Kerja Luar']];
+          const PORTAL = 'https://ihr.mtib.gov.my/user/leave_attendance/attendance_record';
+          const colorOf = (c) => { const v = String(c ?? '').trim(); return /^[0-9a-f]{6}$/i.test(v) ? '#' + v : v || C.accent; };
+
+          const Btn = ({ label, onPress, kind = 'main', busy, disabled, icon }) => (
+            <Pressable onPress={onPress} disabled={busy || disabled} style={({ pressed }) => [s.btn, kind === 'ghost' && s.btnGhost, (busy || disabled) && { opacity: 0.5 }, pressed && { opacity: 0.85 }]}>
+              {busy ? <ActivityIndicator color={kind === 'ghost' ? C.primary : '#fff'} /> : (
+                <View style={s.btnIn}>{icon ? <Text style={s.btnIc}>{icon}</Text> : null}<Text style={[s.btnTx, kind === 'ghost' && { color: C.primary }]}>{label}</Text></View>)}
             </Pressable>
           );
-          const Card = ({ title, children }) => (<View style={s.card}>{title ? <Text style={s.cardT}>{title}</Text> : null}{children}</View>);
+          const Ico = ({ g, tint = C.primary, size = 34 }) => (
+            <View style={{ width: size, height: size, borderRadius: size * 0.3, backgroundColor: tint + '26', alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: size * 0.5 }}>{g}</Text></View>
+          );
+          const Card = ({ title, icon, tint, children }) => (
+            <View style={s.card}>{title ? (<View style={s.cardH}>{icon ? <Ico g={icon} tint={tint} /> : null}<Text style={s.cardT}>{title}</Text></View>) : null}{children}</View>
+          );
+          const Row = ({ icon, k, v, tint, last, selectable, stack }) => (
+            <View style={[s.row, last && { borderBottomWidth: 0 }]}>
+              {icon ? <Ico g={icon} tint={tint} size={28} /> : null}
+              {stack ? (<View style={{ flex: 1 }}><Text style={s.rowK}>{k}</Text><Text style={[s.rowV, { textAlign: 'left', marginTop: 2 }]} selectable={selectable}>{v}</Text></View>)
+                : (<><Text style={s.rowK}>{k}</Text><Text style={s.rowV} selectable={selectable}>{v}</Text></>)}
+            </View>
+          );
+          const Stat = ({ icon, label, value, tint }) => (
+            <View style={s.stat}><View style={s.statH}><Ico g={icon} tint={tint} size={26} /><Text style={s.statL}>{label}</Text></View><Text style={s.statV}>{value}</Text></View>
+          );
           const Err = ({ msg }) => (msg ? <View style={s.err}><Text style={{ color: C.bad }}>{msg}</Text></View> : null);
+          const Ok = ({ msg }) => (msg ? <View style={s.okBox}><Text style={{ color: C.ok }}>{msg}</Text></View> : null);
           const Top = ({ title, onBack }) => (
             <View style={s.top}>{onBack ? <Pressable onPress={onBack} hitSlop={12}><Text style={s.back}>‹ Kembali</Text></Pressable> : null}<Text style={s.topT}>{title}</Text></View>
           );
@@ -110,40 +137,36 @@ jobs:
             };
             return (
               <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
-                <View style={s.hero}><Text style={s.logo}>iHR</Text><Text style={s.heroSub}>Lembaga Perindustrian Kayu Malaysia</Text></View>
-                <View style={{ padding: 16 }}>
-                  <Card title="Daftar Pengguna Baru">
+                <View style={s.regTop}><Text style={s.logo}>iHR</Text><Text style={s.sub}>Lembaga Perindustrian Kayu Malaysia</Text></View>
+                <View style={{ padding: 16, gap: 14 }}>
+                  <Card title="Daftar Pengguna Baru" icon="👤" tint={C.navy}>
                     <Text style={s.lbl}>Nama penuh</Text>
                     <TextInput style={s.in} value={name} onChangeText={setName} placeholder="Seperti dalam kad pengenalan" />
                     <Text style={s.lbl}>Nombor staff</Text>
                     <TextInput style={s.in} value={no} onChangeText={setNo} autoCapitalize="characters" placeholder="Contoh: 01234" />
                     <Err msg={err} />
-                    <Btn kind="ghost" label="Sudah berdaftar - teruskan" onPress={cont} />
                     <Btn label="Daftar" onPress={submit} busy={busy} />
+                    <Btn kind="ghost" label="Sudah berdaftar - teruskan" onPress={cont} />
                   </Card>
-                  <Text style={s.hint}>Peranti ini akan didaftarkan bersama nombor staff anda.</Text>
-                  <View style={{ marginTop: 14 }}><Card title="ID peranti (lanjutan)">
+                  <Card title="ID peranti (lanjutan)" icon="🔑" tint={C.accent}>
                     <Text style={s.lbl}>Tukar hanya jika perlu guna ID yang sudah didaftarkan untuk telefon ini.</Text>
                     <TextInput style={s.in} value={dev} onChangeText={setDev} autoCapitalize="none" autoCorrect={false} />
-                  </Card></View>
+                  </Card>
+                  <Text style={s.hint}>Peranti ini akan didaftarkan bersama nombor staff anda.</Text>
                 </View>
               </ScrollView>
             );
           }
 
-          const todayStr = () => { const d = new Date(); const q = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${q(d.getMonth() + 1)}-${q(d.getDate())}`; };
-          // 2 = BDR and 3 = Kerja Luar are confirmed by GeotaggingController; 1 for normal attendance is still to be confirmed.
-          const ACTS = [[1, 'Kehadiran Biasa'], [2, 'BDR'], [3, 'Kerja Luar']];
-          const colorOf = (c) => { const v = String(c ?? '').trim(); return /^[0-9a-f]{6}$/i.test(v) ? '#' + v : v || C.mute; };
-
           function Dashboard({ sess, go, logout, onSess }) {
             const [data, setData] = useState(null); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
-            const [online, setOnline] = useState(null); const [at, setAt] = useState('');
+            const [online, setOnline] = useState(null); const [at, setAt] = useState(''); const [tags, setTags] = useState([]);
             const load = useCallback(async () => {
               setBusy(true); setErr('');
               try {
                 const r = await call(EP.dashboard, { staff_no: sess.staff_no, staff_id: sess.staff_id });
                 setData(r); setOnline(true); setAt(new Date().toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' }));
+                setTags(await getLocalTags());
                 const sd = r?.staff_data;
                 if (sd?.staff_id && String(sd.staff_id) !== String(sess.staff_id)) { const ns = { staff_no: String(sd.staff_no ?? sess.staff_no), staff_id: String(sd.staff_id), name: sd.name || sess.name }; saveSession(ns); onSess && onSess(ns); }
               } catch (e) {
@@ -156,44 +179,56 @@ jobs:
             const name = sd.name || sess.name || 'Pengguna';
             const mia = data?.is_mia;
             const miaTxt = !mia ? 'Tiada' : typeof mia === 'object' ? rows(mia).map(([k, v]) => `${k}: ${v}`).join(', ') || 'Ada' : String(mia);
-            const acts = [['Lapor Diri', 'mia'], ['Imbas QR', 'qr'], ['Geotagging', 'geo']];
+            // First/last tagging: the server's values when it sends them, otherwise what this app sent today.
+            const hasSrv = !!data && ('first_tagging' in data || 'last_tagging' in data);
+            let first = hasSrv ? fromServer(data.first_tagging) : null; let last = hasSrv ? fromServer(data.last_tagging) : null;
+            if (!hasSrv && tags.length) { first = fromMs(Math.min(...tags)); last = fromMs(Math.max(...tags)); }
+            const ring = data ? colorOf(data.att_color) : C.accent;
             return (
-              <ScrollView>
-                <View style={s.hero}>
-                  <View style={s.avatar}><Text style={s.avatarT}>{name.trim()[0]?.toUpperCase() || 'I'}</Text></View>
-                  <Text style={s.heroHi}>Selamat datang,</Text>
-                  <Text style={s.heroName}>{name}</Text>
+              <ScrollView contentContainerStyle={{ paddingBottom: 28 }}>
+                <View style={s.dashTop}>
+                  <Text style={s.logo}>iHR</Text>
+                  <View style={s.status}><View style={[s.dot, { backgroundColor: online == null ? C.mute : online ? C.ok : C.bad }]} /><Text style={s.statusT}>{online == null ? 'Menyemak…' : online ? `Dalam talian ${at}` : 'Luar talian'}</Text></View>
+                </View>
+                <View style={s.profile}>
+                  <View style={[s.ring, { borderColor: ring }]}><View style={s.ringIn}><Text style={s.ringT}>{name.trim()[0]?.toUpperCase() || 'I'}</Text></View></View>
+                  <Text style={s.pName}>{name}</Text>
                   <View style={s.chips}>
                     <View style={s.chip}><Text style={s.chipT}>No. staff {sd.staff_no ?? sess.staff_no}</Text></View>
-                    <View style={s.chip}><View style={[s.dot, { backgroundColor: online == null ? C.mute : online ? '#6FD08F' : '#FF8A80' }]} /><Text style={s.chipT}>{online == null ? 'Menyemak…' : online ? `Dalam talian ${at}` : 'Luar talian'}</Text></View>
+                    {sd.staff_id ? <View style={s.chip}><Text style={s.chipT}>ID {String(sd.staff_id)}</Text></View> : null}
                   </View>
+                  {data ? <View style={s.pill}><Text style={s.pillT}>{data.msg?.clock_in || 'Belum ada rekod waktu masuk hari ini.'}</Text></View> : null}
                 </View>
-                <View style={{ padding: 16, gap: 14 }}>
-                  <View style={s.grid}>{acts.map(([l, k]) => (
-                    <Pressable key={k} style={s.tile} onPress={() => go(k)}><View style={s.tileI}><Text style={s.tileIT}>{l[0]}</Text></View><Text style={s.tileT}>{l}</Text></Pressable>))}
-                  </View>
-                  {busy && !data ? <ActivityIndicator color={C.forest} /> : null}
+                <View style={{ paddingHorizontal: 16, gap: 14 }}>
                   <Err msg={err} />
-                  {data ? (<>
-                    <Card title="Kehadiran bulan ini">
-                      <View style={s.swatchRow}><View style={[s.swatch, { backgroundColor: colorOf(data.att_color) }]} /><Text style={{ color: C.mute }}>Kod warna kad: {String(data.att_color ?? '-')}</Text></View>
+                  {busy && !data ? <ActivityIndicator color={C.primary} /> : null}
+                  {data ? (
+                    <Card title="Hari ini" icon="🗓" tint={C.navy}>
+                      <View style={s.statRow}>
+                        <Stat icon="📍" label="First Tagging" value={first || '—'} tint={C.primary} />
+                        <Stat icon="📌" label="Last Tagging" value={last || '—'} tint={C.navy} />
+                      </View>
+                      <Row icon="🚩" k="Status MIA" v={miaTxt} tint={C.accent} last />
+                      {!hasSrv ? <Text style={s.note}>Masa tagging direkod daripada app ini sahaja.</Text> : null}
+                      <Pressable onPress={() => Linking.openURL(PORTAL)} hitSlop={8}><Text style={s.link}>🌐 Lihat rekod kehadiran penuh di portal web ›</Text></Pressable>
                     </Card>
-                    <Card title="Hari ini">
-                      <Text style={{ color: C.ink }}>{data.msg?.clock_in || 'Belum ada rekod waktu masuk hari ini.'}</Text>
-                      <View style={s.row}><Text style={s.rowK}>Status MIA</Text><Text style={s.rowV}>{miaTxt}</Text></View>
+                  ) : null}
+                  <View style={{ gap: 10 }}>
+                    <Btn icon="📍" label="Geo Tagging" onPress={() => go('geo')} />
+                    <Btn icon="📷" label="Imbas QR" onPress={() => go('qr')} />
+                    <Btn kind="ghost" icon="📝" label="Lapor Diri" onPress={() => go('mia')} />
+                  </View>
+                  {data ? (
+                    <Card title="Kehadiran bulan ini" icon="📊" tint={C.accent}>
+                      <View style={s.swatchRow}><View style={[s.swatch, { backgroundColor: ring }]} /><View style={{ flex: 1 }}><Text style={s.rowK}>Warna kad</Text><Text style={s.rowV2}>{String(data.att_color ?? '-')}</Text></View></View>
                     </Card>
-                    <Card title="Profil">
-                      <View style={s.rowCol}><Text style={s.rowK}>Nama</Text><Text style={s.rowVL}>{name}</Text></View>
-                      <View style={s.row}><Text style={s.rowK}>No. staff</Text><Text style={s.rowV}>{String(sd.staff_no ?? sess.staff_no)}</Text></View>
-                      {sd.staff_id ? <View style={s.row}><Text style={s.rowK}>ID staff</Text><Text style={s.rowV}>{String(sd.staff_id)}</Text></View> : null}
-                    </Card>
-                  </>) : null}
-                  <Btn kind="ghost" label="Muat semula" onPress={load} busy={busy} />
-                  <Card title="Peranti">
-                    <View style={s.rowCol}><Text style={s.rowK}>ID peranti</Text><Text style={s.rowVL} selectable>{String(deviceId())}</Text></View>
-                    <View style={s.row}><Text style={s.rowK}>Pelayan</Text><Text style={s.rowV}>ihr.mtib.gov.my</Text></View>
+                  ) : null}
+                  <Card title="Peranti" icon="📱" tint={C.navy}>
+                    <Row stack icon="🔑" k="ID peranti" v={String(deviceId())} tint={C.accent} selectable />
+                    <Row icon="🌐" k="Pelayan" v="ihr.mtib.gov.my" tint={C.navy} last />
                   </Card>
-                  <Btn kind="ghost" label="Log keluar" onPress={logout} />
+                  <Btn kind="ghost" icon="🔄" label="Muat semula" onPress={load} busy={busy} />
+                  <Btn kind="ghost" icon="🚪" label="Log keluar" onPress={logout} />
                 </View>
               </ScrollView>
             );
@@ -212,12 +247,13 @@ jobs:
             return { fix, err, get };
           }
           const Loc = ({ fix, err, get }) => (
-            <Card title="Lokasi semasa">
-              {fix ? <><View style={s.row}><Text style={s.rowK}>Latitud</Text><Text style={s.rowV}>{fix.latitude.toFixed(6)}</Text></View>
-                <View style={s.row}><Text style={s.rowK}>Longitud</Text><Text style={s.rowV}>{fix.longitude.toFixed(6)}</Text></View>
-                <View style={s.row}><Text style={s.rowK}>Ketepatan</Text><Text style={s.rowV}>± {Math.round(fix.accuracy || 0)} m</Text></View></>
+            <Card title="Lokasi semasa" icon="🛰" tint={C.navy}>
+              {fix ? <>
+                <Row icon="🧭" k="Latitud" v={fix.latitude.toFixed(6)} tint={C.navy} />
+                <Row icon="🧭" k="Longitud" v={fix.longitude.toFixed(6)} tint={C.navy} />
+                <Row icon="🎯" k="Ketepatan" v={`± ${Math.round(fix.accuracy || 0)} m`} tint={C.primary} last /></>
                 : <Text style={{ color: C.mute }}>{err || 'Mengesan lokasi…'}</Text>}
-              <Err msg={fix ? '' : err} /><Btn kind="ghost" label="Kesan semula" onPress={get} />
+              <Err msg={fix ? '' : err} /><Btn kind="ghost" icon="🔄" label="Kesan semula" onPress={get} />
             </Card>
           );
 
@@ -235,9 +271,9 @@ jobs:
             };
             return (<ScrollView><Top title="Lapor Diri" onBack={back} /><View style={{ padding: 16, gap: 14 }}>
               <Loc {...loc} />
-              <Card title="Pengesahan"><Text style={{ color: C.ink }}>Lokasi semasa anda akan dihantar sebagai lapor diri.</Text></Card>
-              <Err msg={err} />{ok ? <View style={s.okBox}><Text style={{ color: C.ok }}>{ok}</Text></View> : null}
-              <Btn label="Hantar lapor diri" onPress={send} busy={busy} />
+              <Card title="Pengesahan" icon="📝" tint={C.primary}><Text style={{ color: C.ink }}>Lokasi semasa anda akan dihantar sebagai lapor diri.</Text></Card>
+              <Err msg={err} /><Ok msg={ok} />
+              <Btn icon="📝" label="Hantar lapor diri" onPress={send} busy={busy} />
             </View></ScrollView>);
           }
 
@@ -267,26 +303,26 @@ jobs:
                 { text: 'Batal', style: 'cancel' },
                 { text: 'Hantar', onPress: async () => {
                   setBusy(true); setErr('');
-                  try { const r = await call(EP.geotag, payload); setOk(typeof r === 'string' ? r : 'Geotagging berjaya dihantar.'); }
+                  try { const r = await call(EP.geotag, payload); await addLocalTag(); setOk(typeof r === 'string' ? r : 'Geotagging berjaya dihantar.'); }
                   catch (e) { setErr(e.message); } finally { setBusy(false); }
                 } },
               ]);
             };
-            if (!perm?.granted) return (<View style={{ flex: 1 }}><Top title="Kamera" onBack={back} /><View style={{ padding: 16 }}><Text>Tiada akses kamera.</Text><Btn label="Benarkan kamera" onPress={ask} /></View></View>);
+            if (!perm?.granted) return (<View style={{ flex: 1 }}><Top title="Kamera" onBack={back} /><View style={{ padding: 16, gap: 12 }}><Text>Tiada akses kamera.</Text><Btn label="Benarkan kamera" onPress={ask} /></View></View>);
             return (<ScrollView><Top title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} onBack={back} /><View style={{ padding: 16, gap: 14 }}>
               {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
                 <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
               <Loc {...loc} />
-              {mode === 'photo' ? (<Card title="Jenis kehadiran">
-                {ACTS.map(([v, l]) => (<Pressable key={v} onPress={() => setAct(v)} style={[s.opt, act === v && s.optOn]}><Text style={{ color: act === v ? '#fff' : C.ink }}>{l}</Text></Pressable>))}
+              {mode === 'photo' ? (<Card title="Jenis kehadiran" icon="🗂" tint={C.primary}>
+                {ACTS.map(([v, l]) => (<Pressable key={v} onPress={() => setAct(v)} style={[s.opt, act === v && s.optOn]}><Text style={{ color: act === v ? '#fff' : C.ink, fontWeight: '600' }}>{l}</Text></Pressable>))}
                 {act === 3 ? (<>
                   <Text style={s.lbl}>Tarikh mula (mesti hari ini, YYYY-MM-DD)</Text><TextInput style={s.in} value={sd} onChangeText={setSd} autoCapitalize="none" />
                   <Text style={s.lbl}>Tarikh tamat (YYYY-MM-DD)</Text><TextInput style={s.in} value={ed} onChangeText={setEd} autoCapitalize="none" />
                 </>) : null}
               </Card>) : null}
-              <Err msg={err} />{ok ? <View style={s.okBox}><Text style={{ color: C.ok }}>{ok}</Text></View> : null}
-              {mode === 'photo' ? (shot ? <><Btn label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn label="Ambil Gambar" onPress={snap} />)
-                : (done && !busy ? <Btn kind="ghost" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>)}
+              <Err msg={err} /><Ok msg={ok} />
+              {mode === 'photo' ? (shot ? <><Btn icon="📤" label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" icon="🔄" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn icon="📷" label="Ambil Gambar" onPress={snap} />)
+                : (done && !busy ? <Btn kind="ghost" icon="🔄" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>)}
             </View></ScrollView>);
           }
 
@@ -296,43 +332,53 @@ jobs:
             const home = () => setView('home');
             const logout = async () => { await clearSession(); setSess(null); setView('home'); };
             let body;
-            if (sess === undefined) body = <View style={s.center}><ActivityIndicator size="large" color={C.forest} /></View>;
+            if (sess === undefined) body = <View style={s.center}><ActivityIndicator size="large" color={C.primary} /></View>;
             else if (!sess) body = <Register onDone={setSess} />;
             else if (view === 'mia') body = <Mia sess={sess} back={home} />;
             else if (view === 'qr') body = <Cam mode="qr" sess={sess} back={home} />;
             else if (view === 'geo') body = <Cam mode="photo" sess={sess} back={home} />;
             else body = <Dashboard sess={sess} go={setView} logout={logout} onSess={setSess} />;
-            return (<SafeAreaView style={s.root}><StatusBar style="light" backgroundColor={C.forest} />{Platform.OS === 'android' ? <View style={{ height: RNBar.currentHeight || 0, backgroundColor: C.forest }} /> : null}{body}</SafeAreaView>);
+            return (<SafeAreaView style={s.root}><StatusBar style="dark" backgroundColor={C.bg} />{Platform.OS === 'android' ? <View style={{ height: RNBar.currentHeight || 0, backgroundColor: C.bg }} /> : null}{body}</SafeAreaView>);
           }
 
           const s = StyleSheet.create({
-            root: { flex: 1, backgroundColor: C.bone }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-            hero: { backgroundColor: C.forest, padding: 20, paddingTop: 28, paddingBottom: 26, borderBottomLeftRadius: 28 },
-            logo: { color: '#fff', fontSize: 40, fontWeight: '800', letterSpacing: 1 }, heroSub: { color: '#BFD3C8', marginTop: 4 },
-            heroHi: { color: '#BFD3C8', fontSize: 14 }, heroName: { color: '#fff', fontSize: 24, fontWeight: '700', marginTop: 2 },
-            chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
-            chip: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.forestSoft, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14 },
-            chipT: { color: '#fff', fontSize: 12 }, dot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
-            top: { backgroundColor: C.forest, padding: 16, paddingBottom: 20 }, topT: { color: '#fff', fontSize: 22, fontWeight: '700', marginTop: 6 }, back: { color: '#BFD3C8' },
-            card: { backgroundColor: C.card, borderRadius: 14, padding: 16, gap: 10, borderWidth: 1, borderColor: C.line },
-            cardT: { fontSize: 16, fontWeight: '700', color: C.ink },
-            row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: C.line, gap: 12 },
-            rowK: { color: C.mute, flexShrink: 0 }, rowV: { color: C.ink, fontWeight: '600', flex: 1, textAlign: 'right' },
-            grid: { flexDirection: 'row', gap: 10 },
-            rowCol: { paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: C.line }, rowVL: { color: C.ink, fontWeight: '600', marginTop: 2 },
-            avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: C.amber, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-            avatarT: { color: '#fff', fontSize: 24, fontWeight: '800' },
-            swatchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 }, swatch: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: C.line },
-            tile: { flex: 1, backgroundColor: C.card, borderRadius: 14, padding: 14, alignItems: 'center', gap: 8, borderWidth: 1, borderColor: C.line },
-            tileI: { width: 44, height: 44, borderRadius: 12, backgroundColor: C.amber, alignItems: 'center', justifyContent: 'center' },
-            tileIT: { color: '#fff', fontSize: 20, fontWeight: '800' }, tileT: { color: C.ink, fontWeight: '600', fontSize: 13, textAlign: 'center' },
-            lbl: { color: C.mute, fontSize: 13 }, in: { borderWidth: 1, borderColor: C.line, borderRadius: 10, padding: 12, fontSize: 16, backgroundColor: C.bone },
-            btn: { backgroundColor: C.forest, borderRadius: 12, padding: 14, alignItems: 'center' }, btnGhost: { backgroundColor: 'transparent', borderWidth: 1, borderColor: C.forest },
-            btnTx: { color: '#fff', fontWeight: '700', fontSize: 15 },
-            err: { backgroundColor: C.badBg, padding: 10, borderRadius: 10 }, okBox: { backgroundColor: '#E5F3EA', padding: 10, borderRadius: 10 },
-            hint: { color: C.mute, textAlign: 'center', marginTop: 8 },
-            opt: { padding: 12, borderRadius: 10, borderWidth: 1, borderColor: C.line }, optOn: { backgroundColor: C.forest, borderColor: C.forest },
-            cam: { height: 300, borderRadius: 14, overflow: 'hidden', backgroundColor: '#000' },
+            root: { flex: 1, backgroundColor: C.bg }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+            logo: { color: C.ink, fontSize: 38, fontWeight: '800', letterSpacing: 0.5 }, sub: { color: C.mute, marginTop: 2 },
+            regTop: { padding: 20, paddingTop: 16 },
+            dashTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 10 },
+            status: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
+            statusT: { color: C.ink, fontSize: 12, fontWeight: '600' }, dot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
+            profile: { alignItems: 'center', paddingHorizontal: 20, paddingVertical: 18, gap: 12 },
+            ring: { width: 150, height: 150, borderRadius: 75, borderWidth: 11, alignItems: 'center', justifyContent: 'center' },
+            ringIn: { width: 112, height: 112, borderRadius: 56, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center' },
+            ringT: { color: C.primary, fontSize: 48, fontWeight: '800' },
+            pName: { color: C.ink, fontSize: 20, fontWeight: '700', textAlign: 'center' },
+            chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
+            chip: { backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 5 }, chipT: { color: C.ink, fontSize: 12, fontWeight: '600' },
+            pill: { backgroundColor: C.pill, borderRadius: 22, paddingHorizontal: 18, paddingVertical: 10, alignSelf: 'stretch' },
+            pillT: { color: C.navy, textAlign: 'center', fontWeight: '500' },
+            top: { backgroundColor: C.card, padding: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: C.line },
+            topT: { color: C.ink, fontSize: 22, fontWeight: '800', marginTop: 4 }, back: { color: C.primary, fontWeight: '600' },
+            card: { backgroundColor: C.card, borderRadius: 16, padding: 14, gap: 10, borderWidth: 1, borderColor: C.line },
+            cardH: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingBottom: 2 }, cardT: { fontSize: 16, fontWeight: '700', color: C.ink },
+            row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: C.line },
+            rowK: { color: C.mute, flexShrink: 0 }, rowV: { color: C.ink, fontWeight: '600', flex: 1, textAlign: 'right' }, rowV2: { color: C.ink, fontWeight: '700', marginTop: 2 },
+            statRow: { flexDirection: 'row', gap: 10 },
+            stat: { flex: 1, borderWidth: 1, borderColor: C.line, borderRadius: 14, padding: 12, backgroundColor: '#FAF9FA' },
+            statH: { flexDirection: 'row', alignItems: 'center', gap: 8 }, statL: { color: C.mute, fontSize: 12, fontWeight: '600', flexShrink: 1 },
+            statV: { color: C.ink, fontSize: 22, fontWeight: '800', marginTop: 10 },
+            note: { color: C.mute, fontSize: 12 },
+            link: { color: C.primary, fontWeight: '700', paddingTop: 4 },
+            swatchRow: { flexDirection: 'row', alignItems: 'center', gap: 14 }, swatch: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: C.line },
+            lbl: { color: C.mute, fontSize: 13 }, in: { borderWidth: 1, borderColor: C.line, borderRadius: 12, padding: 12, fontSize: 16, backgroundColor: '#FAF9FA', color: C.ink },
+            btn: { backgroundColor: C.primary, borderRadius: 28, paddingVertical: 15, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
+            btnGhost: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: C.primary },
+            btnIn: { flexDirection: 'row', alignItems: 'center', gap: 8 }, btnIc: { fontSize: 16 }, btnTx: { color: '#fff', fontWeight: '700', fontSize: 16 },
+            err: { backgroundColor: C.badBg, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#F2C6C1' },
+            okBox: { backgroundColor: C.okBg, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#BFE0CB' },
+            hint: { color: C.mute, textAlign: 'center' },
+            opt: { padding: 13, borderRadius: 12, borderWidth: 1, borderColor: C.line, backgroundColor: '#FAF9FA' }, optOn: { backgroundColor: C.primary, borderColor: C.primary },
+            cam: { height: 300, borderRadius: 16, overflow: 'hidden', backgroundColor: '#000', borderWidth: 1, borderColor: C.line },
           });
           IHR_EOF
           cat > 'src/api.js' <<'IHR_EOF'
@@ -424,6 +470,16 @@ jobs:
           }
           export const clearSession = () => Promise.all(Object.values(K).map((k) => SecureStore.deleteItemAsync(k)));
 
+          // Times of geotagging sent from this app today (fallback until the server returns first/last tagging).
+          const q2 = (n) => String(n).padStart(2, '0');
+          const dayKey = () => { const d = new Date(); return `TAGS_${d.getFullYear()}-${q2(d.getMonth() + 1)}-${q2(d.getDate())}`; };
+          export async function addLocalTag() {
+            try { const k = dayKey(); const cur = JSON.parse((await SecureStore.getItemAsync(k)) || '[]'); cur.push(Date.now()); await SecureStore.setItemAsync(k, JSON.stringify(cur.slice(-20))); } catch (_) { /* optional */ }
+          }
+          export async function getLocalTags() {
+            try { return JSON.parse((await SecureStore.getItemAsync(dayKey())) || '[]'); } catch (_) { return []; }
+          }
+
           // Turns any server JSON into label/value rows so the dashboard shows whatever the API returns.
           export function rows(obj, prefix = '', out = []) {
             if (obj == null || out.length > 30) return out;
@@ -438,11 +494,11 @@ jobs:
           export const unwrap = (r) => (r && (r.data ?? r.staff_data ?? r.result)) ?? r;
           IHR_EOF
           cat > 'src/theme.js' <<'IHR_EOF'
-          // Timber-industry palette: deep forest, heartwood amber, bone white.
+          // Palette taken from the original iHR screen: warm grey, terracotta buttons, card-color yellow, navy text.
           export const C = {
-            forest: '#0F3D2E', forestSoft: '#1D5A44', amber: '#C8841A', bone: '#F4F6F3',
-            card: '#FFFFFF', ink: '#1B2A24', mute: '#5E7068', line: '#D5DDD8',
-            ok: '#2E7D4F', bad: '#B3261E', badBg: '#FBE9E7',
+            bg: '#EEEDEE', card: '#FFFFFF', line: '#D9D5D7', ink: '#14141A', mute: '#6B6B75',
+            primary: '#BC4A32', accent: '#FDC107', navy: '#1F2D55', pill: '#CDD3DB',
+            ok: '#2E7D4F', okBg: '#E5F3EA', bad: '#B3261E', badBg: '#FBE9E7',
           };
           IHR_EOF
           ls -R . | head -20
