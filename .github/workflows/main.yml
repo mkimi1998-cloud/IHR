@@ -137,7 +137,7 @@ jobs:
           const Err = ({ msg }) => (msg ? <View style={s.err}><Text style={{ color: C.bad }}>{msg}</Text></View> : null);
           const Ok = ({ msg }) => (msg ? <View style={s.okBox}><Text style={{ color: C.ok }}>{msg}</Text></View> : null);
           const Top = ({ title, onBack }) => (
-            <View style={s.top}>{onBack ? <Pressable onPress={onBack} hitSlop={12}><Text style={s.back}>â€¹ Kembali</Text></Pressable> : null}<Text style={s.topT}>{title}</Text></View>
+            <View style={s.top}>{onBack ? <Pressable onPress={onBack} hitSlop={12}><Text style={s.back}>‹ Kembali</Text></Pressable> : null}<Text style={s.topT}>{title}</Text></View>
           );
           const Field = ({ icon, label, bad, msg, ...rest }) => (
             <View style={{ gap: 6 }}>
@@ -199,12 +199,12 @@ jobs:
                   <Card>
                     <Text style={s.formT}>Daftar Pengguna Baru</Text>
                     <Text style={s.formS}>Sila masukkan maklumat anda untuk meneruskan.</Text>
-                    <Field icon="ðŸ‘¤" label="Nama penuh" value={name} onChangeText={setName} placeholder="Seperti dalam kad pengenalan" bad={tried && !name.trim()} msg="Wajib diisi" />
-                    <Field icon="ðŸªª" label="Nombor staff" value={no} onChangeText={setNo} autoCapitalize="characters" placeholder="Contoh: 01234" bad={tried && !no.trim()} msg="Wajib diisi" />
+                    <Field icon="👤" label="Nama penuh" value={name} onChangeText={setName} placeholder="Seperti dalam kad pengenalan" bad={tried && !name.trim()} msg="Wajib diisi" />
+                    <Field icon="🪪" label="Nombor staff" value={no} onChangeText={setNo} autoCapitalize="characters" placeholder="Contoh: 01234" bad={tried && !no.trim()} msg="Wajib diisi" />
                     <Err msg={err} />
                     <Btn label="Daftar" onPress={submit} busy={busy} />
                   </Card>
-                  {adv ? (<Card title="Tetapan lanjutan" icon="âš™ï¸" tint={C.navy}>
+                  {adv ? (<Card title="Tetapan lanjutan" icon="⚙️" tint={C.navy}>
                     <Text style={s.lbl}>ID peranti. Tukar hanya jika perlu guna ID yang sudah didaftarkan untuk telefon ini.</Text>
                     <TextInput style={s.in} value={dev} onChangeText={setDev} autoCapitalize="none" autoCorrect={false} />
                   </Card>) : null}
@@ -243,7 +243,7 @@ jobs:
               <ScrollView contentContainerStyle={{ paddingBottom: 28 }}>
                 <View style={s.dashTop}>
                   <Text style={s.logo}>iHR</Text>
-                  <View style={s.status}><View style={[s.dot, { backgroundColor: online == null ? C.mute : online ? C.ok : C.bad }]} /><Text style={s.statusT}>{online == null ? 'Menyemakâ€¦' : online ? `Dalam talian ${at}` : 'Luar talian'}</Text></View>
+                  <View style={s.status}><View style={[s.dot, { backgroundColor: online == null ? C.mute : online ? C.ok : C.bad }]} /><Text style={s.statusT}>{online == null ? 'Menyemak…' : online ? `Dalam talian ${at}` : 'Luar talian'}</Text></View>
                 </View>
                 <View style={s.profile}>
                   <View style={[s.ring, { borderColor: ring }]}><View style={s.ringIn}>{photo && !photoBad ? <Image source={{ uri: photo }} style={s.photo} resizeMode="cover" onError={() => setPhotoBad(true)} /> : <Text style={s.ringT}>{name.trim()[0]?.toUpperCase() || 'I'}</Text>}</View></View>
@@ -257,22 +257,22 @@ jobs:
                   <Err msg={err} />
                   {busy && !data ? <ActivityIndicator color={C.primary} /> : null}
                   {data ? (
-                    <Card title="Hari ini" icon="ðŸ—“" tint={C.navy}>
+                    <Card title="Hari ini" icon="🗓" tint={C.navy}>
                       <View style={s.statRow}>
-                        <Stat icon="ðŸ“" label="First Tagging" value={first || 'â€”'} tint={C.primary} />
-                        <Stat icon="ðŸ“Œ" label="Last Tagging" value={last || 'â€”'} tint={C.navy} />
+                        <Stat icon="📍" label="First Tagging" value={first || '—'} tint={C.primary} />
+                        <Stat icon="📌" label="Last Tagging" value={last || '—'} tint={C.navy} />
                       </View>
                       {!hasSrv ? <Text style={s.note}>Masa tagging direkod daripada app ini sahaja.</Text> : null}
-                      <Pressable onPress={() => Linking.openURL(PORTAL)} hitSlop={8}><Text style={s.link}>ðŸŒ Lihat rekod kehadiran penuh di portal web â€º</Text></Pressable>
+                      <Pressable onPress={() => Linking.openURL(PORTAL)} hitSlop={8}><Text style={s.link}>🌐 Lihat rekod kehadiran penuh di portal web ›</Text></Pressable>
                     </Card>
                   ) : null}
                   {data ? (
                     <View style={{ gap: 10 }}>
-                      <Btn icon="ðŸ“" label="Geo Tagging" onPress={() => go('geo')} />
-                      <Btn icon="ðŸ“·" label="Imbas QR" onPress={() => go('qr')} />
+                      <Btn icon="📍" label="Geo Tagging" onPress={() => go('geo')} />
+                      <Btn icon="📷" label="Imbas QR" onPress={() => go('qr')} />
                     </View>
                   ) : null}
-                  <Btn kind="ghost" icon="ðŸ”„" label="Muat semula" onPress={load} busy={busy} />
+                  <Btn kind="ghost" icon="🔄" label="Muat semula" onPress={load} busy={busy} />
                 </View>
               </ScrollView>
             );
@@ -291,13 +291,13 @@ jobs:
             return { fix, err, get };
           }
           const Loc = ({ fix, err, get }) => (
-            <Card title="Lokasi semasa" icon="ðŸ›°" tint={C.navy}>
+            <Card title="Lokasi semasa" icon="🛰" tint={C.navy}>
               {fix ? <>
-                <Row icon="ðŸ§­" k="Latitud" v={fix.latitude.toFixed(6)} tint={C.navy} />
-                <Row icon="ðŸ§­" k="Longitud" v={fix.longitude.toFixed(6)} tint={C.navy} />
-                <Row icon="ðŸŽ¯" k="Ketepatan" v={`Â± ${Math.round(fix.accuracy || 0)} m`} tint={C.primary} last /></>
-                : <Text style={{ color: C.mute }}>{err || 'Mengesan lokasiâ€¦'}</Text>}
-              <Err msg={fix ? '' : err} /><Btn kind="ghost" icon="ðŸ”„" label="Kesan semula" onPress={get} />
+                <Row icon="🧭" k="Latitud" v={fix.latitude.toFixed(6)} tint={C.navy} />
+                <Row icon="🧭" k="Longitud" v={fix.longitude.toFixed(6)} tint={C.navy} />
+                <Row icon="🎯" k="Ketepatan" v={`± ${Math.round(fix.accuracy || 0)} m`} tint={C.primary} last /></>
+                : <Text style={{ color: C.mute }}>{err || 'Mengesan lokasi…'}</Text>}
+              <Err msg={fix ? '' : err} /><Btn kind="ghost" icon="🔄" label="Kesan semula" onPress={get} />
             </Card>
           );
 
@@ -337,7 +337,7 @@ jobs:
               {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
                 <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
               {mode === 'photo' ? <Loc {...loc} /> : null}
-              {mode === 'photo' ? (<Card title="Jenis kehadiran" icon="ðŸ—‚" tint={C.primary}>
+              {mode === 'photo' ? (<Card title="Jenis kehadiran" icon="🗂" tint={C.primary}>
                 {ACTS.map(([v, l]) => (<Pressable key={v} onPress={() => setAct(v)} style={[s.opt, act === v && s.optOn]}><Text style={{ color: act === v ? '#fff' : C.ink, fontWeight: '600' }}>{l}</Text></Pressable>))}
                 {act === 3 ? (<>
                   <Text style={s.lbl}>Tarikh mula (mesti hari ini, YYYY-MM-DD)</Text><TextInput style={s.in} value={sd} onChangeText={setSd} autoCapitalize="none" />
@@ -345,8 +345,8 @@ jobs:
                 </>) : null}
               </Card>) : null}
               <Err msg={err} /><Ok msg={ok} />
-              {mode === 'photo' ? (shot ? <><Btn icon="ðŸ“¤" label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" icon="ðŸ”„" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn icon="ðŸ“·" label="Ambil Gambar" onPress={snap} />)
-                : (done && !busy ? <Btn kind="ghost" icon="ðŸ”„" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? 'Menghantarâ€¦' : 'Halakan kamera ke kod QR.'}</Text>)}
+              {mode === 'photo' ? (shot ? <><Btn icon="📤" label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" icon="🔄" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn icon="📷" label="Ambil Gambar" onPress={snap} />)
+                : (done && !busy ? <Btn kind="ghost" icon="🔄" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>)}
             </View></ScrollView>);
           }
 
@@ -520,7 +520,7 @@ jobs:
             if (obj == null || out.length > 30) return out;
             if (typeof obj !== 'object') { out.push([prefix, String(obj)]); return out; }
             Object.entries(obj).forEach(([k, v]) => {
-              const key = prefix ? `${prefix} Â· ${k}` : k;
+              const key = prefix ? `${prefix} · ${k}` : k;
               if (v && typeof v === 'object') rows(v, key, out);
               else if (v !== '' && String(v).length < 120) out.push([key.replace(/_/g, ' '), String(v)]);
             });
