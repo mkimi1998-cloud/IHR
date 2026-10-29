@@ -140,22 +140,33 @@ jobs:
             <View style={s.top}>{onBack ? <Pressable onPress={onBack} hitSlop={12}><Text style={s.back}>‹ Kembali</Text></Pressable> : null}<Text style={s.topT}>{title}</Text></View>
           );
 
+          // Access is only granted when the server returns staff_data for this staff number.
+          const verify = async (staffNo, staffId, fallbackName) => {
+            const r = await call(EP.dashboard, { staff_no: staffNo, staff_id: staffId });
+            const sd = r?.staff_data;
+            if (!sd) throw new Error('Nombor staff tidak disahkan oleh pelayan. Sila semak semula.');
+            return { staff_no: String(sd.staff_no ?? staffNo), staff_id: String(sd.staff_id ?? staffId ?? ''), name: sd.name || fallbackName };
+          };
+
           function Register({ onDone }) {
             const [name, setName] = useState(''); const [no, setNo] = useState('');
-            const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [dev, setDev] = useState(String(deviceId())); const [adv, setAdv] = useState(false);
-            const cont = async () => {
-              if (!no.trim()) return setErr('Sila masukkan nombor staff');
-              await saveDeviceId(dev); const sess = { staff_no: no.trim(), staff_id: '', name: name.trim() }; await saveSession(sess); onDone(sess);
-            };
+            const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [tried, setTried] = useState(false);
+            const [dev, setDev] = useState(String(deviceId())); const [adv, setAdv] = useState(false);
             const submit = async () => {
-              if (!name.trim() || !no.trim()) return setErr('Sila masukkan nama dan nombor staff');
+              setTried(true);
+              if (!name.trim() || !no.trim()) return setErr('Nama penuh dan Nombor staff wajib diisi');
               setBusy(true); setErr('');
               try {
                 await saveDeviceId(dev);
-                const r = unwrap(await call(EP.register, { name: name.trim(), staff_no: no.trim(), imei: deviceId() }));
-                const sess = { staff_no: no.trim(), staff_id: r?.staff_id ?? r?.id ?? '', name: r?.name ?? name.trim() };
+                let staffId = '';
+                try {
+                  const r = unwrap(await call(EP.register, { name: name.trim(), staff_no: no.trim(), imei: deviceId() }));
+                  staffId = r?.staff_id ?? r?.id ?? '';
+                } catch (e) { if (!/telah didaftarkan/i.test(e.message)) throw e; }
+                // Access is only granted if the server confirms this staff number
+                const sess = await verify(no.trim(), staffId, name.trim());
                 await saveSession(sess); onDone(sess);
-              } catch (e) { if (/telah didaftarkan/i.test(e.message)) { await cont(); return; } setErr(e.message); } finally { setBusy(false); }
+              } catch (e) { setErr(e.message); } finally { setBusy(false); }
             };
             return (
               <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
@@ -164,17 +175,18 @@ jobs:
                 </View>
                 <View style={{ padding: 16, gap: 14 }}>
                   <Card title="Daftar Pengguna Baru" icon="👤" tint={C.navy}>
-                    <Text style={s.lbl}>Nama penuh</Text>
-                    <TextInput style={s.in} value={name} onChangeText={setName} placeholder="Seperti dalam kad pengenalan" />
-                    <Text style={s.lbl}>Nombor staff</Text>
-                    <TextInput style={s.in} value={no} onChangeText={setNo} autoCapitalize="characters" placeholder="Contoh: 01234" />
+                    <Text style={s.lbl}>Nama penuh <Text style={s.req}>*</Text></Text>
+                    <TextInput style={[s.in, tried && !name.trim() && s.inBad]} value={name} onChangeText={setName} placeholder="Seperti dalam kad pengenalan" />
+                    {tried && !name.trim() ? <Text style={s.reqMsg}>Wajib diisi</Text> : null}
+                    <Text style={s.lbl}>Nombor staff <Text style={s.req}>*</Text></Text>
+                    <TextInput style={[s.in, tried && !no.trim() && s.inBad]} value={no} onChangeText={setNo} autoCapitalize="characters" placeholder="Contoh: 01234" />
+                    {tried && !no.trim() ? <Text style={s.reqMsg}>Wajib diisi</Text> : null}
                     <Err msg={err} />
                     <Btn label="Daftar" onPress={submit} busy={busy} />
                   </Card>
                   {adv ? (<Card title="Tetapan lanjutan" icon="⚙️" tint={C.navy}>
                     <Text style={s.lbl}>ID peranti. Tukar hanya jika perlu guna ID yang sudah didaftarkan untuk telefon ini.</Text>
                     <TextInput style={s.in} value={dev} onChangeText={setDev} autoCapitalize="none" autoCorrect={false} />
-                    <Btn kind="ghost" label="Sudah berdaftar - teruskan" onPress={cont} />
                   </Card>) : null}
                   <Text style={s.hint}>Peranti ini akan didaftarkan bersama nombor staff anda.</Text>
                 </View>
@@ -182,7 +194,7 @@ jobs:
             );
           }
 
-          function Dashboard({ sess, go, logout, onSess }) {
+          function Dashboard({ sess, go, onSess }) {
             const [data, setData] = useState(null); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
             const [online, setOnline] = useState(null); const [at, setAt] = useState(''); const [tags, setTags] = useState([]); const [photoBad, setPhotoBad] = useState(false);
             const load = useCallback(async () => {
@@ -234,12 +246,13 @@ jobs:
                       <Pressable onPress={() => Linking.openURL(PORTAL)} hitSlop={8}><Text style={s.link}>🌐 Lihat rekod kehadiran penuh di portal web ›</Text></Pressable>
                     </Card>
                   ) : null}
-                  <View style={{ gap: 10 }}>
-                    <Btn icon="📍" label="Geo Tagging" onPress={() => go('geo')} />
-                    <Btn icon="📷" label="Imbas QR" onPress={() => go('qr')} />
-                  </View>
+                  {data ? (
+                    <View style={{ gap: 10 }}>
+                      <Btn icon="📍" label="Geo Tagging" onPress={() => go('geo')} />
+                      <Btn icon="📷" label="Imbas QR" onPress={() => go('qr')} />
+                    </View>
+                  ) : null}
                   <Btn kind="ghost" icon="🔄" label="Muat semula" onPress={load} busy={busy} />
-                  <Btn kind="ghost" icon="🚪" label="Log keluar" onPress={logout} />
                 </View>
               </ScrollView>
             );
@@ -321,13 +334,12 @@ jobs:
             const [sess, setSess] = useState(undefined); const [view, setView] = useState('home');
             useEffect(() => { loadSession().then(setSess); }, []);
             const home = () => setView('home');
-            const logout = async () => { await clearSession(); setSess(null); setView('home'); };
             let body;
             if (sess === undefined) body = <View style={s.center}><ActivityIndicator size="large" color={C.primary} /></View>;
             else if (!sess) body = <Register onDone={setSess} />;
             else if (view === 'qr') body = <Cam mode="qr" sess={sess} back={home} />;
             else if (view === 'geo') body = <Cam mode="photo" sess={sess} back={home} />;
-            else body = <Dashboard sess={sess} go={setView} logout={logout} onSess={setSess} />;
+            else body = <Dashboard sess={sess} go={setView} onSess={setSess} />;
             return (<SafeAreaView style={s.root}><StatusBar style="dark" backgroundColor={C.bg} />{Platform.OS === 'android' ? <View style={{ height: RNBar.currentHeight || 0, backgroundColor: C.bg }} /> : null}{body}</SafeAreaView>);
           }
 
@@ -363,6 +375,9 @@ jobs:
             link: { color: C.primary, fontWeight: '700', paddingTop: 4 },
             swatchRow: { flexDirection: 'row', alignItems: 'center', gap: 14 }, swatch: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: C.line },
             lbl: { color: C.mute, fontSize: 13 }, in: { borderWidth: 1, borderColor: C.line, borderRadius: 12, padding: 12, fontSize: 16, backgroundColor: '#FAF9FA', color: C.ink },
+            req: { color: C.bad, fontWeight: '800' },
+            reqMsg: { color: C.bad, fontSize: 12, marginTop: -6 },
+            inBad: { borderColor: C.bad },
             btn: { backgroundColor: C.primary, borderRadius: 28, paddingVertical: 15, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
             btnGhost: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: C.primary },
             btnIn: { flexDirection: 'row', alignItems: 'center', gap: 8 }, btnIc: { fontSize: 16 }, btnTx: { color: '#fff', fontWeight: '700', fontSize: 16 },
