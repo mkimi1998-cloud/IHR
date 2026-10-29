@@ -251,14 +251,16 @@ jobs:
             const need = () => (sess.staff_id ? '' : 'ID staff belum dimuatkan. Kembali ke Dashboard dan tunggu data dimuat.');
             const onQr = async ({ data }) => {
               if (done) return; if (need()) return setErr(need()); setDone(true); setBusy(true); setErr('');
-              try { await call(EP.qr, { ...base, qr_code: data, latitude: loc.fix?.latitude, longitude: loc.fix?.longitude }); setOk('Imbasan QR berjaya.'); }
-              catch (e) { setErr(e.message); setDone(false); } finally { setBusy(false); }
+              try {
+                const r = await call(EP.qr, { ...base, method: 'qr', qr_code: data, latitude: loc.fix?.latitude, longitude: loc.fix?.longitude });
+                setOk(typeof r === 'string' ? r : 'Imbasan QR berjaya.');
+              } catch (e) { setErr(e.message); } finally { setBusy(false); }
             };
             const snap = async () => { const p = await ref.current?.takePictureAsync({ quality: 0.4, base64: true }); if (p) setShot(p); };
             const sendPhoto = () => {
               if (need()) return setErr(need()); if (!act) return setErr('Sila pilih jenis kehadiran');
               if (!shot) return setErr('Sila muat naik gambar'); if (!loc.fix) return setErr('Tiada akses lokasi');
-              const payload = { ...base, activity_type: act, latitude: loc.fix.latitude, longitude: loc.fix.longitude, imej: shot.base64 };
+              const payload = { ...base, activity_type: act, latitude: loc.fix.latitude, longitude: loc.fix.longitude, img: shot.base64 };
               if (act === 3) { payload.start_date = sd.trim(); payload.end_date = ed.trim(); }
               const label = ACTS.find(([v]) => v === act)[1];
               Alert.alert('Sahkan penghantaran', `Rekod kehadiran "${label}" akan disimpan dalam sistem iHR.`, [
@@ -284,7 +286,7 @@ jobs:
               </Card>) : null}
               <Err msg={err} />{ok ? <View style={s.okBox}><Text style={{ color: C.ok }}>{ok}</Text></View> : null}
               {mode === 'photo' ? (shot ? <><Btn label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn label="Ambil Gambar" onPress={snap} />)
-                : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>}
+                : (done && !busy ? <Btn kind="ghost" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>)}
             </View></ScrollView>);
           }
 
@@ -402,6 +404,9 @@ jobs:
               } finally { clearTimeout(t); }
             }
             if (last.status === 413) throw new Error(`[${ep.code}413] Ralat Pelayan. Sila cuba sekali lagi`);
+            // The server often answers with a plain JSON string message (e.g. late clock-in): show it as is.
+            let msg = null; try { const j = JSON.parse(last.text); if (typeof j === 'string') msg = j; else if (j && typeof j.message === 'string' && last.status !== 500) msg = j.message; } catch (_) {}
+            if (msg) throw new Error(`${msg} (HTTP ${last.status})`);
             const snip = String(last.text).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 220);
             throw new Error(`[${ep.code}00${last.status === 404 ? 1 : 2}] Ralat. Sila hubungi Bahagian Sumber Manusia untuk bantuan\nHTTP ${last.status}: ${snip}`);
           }
