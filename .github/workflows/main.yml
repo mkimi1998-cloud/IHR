@@ -78,7 +78,7 @@ jobs:
           import * as Location from 'expo-location';
           import { CameraView, useCameraPermissions } from 'expo-camera';
           import { C } from './src/theme';
-          import { EP, addLocalTag, call, clearSession, deviceId, getLocalTags, loadSession, saveDeviceId, saveSession, unwrap } from './src/api';
+          import { BASE_URL, EP, addLocalTag, call, clearSession, deviceId, getLocalTags, loadSession, saveDeviceId, saveSession, unwrap } from './src/api';
 
           const pad = (n) => String(n).padStart(2, '0');
           const t12 = (h, m) => `${pad(h % 12 || 12)}:${pad(m)} ${h < 12 ? 'AM' : 'PM'}`;
@@ -96,6 +96,14 @@ jobs:
             });
             if (cur) out.push(cur);
             return out;
+          };
+          // The original app shows staff_data.image as a base64 JPEG ("data:image/jpg;base64,..."). Also accept a data URI, a full URL or a path.
+          const photoUri = (v) => {
+            const t = String(v ?? '').trim();
+            if (!t) return null;
+            if (/^data:image\//i.test(t) || /^https?:\/\//i.test(t)) return t;
+            if (t.length > 200 && /^[A-Za-z0-9+/=\s]+$/.test(t)) return `data:image/jpg;base64,${t.replace(/\s+/g, '')}`;
+            return `${BASE_URL}${t.replace(/^\/+/, '')}`;
           };
           const colorOf = (c) => { const v = String(c ?? '').trim(); return /^[0-9a-f]{6}$/i.test(v) ? '#' + v : v || C.accent; };
 
@@ -142,13 +150,12 @@ jobs:
                 const r = unwrap(await call(EP.register, { name: name.trim(), staff_no: no.trim(), imei: deviceId() }));
                 const sess = { staff_no: no.trim(), staff_id: r?.staff_id ?? r?.id ?? '', name: r?.name ?? name.trim() };
                 await saveSession(sess); onDone(sess);
-              } catch (e) { setErr(e.message); } finally { setBusy(false); }
+              } catch (e) { if (/telah didaftarkan/i.test(e.message)) { await cont(); return; } setErr(e.message); } finally { setBusy(false); }
             };
             return (
               <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
                 <View style={s.regTop}>
-                  <View style={{ flex: 1 }}><Text style={s.logo}>iHR</Text><Text style={s.sub}>Lembaga Perindustrian Kayu Malaysia</Text></View>
-                  <Pressable onPress={() => setAdv(!adv)} hitSlop={8} style={[s.gear, adv && s.gearOn]}><Text style={s.gearT}>⚙️</Text></Pressable>
+                  <Pressable onLongPress={() => setAdv(!adv)} delayLongPress={800} style={{ flex: 1 }}><Text style={s.logo}>iHR</Text><Text style={s.sub}>Lembaga Perindustrian Kayu Malaysia</Text></Pressable>
                 </View>
                 <View style={{ padding: 16, gap: 14 }}>
                   <Card title="Daftar Pengguna Baru" icon="👤" tint={C.navy}>
@@ -172,18 +179,18 @@ jobs:
 
           function Dashboard({ sess, go, logout, onSess }) {
             const [data, setData] = useState(null); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
-            const [online, setOnline] = useState(null); const [at, setAt] = useState(''); const [tags, setTags] = useState([]);
+            const [online, setOnline] = useState(null); const [at, setAt] = useState(''); const [tags, setTags] = useState([]); const [photoBad, setPhotoBad] = useState(false);
             const load = useCallback(async () => {
               setBusy(true); setErr('');
               try {
                 const r = await call(EP.dashboard, { staff_no: sess.staff_no, staff_id: sess.staff_id });
-                setData(r); setOnline(true); setAt(new Date().toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' }));
+                setData(r); setPhotoBad(false); setOnline(true); setAt(new Date().toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' }));
                 setTags(await getLocalTags());
                 const sd = r?.staff_data;
                 if (sd?.staff_id && String(sd.staff_id) !== String(sess.staff_id)) { const ns = { staff_no: String(sd.staff_no ?? sess.staff_no), staff_id: String(sd.staff_id), name: sd.name || sess.name }; saveSession(ns); onSess && onSess(ns); }
               } catch (e) {
                 setOnline(false);
-                setErr(e.message.includes('HTTP 500') ? e.message + '\n\nPeranti ini belum dikaitkan dengan akaun di pelayan. ID peranti: ' + deviceId() : e.message);
+                setErr(e.status === 500 ? e.message + '\n\nPeranti ini belum dikaitkan dengan akaun di pelayan. ID peranti: ' + deviceId() : e.message);
               } finally { setBusy(false); }
             }, [sess]);
             useEffect(() => { load(); }, [load]);
@@ -194,6 +201,7 @@ jobs:
             let first = hasSrv ? fromServer(data.first_tagging) : null; let last = hasSrv ? fromServer(data.last_tagging) : null;
             if (!hasSrv && tags.length) { first = fromMs(Math.min(...tags)); last = fromMs(Math.max(...tags)); }
             const ring = data ? colorOf(data.att_color) : C.accent;
+            const rawImg = sd.image ?? sd.photo ?? null; const photo = photoUri(rawImg);
             return (
               <ScrollView contentContainerStyle={{ paddingBottom: 28 }}>
                 <View style={s.dashTop}>
@@ -201,11 +209,10 @@ jobs:
                   <View style={s.status}><View style={[s.dot, { backgroundColor: online == null ? C.mute : online ? C.ok : C.bad }]} /><Text style={s.statusT}>{online == null ? 'Menyemak…' : online ? `Dalam talian ${at}` : 'Luar talian'}</Text></View>
                 </View>
                 <View style={s.profile}>
-                  <View style={[s.ring, { borderColor: ring }]}><View style={s.ringIn}><Text style={s.ringT}>{name.trim()[0]?.toUpperCase() || 'I'}</Text></View></View>
+                  <View style={[s.ring, { borderColor: ring }]}><View style={s.ringIn}>{photo && !photoBad ? <Image source={{ uri: photo }} style={s.photo} resizeMode="cover" onError={() => setPhotoBad(true)} /> : <Text style={s.ringT}>{name.trim()[0]?.toUpperCase() || 'I'}</Text>}</View></View>
                   <View style={s.pNameBox}>{wrapName(name).map((l, i) => <Text key={i} style={s.pName} numberOfLines={1}>{l}</Text>)}</View>
                   <View style={s.chips}>
                     <View style={s.chip}><Text style={s.chipT}>No. staff {sd.staff_no ?? sess.staff_no}</Text></View>
-                    {sd.staff_id ? <View style={s.chip}><Text style={s.chipT}>ID {String(sd.staff_id)}</Text></View> : null}
                   </View>
                   {data ? <View style={s.pill}><Text style={s.pillT}>{data.msg?.clock_in || 'Belum ada rekod waktu masuk hari ini.'}</Text></View> : null}
                 </View>
@@ -291,7 +298,7 @@ jobs:
             return (<ScrollView><Top title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} onBack={back} /><View style={{ padding: 16, gap: 14 }}>
               {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
                 <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
-              <Loc {...loc} />
+              {mode === 'photo' ? <Loc {...loc} /> : null}
               {mode === 'photo' ? (<Card title="Jenis kehadiran" icon="🗂" tint={C.primary}>
                 {ACTS.map(([v, l]) => (<Pressable key={v} onPress={() => setAct(v)} style={[s.opt, act === v && s.optOn]}><Text style={{ color: act === v ? '#fff' : C.ink, fontWeight: '600' }}>{l}</Text></Pressable>))}
                 {act === 3 ? (<>
@@ -323,14 +330,13 @@ jobs:
             root: { flex: 1, backgroundColor: C.bg }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
             logo: { color: C.ink, fontSize: 38, fontWeight: '800', letterSpacing: 0.5 }, sub: { color: C.mute, marginTop: 2 },
             regTop: { flexDirection: 'row', alignItems: 'flex-start', padding: 20, paddingTop: 16 },
-            gear: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center' },
-            gearOn: { borderColor: C.primary, backgroundColor: '#F6E4DF' }, gearT: { fontSize: 20 },
             dashTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 10 },
             status: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
             statusT: { color: C.ink, fontSize: 12, fontWeight: '600' }, dot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
             profile: { alignItems: 'center', paddingHorizontal: 20, paddingVertical: 18, gap: 12 },
             ring: { width: 150, height: 150, borderRadius: 75, borderWidth: 11, alignItems: 'center', justifyContent: 'center' },
-            ringIn: { width: 112, height: 112, borderRadius: 56, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center' },
+            ringIn: { width: 112, height: 112, borderRadius: 56, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+            photo: { width: '100%', height: '100%' },
             ringT: { color: C.primary, fontSize: 48, fontWeight: '800' },
             pNameBox: { alignItems: 'center' },
             pName: { color: C.ink, fontSize: 20, fontWeight: '700', textAlign: 'center' },
@@ -427,15 +433,15 @@ jobs:
               } catch (e) {
                 if (i > 0 && last.status) break; // keep the real HTTP error, not a later retry's network error
                 if (e.name === 'AbortError') throw new Error(`[${ep.code}001] Sambungan ke pelayan tamat masa`);
-                throw new Error(`[${ep.code}003] Tiada sambungan ke pelayan (${e.message})`);
+                throw new Error(`[${ep.code}003] Tiada sambungan ke pelayan. Sila semak sambungan internet anda.`);
               } finally { clearTimeout(t); }
             }
-            if (last.status === 413) throw new Error(`[${ep.code}413] Ralat Pelayan. Sila cuba sekali lagi`);
-            // The server often answers with a plain JSON string message (e.g. late clock-in): show it as is.
+            const fail = (text) => { const err = new Error(text); err.status = last.status; return err; };
+            if (last.status === 413) throw fail(`[${ep.code}413] Ralat Pelayan. Sila cuba sekali lagi`);
+            // The server often answers with a plain JSON string message (e.g. "Nombor kakitangan tidak sah"): show it as is.
             let msg = null; try { const j = JSON.parse(last.text); if (typeof j === 'string') msg = j; else if (j && typeof j.message === 'string' && last.status !== 500) msg = j.message; } catch (_) {}
-            if (msg) throw new Error(`${msg} (HTTP ${last.status})`);
-            const snip = String(last.text).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 220);
-            throw new Error(`[${ep.code}00${last.status === 404 ? 1 : 2}] Ralat. Sila hubungi Bahagian Sumber Manusia untuk bantuan\nHTTP ${last.status}: ${snip}`);
+            if (msg) throw fail(msg);
+            throw fail(`[${ep.code}00${last.status === 404 ? 1 : 2}] Ralat. Sila hubungi Bahagian Sumber Manusia untuk bantuan`);
           }
 
           const K = { no: 'STAFF_NO', id: 'STAFF_ID', name: 'STAFF_NAME' };
