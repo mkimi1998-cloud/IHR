@@ -10,7 +10,7 @@ jobs:
       - name: Create project files
         run: |
           set -e
-          mkdir -p app/src
+          mkdir -p app/src app/assets
           cd app
           cat > 'package.json' <<'IHR_EOF'
           {
@@ -40,17 +40,21 @@ jobs:
             "expo": {
               "name": "iHR",
               "slug": "iHr",
-              "version": "1.0.3",
+              "version": "1.0.6",
               "orientation": "portrait",
               "userInterfaceStyle": "light",
               "android": {
-                "package": "my.gov.mtib.ihr.v2",
-                "versionCode": 4,
+                "package": "my.gov.mtib.ihr.v6",
+                "versionCode": 6,
                 "permissions": [
                   "android.permission.CAMERA",
                   "android.permission.ACCESS_COARSE_LOCATION",
                   "android.permission.ACCESS_FINE_LOCATION"
-                ]
+                ],
+                "adaptiveIcon": {
+                  "foregroundImage": "./assets/adaptive-foreground.png",
+                  "backgroundColor": "#B1432C"
+                }
               },
               "plugins": [
                 [
@@ -67,7 +71,8 @@ jobs:
                 ],
                 "expo-secure-store"
               ],
-              "scheme": "ihr2"
+              "scheme": "ihr2",
+              "icon": "./assets/icon.png"
             }
           }
           IHR_EOF
@@ -78,7 +83,8 @@ jobs:
           import * as Location from 'expo-location';
           import { CameraView, useCameraPermissions } from 'expo-camera';
           import { C } from './src/theme';
-          import { EP, addLocalTag, call, clearSession, deviceId, getLocalTags, loadSession, saveDeviceId, saveSession, unwrap } from './src/api';
+          import { BASE_URL, EP, addLocalTag, call, clearSession, deviceId, getLocalTags, loadSession, saveDeviceId, saveSession, unwrap } from './src/api';
+
           const pad = (n) => String(n).padStart(2, '0');
           const t12 = (h, m) => `${pad(h % 12 || 12)}:${pad(m)} ${h < 12 ? 'AM' : 'PM'}`;
           const fromServer = (v) => { const m = /(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/.exec(String(v || '')); return m ? t12(+m[2], +m[3]) : null; };
@@ -96,7 +102,16 @@ jobs:
             if (cur) out.push(cur);
             return out;
           };
+          // The original app shows staff_data.image as a base64 JPEG ("data:image/jpg;base64,..."). Also accept a data URI, a full URL or a path.
+          const photoUri = (v) => {
+            const t = String(v ?? '').trim();
+            if (!t) return null;
+            if (/^data:image\//i.test(t) || /^https?:\/\//i.test(t)) return t;
+            if (t.length > 200 && /^[A-Za-z0-9+/=\s]+$/.test(t)) return `data:image/jpg;base64,${t.replace(/\s+/g, '')}`;
+            return `${BASE_URL}${t.replace(/^\/+/, '')}`;
+          };
           const colorOf = (c) => { const v = String(c ?? '').trim(); return /^[0-9a-f]{6}$/i.test(v) ? '#' + v : v || C.accent; };
+
           const Btn = ({ label, onPress, kind = 'main', busy, disabled, icon }) => (
             <Pressable onPress={onPress} disabled={busy || disabled} style={({ pressed }) => [s.btn, kind === 'ghost' && s.btnGhost, (busy || disabled) && { opacity: 0.5 }, pressed && { opacity: 0.85 }]}>
               {busy ? <ActivityIndicator color={kind === 'ghost' ? C.primary : '#fff'} /> : (
@@ -124,6 +139,7 @@ jobs:
           const Top = ({ title, onBack }) => (
             <View style={s.top}>{onBack ? <Pressable onPress={onBack} hitSlop={12}><Text style={s.back}>‹ Kembali</Text></Pressable> : null}<Text style={s.topT}>{title}</Text></View>
           );
+
           function Register({ onDone }) {
             const [name, setName] = useState(''); const [no, setNo] = useState('');
             const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [dev, setDev] = useState(String(deviceId())); const [adv, setAdv] = useState(false);
@@ -139,13 +155,12 @@ jobs:
                 const r = unwrap(await call(EP.register, { name: name.trim(), staff_no: no.trim(), imei: deviceId() }));
                 const sess = { staff_no: no.trim(), staff_id: r?.staff_id ?? r?.id ?? '', name: r?.name ?? name.trim() };
                 await saveSession(sess); onDone(sess);
-              } catch (e) { setErr(e.message); } finally { setBusy(false); }
+              } catch (e) { if (/telah didaftarkan/i.test(e.message)) { await cont(); return; } setErr(e.message); } finally { setBusy(false); }
             };
             return (
               <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
                 <View style={s.regTop}>
-                  <View style={{ flex: 1 }}><Text style={s.logo}>iHR</Text><Text style={s.sub}>Lembaga Perindustrian Kayu Malaysia</Text></View>
-                  <Pressable onPress={() => setAdv(!adv)} hitSlop={8} style={[s.gear, adv && s.gearOn]}><Text style={s.gearT}>⚙️</Text></Pressable>
+                  <Pressable onLongPress={() => setAdv(!adv)} delayLongPress={800} style={{ flex: 1 }}><Text style={s.logo}>iHR</Text><Text style={s.sub}>Lembaga Perindustrian Kayu Malaysia</Text></Pressable>
                 </View>
                 <View style={{ padding: 16, gap: 14 }}>
                   <Card title="Daftar Pengguna Baru" icon="👤" tint={C.navy}>
@@ -166,20 +181,21 @@ jobs:
               </ScrollView>
             );
           }
+
           function Dashboard({ sess, go, logout, onSess }) {
             const [data, setData] = useState(null); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
-            const [online, setOnline] = useState(null); const [at, setAt] = useState(''); const [tags, setTags] = useState([]);
+            const [online, setOnline] = useState(null); const [at, setAt] = useState(''); const [tags, setTags] = useState([]); const [photoBad, setPhotoBad] = useState(false);
             const load = useCallback(async () => {
               setBusy(true); setErr('');
               try {
                 const r = await call(EP.dashboard, { staff_no: sess.staff_no, staff_id: sess.staff_id });
-                setData(r); setOnline(true); setAt(new Date().toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' }));
+                setData(r); setPhotoBad(false); setOnline(true); setAt(new Date().toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' }));
                 setTags(await getLocalTags());
                 const sd = r?.staff_data;
                 if (sd?.staff_id && String(sd.staff_id) !== String(sess.staff_id)) { const ns = { staff_no: String(sd.staff_no ?? sess.staff_no), staff_id: String(sd.staff_id), name: sd.name || sess.name }; saveSession(ns); onSess && onSess(ns); }
               } catch (e) {
                 setOnline(false);
-                setErr(e.message.includes('HTTP 500') ? e.message + '\n\nPeranti ini belum dikaitkan dengan akaun di pelayan. ID peranti: ' + deviceId() : e.message);
+                setErr(e.status === 500 ? e.message + '\n\nPeranti ini belum dikaitkan dengan akaun di pelayan. ID peranti: ' + deviceId() : e.message);
               } finally { setBusy(false); }
             }, [sess]);
             useEffect(() => { load(); }, [load]);
@@ -190,6 +206,7 @@ jobs:
             let first = hasSrv ? fromServer(data.first_tagging) : null; let last = hasSrv ? fromServer(data.last_tagging) : null;
             if (!hasSrv && tags.length) { first = fromMs(Math.min(...tags)); last = fromMs(Math.max(...tags)); }
             const ring = data ? colorOf(data.att_color) : C.accent;
+            const rawImg = sd.image ?? sd.photo ?? null; const photo = photoUri(rawImg);
             return (
               <ScrollView contentContainerStyle={{ paddingBottom: 28 }}>
                 <View style={s.dashTop}>
@@ -197,11 +214,10 @@ jobs:
                   <View style={s.status}><View style={[s.dot, { backgroundColor: online == null ? C.mute : online ? C.ok : C.bad }]} /><Text style={s.statusT}>{online == null ? 'Menyemak…' : online ? `Dalam talian ${at}` : 'Luar talian'}</Text></View>
                 </View>
                 <View style={s.profile}>
-                  <View style={[s.ring, { borderColor: ring }]}><View style={s.ringIn}><Text style={s.ringT}>{name.trim()[0]?.toUpperCase() || 'I'}</Text></View></View>
+                  <View style={[s.ring, { borderColor: ring }]}><View style={s.ringIn}>{photo && !photoBad ? <Image source={{ uri: photo }} style={s.photo} resizeMode="cover" onError={() => setPhotoBad(true)} /> : <Text style={s.ringT}>{name.trim()[0]?.toUpperCase() || 'I'}</Text>}</View></View>
                   <View style={s.pNameBox}>{wrapName(name).map((l, i) => <Text key={i} style={s.pName} numberOfLines={1}>{l}</Text>)}</View>
                   <View style={s.chips}>
                     <View style={s.chip}><Text style={s.chipT}>No. staff {sd.staff_no ?? sess.staff_no}</Text></View>
-                    {sd.staff_id ? <View style={s.chip}><Text style={s.chipT}>ID {String(sd.staff_id)}</Text></View> : null}
                   </View>
                   {data ? <View style={s.pill}><Text style={s.pillT}>{data.msg?.clock_in || 'Belum ada rekod waktu masuk hari ini.'}</Text></View> : null}
                 </View>
@@ -228,6 +244,7 @@ jobs:
               </ScrollView>
             );
           }
+
           function useFix() {
             const [fix, setFix] = useState(null); const [err, setErr] = useState('');
             const get = useCallback(async () => {
@@ -250,6 +267,7 @@ jobs:
               <Err msg={fix ? '' : err} /><Btn kind="ghost" icon="🔄" label="Kesan semula" onPress={get} />
             </Card>
           );
+
           function Cam({ mode, sess, back }) {
             const [perm, ask] = useCameraPermissions(); const ref = useRef(null); const loc = useFix();
             const [shot, setShot] = useState(null); const [done, setDone] = useState(false);
@@ -285,7 +303,7 @@ jobs:
             return (<ScrollView><Top title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} onBack={back} /><View style={{ padding: 16, gap: 14 }}>
               {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
                 <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
-              <Loc {...loc} />
+              {mode === 'photo' ? <Loc {...loc} /> : null}
               {mode === 'photo' ? (<Card title="Jenis kehadiran" icon="🗂" tint={C.primary}>
                 {ACTS.map(([v, l]) => (<Pressable key={v} onPress={() => setAct(v)} style={[s.opt, act === v && s.optOn]}><Text style={{ color: act === v ? '#fff' : C.ink, fontWeight: '600' }}>{l}</Text></Pressable>))}
                 {act === 3 ? (<>
@@ -298,6 +316,7 @@ jobs:
                 : (done && !busy ? <Btn kind="ghost" icon="🔄" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>)}
             </View></ScrollView>);
           }
+
           export default function App() {
             const [sess, setSess] = useState(undefined); const [view, setView] = useState('home');
             useEffect(() => { loadSession().then(setSess); }, []);
@@ -311,18 +330,18 @@ jobs:
             else body = <Dashboard sess={sess} go={setView} logout={logout} onSess={setSess} />;
             return (<SafeAreaView style={s.root}><StatusBar style="dark" backgroundColor={C.bg} />{Platform.OS === 'android' ? <View style={{ height: RNBar.currentHeight || 0, backgroundColor: C.bg }} /> : null}{body}</SafeAreaView>);
           }
+
           const s = StyleSheet.create({
             root: { flex: 1, backgroundColor: C.bg }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
             logo: { color: C.ink, fontSize: 38, fontWeight: '800', letterSpacing: 0.5 }, sub: { color: C.mute, marginTop: 2 },
             regTop: { flexDirection: 'row', alignItems: 'flex-start', padding: 20, paddingTop: 16 },
-            gear: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center' },
-            gearOn: { borderColor: C.primary, backgroundColor: '#F6E4DF' }, gearT: { fontSize: 20 },
             dashTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 10 },
             status: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
             statusT: { color: C.ink, fontSize: 12, fontWeight: '600' }, dot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
             profile: { alignItems: 'center', paddingHorizontal: 20, paddingVertical: 18, gap: 12 },
             ring: { width: 150, height: 150, borderRadius: 75, borderWidth: 11, alignItems: 'center', justifyContent: 'center' },
-            ringIn: { width: 112, height: 112, borderRadius: 56, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center' },
+            ringIn: { width: 112, height: 112, borderRadius: 56, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+            photo: { width: '100%', height: '100%' },
             ringT: { color: C.primary, fontSize: 48, fontWeight: '800' },
             pNameBox: { alignItems: 'center' },
             pName: { color: C.ink, fontSize: 20, fontWeight: '700', textAlign: 'center' },
@@ -357,6 +376,7 @@ jobs:
           cat > 'src/api.js' <<'IHR_EOF'
           import * as SecureStore from 'expo-secure-store';
           import * as Application from 'expo-application';
+
           // Recovered from the original iHR 1.0.2 bundle. Method and body shapes are inferred:
           // confirm them against the backend and adjust here only.
           export const BASE_URL = 'https://ihr.mtib.gov.my/';
@@ -369,6 +389,7 @@ jobs:
             reason:    { path: 'api/reason',            method: 'POST', code: 'P', flip: true, retry: true },
             reference: { path: 'api/reference',         method: 'POST', code: 'P', flip: true, retry: true },
           };
+
           let override = null;
           const realId = () => Application.getAndroidId() || 'unknown';
           export const deviceId = () => override || realId();
@@ -378,6 +399,7 @@ jobs:
             if (!t || t === realId()) { override = null; await SecureStore.deleteItemAsync('DEVICE_ID'); }
             else { override = t; await SecureStore.setItemAsync('DEVICE_ID', t); }
           }
+
           async function once(ep, body, kind, signal) {
             const get = ep.method === 'GET';
             const headers = { Accept: 'application/json', imei: String(deviceId()) };
@@ -391,6 +413,7 @@ jobs:
             const res = await fetch(BASE_URL + ep.path + qs, { method: ep.method, headers, body: payload, signal });
             return { status: res.status, ok: res.ok, text: await res.text() };
           }
+
           // Tries JSON, then form-urlencoded, then multipart when the server rejects the body format.
           export async function call(ep, body = {}) {
             // Only read-only endpoints may retry in other body formats; writes are sent exactly once.
@@ -415,16 +438,17 @@ jobs:
               } catch (e) {
                 if (i > 0 && last.status) break; // keep the real HTTP error, not a later retry's network error
                 if (e.name === 'AbortError') throw new Error(`[${ep.code}001] Sambungan ke pelayan tamat masa`);
-                throw new Error(`[${ep.code}003] Tiada sambungan ke pelayan (${e.message})`);
+                throw new Error(`[${ep.code}003] Tiada sambungan ke pelayan. Sila semak sambungan internet anda.`);
               } finally { clearTimeout(t); }
             }
-            if (last.status === 413) throw new Error(`[${ep.code}413] Ralat Pelayan. Sila cuba sekali lagi`);
-            // The server often answers with a plain JSON string message (e.g. late clock-in): show it as is.
+            const fail = (text) => { const err = new Error(text); err.status = last.status; return err; };
+            if (last.status === 413) throw fail(`[${ep.code}413] Ralat Pelayan. Sila cuba sekali lagi`);
+            // The server often answers with a plain JSON string message (e.g. "Nombor kakitangan tidak sah"): show it as is.
             let msg = null; try { const j = JSON.parse(last.text); if (typeof j === 'string') msg = j; else if (j && typeof j.message === 'string' && last.status !== 500) msg = j.message; } catch (_) {}
-            if (msg) throw new Error(`${msg} (HTTP ${last.status})`);
-            const snip = String(last.text).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 220);
-            throw new Error(`[${ep.code}00${last.status === 404 ? 1 : 2}] Ralat. Sila hubungi Bahagian Sumber Manusia untuk bantuan\nHTTP ${last.status}: ${snip}`);
+            if (msg) throw fail(msg);
+            throw fail(`[${ep.code}00${last.status === 404 ? 1 : 2}] Ralat. Sila hubungi Bahagian Sumber Manusia untuk bantuan`);
           }
+
           const K = { no: 'STAFF_NO', id: 'STAFF_ID', name: 'STAFF_NAME' };
           export async function loadSession() {
             const dev = await SecureStore.getItemAsync('DEVICE_ID'); if (dev) override = dev;
@@ -437,6 +461,7 @@ jobs:
             await SecureStore.setItemAsync(K.name, String(s.name ?? ''));
           }
           export const clearSession = () => Promise.all(Object.values(K).map((k) => SecureStore.deleteItemAsync(k)));
+
           // Times of geotagging sent from this app today (fallback until the server returns first/last tagging).
           const q2 = (n) => String(n).padStart(2, '0');
           const dayKey = () => { const d = new Date(); return `TAGS_${d.getFullYear()}-${q2(d.getMonth() + 1)}-${q2(d.getDate())}`; };
@@ -446,6 +471,7 @@ jobs:
           export async function getLocalTags() {
             try { return JSON.parse((await SecureStore.getItemAsync(dayKey())) || '[]'); } catch (_) { return []; }
           }
+
           // Turns any server JSON into label/value rows so the dashboard shows whatever the API returns.
           export function rows(obj, prefix = '', out = []) {
             if (obj == null || out.length > 30) return out;
@@ -467,7 +493,290 @@ jobs:
             ok: '#2E7D4F', okBg: '#E5F3EA', bad: '#B3261E', badBg: '#FBE9E7',
           };
           IHR_EOF
-          ls -R . | head -20
+          base64 -d > 'assets/icon.png' <<'IHR_EOF'
+          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
+          AElFTkSuQmCC
+          IHR_EOF
+          base64 -d > 'assets/adaptive-foreground.png' <<'IHR_EOF'
+          iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAMAAADDpiTIAAAAwFBMVEXDV0AAAAD+/v6sUTyhU0Ky
+          srKkc2glJSWsgnnn5eVnZ2dHR0e4l5CHh4efYlV0dHTg1dKWlpbHx8epqanOu7eeW0zW1tZVVVUY
+          GBigZ1o0NDTFrKayjoXYycaibWHTwr7AVj++opvApJ7p4d/e0c4AAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAD0w/K8AAAAMHRSTlP/AP7//7L/Jf/qZ0f/h/90/5bHqf//1lUY/zT/////////////AAAA
+          AAAAAAAAAAB2/s6VAAAZXElEQVR42u3diZaiuhYGYAMiAs6IImpV9el+/2c8JSAkkITIYEHtP3et
+          26fLqXrvz0wkYTZDQUFBQaFZGEJAO/8AQDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBA
+          PP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8
+          /wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/
+          AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8A
+          QDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBA
+          PP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8
+          /wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/
+          AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8A
+          QDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBAPP8AQDz/AEA8/wBA
+          PP8AQDz/4wVgL99RPt71QYuR5n+8ACLrLWU2m7/rg0aZ//ECmNMAwACANAAGAH0A8Hae4i8/B8Az
+          AcAAQA8gMuwwXq5lpFeRbfaqBQfATv9i2+k7aF5/KT7F6N2z5/1RAWAA0ABgbvTMa/Xbd7NfBpCm
+          fpHlSp1cu/yMhf7N/3DPWikAMADoAYB8tHCfvwhgllbZeYaXqpdkX+qb/kncL5XVYAoADAC6A7Dv
+          qjb4z4sALtnnXTQV/NffvDU/pn9elb/UMf8d8opIDoABQHcARZN8vMzTaNvzxc4Svn6mAL7St8mz
+          ZXm2slv6+J2OlqazsKx2E6QAGAB0B5A3tLvNl/AFXJg10yKA2TX/M0/uqpJdO+9pbNK/HVWfUHw4
+          508GgAFAdwB35Tf9I+8MvgIgeqb3vzyDfxfzHIFtF/XKhk/qg4Bgb/78sXXl/EgAMADoDuCu6Yvl
+          zfDyBQBpD2/HjeCytuC7cH8tf6FN0fpEdorAjlblq4RfvA6AAUB3AFd9Q59l8fICgGXRrNs7ecfy
+          yDcLqifVP7UGgAFAdwAfTXM2kdXwDlUANteqR//qaf2cq7qg2vTXATAA6A6gcc7uWUmbA8inAore
+          nPAN3y1s9XQfX0lIqqQKAAYAPQD4azDQW+g7gjUAHxVTX3a0WKxWy8XGVkoru32Pnt9G+jwRAAOA
+          HgBEjV28optoGwOwG+aBVT+fRx8fl2iu/CABAAOAPgA01O58O/HHGEA2ulfXGJ8t/yk8AAYAfQCI
+          DC8VLnVVQB1AxI/0JdOO2ul/IwAMAHoB8PiqegZv8qWbEKwDSCuWu2be+UP9URqPJQAGAL0A+NJ+
+          U6ux98wBrHQ1xkVb62jaqwIAA4B+AERGPYCiF2AbA7B1NcalqVdiNwBgANATgFV24c6kaOoKCQBx
+          KkA672NrPsjWAmAA0BeAR5o+zN7mqp4KkAFYaPJ40V0D1o1LMgAMAHoDYLxaLJvcuZsD0E0F5AA8
+          DYBPNQAGAL0BsBtngStvYw4gmzvSAlA0Ptlj/wHAuwAYvo39IgDNDMNFu9osf2wJANMGMFN/xy/a
+          FcHKa4EAMC0A/ynblxTAylKMKyz1UkQAGALA10AA0r9+KAHMboosy1YN5cUBgH4BfL3QCYxeBaAe
+          z2UAZp/ywWDaNNxljzEA+MFh4EI9Z6QAoJwKyAHM5NMBWb0g2QfIAKB3APfmNd/P8ql+qgKArVpG
+          8gRgS3d7Zh1AuzZVwACgfwDL5/pds8uB0UsAZjtFG/AEkGd5J51ztitTBQwABgAwN+4ERK9dDErL
+          RoGmAJDvETpKLzpEwq4gBgBDAJhZpm3Ap3J+Vg3AVmz8KwHkWV5KrzptuKkCBgDDALgZzgTYupVD
+          KgCqqQAOQL4ofSG97LgopgoYAAwEwDasArSL/JQA5vK5Hh5AfTqAe82f/DEGAEMByDLb2AuItE6U
+          AGaWtJMpAMg3Js1lAPJNawkADAfA1q7ea5zTaQAgX0sqApj9E6cDhFoj204YA8BgALL59YaNAXf9
+          2mE1AHkLUwFQmRASAHxljwHAcACy8GuXBa0szRBACyDbd9QEQJz0EfsN+WMAMByAedMZEKum3YMa
+          ANL1n1UAeZY/ZQBYkD52AIDBAFRmXGqdhHvj7lENAOlUwEetWphzv4IA4Duw5/SxEAD6BmBHi9vq
+          ulpe5kflaT7FMV2L+WL5/eTbQrZxTwNAOn681H92KashHkAa2W362BoA+gQQHSX78Ve15NqfsqfN
+          XwCQbT61hSI76qc8hoIDkIc2TB/zAaAvAPZKdSLHkX+evVEeHbcwBjAzPfJ39ZwQKgEwYfxvBQDQ
+          D4Cb9mje4zKa2/P55bbTPu3DFMDN9MznY97XKABwwT2lj7l7AOgOgDsQ9HhbfLfsd7Mzm4+rx5PL
+          loPrMmgB2MaHfmeTPvPK/H9WuHOjAaATgFV5JFeZo0VD8v9xB3bYl1112a4WwMwzBcBR2dT2f5WP
+          AUAXAHfFIdBzTT3wX/XJz6Meb0YAvmxpmekEbGr7v1wA6APAvX5IW7VpWFzTb/h9tbDUo8O5x88d
+          6AG8+qumAOrxDQCgO4C7pTsP4ChemF1qT4i8cXVAbwAKhVtJgH0A6AqgaU53yT9+aTgnelP2A/oD
+          8DwuTgaArQGgG4DIbE7X4trjqPHbavcLIEcoBZBPCAFASwAGJ0JmFfuqmL/Rnx61eV7D6xNAtj5E
+          DoBhGNgFwB+TA8Hu+ZMXJscHrvJGoFcA6bBRASAEgPYAbO29OYSR2N+sAmg+PSxvMXoFkA75FQAw
+          FdwBgNniv/yU14vZk/P9n30C+I5knF74AYBeAdimy3+zdZxGtUVxsfejPwD5pA9qgN4BXEx3ghen
+          N5ik0i7fuxcAzyE/aoDem4CjyT0a+fnYnXGPbdEbgKYYA0BrABfzjeBHq3mZqDBzcO+rD8AAYDAA
+          V/PDYDbmLcDzGPF+ADAAGA6A0fYPoQ0wfPfqzaPtAfMPAN0ArF7JqaGW8mp/VwAMAIYGcHkFwB/D
+          Jx97AsAAYHAAhreQz6aDTauLVT8AGABMFMCtFwAMAEYEYPf2GoABwDsAGB4HNrNMJ4L76gMwABjf
+          KGBn+OQeRgEMAIYH4Jnn9PV5AK8TAAYAbwCwMs/pxyszgfybmwOwr9frf3lx+HIIAWAYABvzXuD9
+          lR5DeoDsy5eDI/UmBAAY6Grg1fT2ULZ6646iBbhcAGD86wEi0+wslIe1qzJpA8AEAMxMxwHpGHBn
+          2Gf8mz5v0QrAv+PxxJcDAAzZBGRTds3pWZb1RWSWyKglgFr//wwAQwKwjUb3dn54s1Ev4KvtquBI
+          ev8/ABgUQJamhUED8EhiZBl0Go95PdEOAAOA9wIw2ezzWSD5bOayfCIBgGkAmDcKOJb7QezGJQTl
+          RkIAmAYA7vh13YUdmx+qLfTff+59AWD8APJrtyvtDFAx/L+oD5Mojo/kzvUHgAkAyA/gl87xLGsP
+          LdTLCC7CdPHLAM4A8EMAnmneVQgUx0TNJWmuEdhUfv4qAAYAPwagSJ51Kw59tTdHS34eULmUoDhT
+          zI5WtbniFwEwAPhBADObOwBydzwePUt3K+cr/+TPI/faP5W2whgAA4AfBcBVApWTIKW5m8uP+fs7
+          n7UEwADgpwF898Lrx8D+UWYu+tQfKfwaAAYAIwDwOO+Tr9xv+vlBe7Mq6wFvFVWT/MKCENYJAI6I
+          aQ3g30osS+6MYO96W95WmvL98JE7YLj2ZH5R6FH3Rqts4VeYcjqEwmqw508dTcEpYa0BDF/e9kEA
+          AAAA8EqJAIA2AHv3bzd0+bf7r/GDvH7KCQCmWdhvL0gx7fyPGMBlM3y5RPoP2vZWfADAKAAAAAAA
+          AAAAAAAATAFEQ37CkgMw797/DyzLlT9yAIC+rgb2WrSXg1+PZKxMMq4GTg9Am1BaVoz1AL8EAAMA
+          AgDUC0JaRTIGgP4BeFezcryVL7yaFuUpYe0imSiTDABvGAaWVxFbDQPt7vP/AQD8DgBtI+lbHgD8
+          AgCtIxlaBwDoHcDRrNzLnaNfx0+TV3x+HqUA2kfyZK0BYPLDwA6RtKwAAKYOoEMgfXWOAWAqALoE
+          8mQ5ADBxAF3iGKtbAACYCIBOcQw1KQaASQDoFEZXeetwAOgCwB7yE8SzgruF8aTLMAC0BnBdGBbu
+          YDjTlyx2PABlgLb7dbXsk+qT1poeAABMYSbQ1Qzv66V6f4hz/UcA8JsB7GuXgTwGAL8YgKcFcMYJ
+          IT8P4D4kgLPwA68CYN+YXQBoDeBtq4JjHYBAAyD5/mvTzl8AGPU8QPD4Yx23AuAe6j0CAJgWABbk
+          jcEpPLuvNQH+6dE/SBgATBgAKwBkJ085az8R+3eSTuD3D9Z+ut3DOxvEGADGDyBhwfrEOwi3ZzdO
+          O3ia4gRGMQaA8QPIugBxsg1PpuOH8GwaYwAY57WADw6A0Pq753V4KKr9+lTwY6vXVhNTocXwAKAD
+          gIVtWsoXGr9kpQJQXON3HXnmLO3Uf1jdFgwAI54J1AFI13lZJiMDviQWAPwaANsWALyy2dieAOC3
+          1gDKJmDLTw056ANMGoD7+Aavt9//48v2MTg8bLfqi0d8a7AHgDF2At3v4jQC0NtZq4Z8QblOLB1g
+          AsDo5gGey3j0AJLXj/1JX8KNFlMlADA2AMwMQNgAIGmYAni0FJgIGiEAZgjgMdmru0x8kPYA62vH
+          AGBcAJghgLP8S86tA6leQ46F60XWIcFU8AgBMFMAB23aYkk38PFOftYQhLgWMFIAzBiAqqOfl1Mt
+          q4dnpV9ZNQYAI1oSVqnENQC22pViWQshTAetrefqYAB4+0TQrv+JoMbFfpVuYFKmGQB+wUyg23DN
+          N/vGx2IHIACAXwOgebW32A30ODAVADgqdooAtJMA9WFCmmQnzEo6BVAWnBbeGsD1YrjRc8Mt9FE9
+          p7KuZ+vpAATaS7615/g4Ln70S8KkbbgSgGOSM+vZT3Rxv4DRzwOw1wBY+g2/5Tu4zw7g6XCSlwMA
+          jAAAew2Ar50GrjI56LlgFPDzAFgDgLg+zecZRC9rKNaWfsoAAH4cAGsC4LtCeczyOW5zebzF+tyU
+          XwD4aQCsEUDXEgDAiAGwwQGsGQAMAuB+W906l1BRrN4AOAwAfnomsP3t/LI+QOx2KAwApg4gHjLG
+          ADB+AC4AjBPA571bOWkKAPz+UUDjRC4A/GoADABIA2BvBxA8Thb2YwAYBQD2ZgD+STExBAA/AoC9
+          F4CvnhsEgJ8AwN4L4PDcEOQ9twe6APCTK4JYrwDiJAgS3WRRmvXnfQTivbh3FABaA1hFl3Zl21yy
+          JrsRgOs7xZbf015x1e9UWRESC3UAAEx2JjDZGx0O6ddXBPHLwABgmtcCEtU5obWTpSUJTp4bRQFg
+          EgDCahWQLvbJ+3V7380bg6ItEKoB6RLycqcgNoZMAMCjbvfd8rtfNPuOmNkklIzz5EvIT0XFcgCA
+          tgCiYfr/WdlLFoScDk55SKz8MOjzc8R3CMoWYC8ZOeR7xWIsC3/rPID5P71hSdjhrH9l0RuIFZuI
+          9ula4T02hrwVAGsHIEhC4Xyng98w6V9M/GzTgwKkcwSPOgQ7g94LgLUEkCYwOa/3zsHZ+ybzgvG+
+          aePXGVvD3g6AtQXQaiq46A08Dg4V9hG557IbGWIU8DYA7L0AvsuWv7/EyXHC0DnwP/JwUOQbAbCB
+          ACT+d8twOoTbQNLUx1v1PUbyiwMA0BrAxX6hxC8WxwQANyWQ1/WSpwZ7rz5lXD4RTcBUrwUEofnd
+          gtzz9lH9fzcD++05qV8qBIBRA5BsBU+47HuH78ZdaO63xr2GLUYBU5gKDgPVhSBuili8t1wYmHY0
+          AGAK1wIsL/QT97tvwF30scJE2y40VASJg3mAbgBMbxiRtCjCDSNeuy+k0POvTAHUoZwAYOglYe3+
+          6fwwsD6UcxrOCDs74h1nHzcazXm4wZpbRXTGKGDoeQDWHYDL3G2ZNM+oeWfuuvE2o+k6A8wDDAuA
+          9QIg//I+2oZX3iTQIHgyAoBBmwDWB4BO28Pj8/ogzgR5hzXXgqAJ6LAquLH4bcuZXxW89zuU8/ns
+          b/fPlSTeydlv0589CyaCpjEMHPqDAAAAAAAAAMCw2G9Ji9d8e0gAGG1hKKQBIHm0ASB3tAEgdbQB
+          IHO/HUAk7Ut/6PKvPMc3eXlokG3t0/ToPf07nJx1EANAp2Hg8XhU3h1M+k+R3LjJO5we2/POLYZs
+          +9NBmuTvt3wcBRCevOb3CV0A6KjgbzWmG3X9X4t/sb0raDtm39YWegsXgZzGdzoAQMdyl1QBiguz
+          1WcmkoecvX/2/bOY2PSCjr+W7eMLFKTyIh4hESTCu8hfAgAdJwTnqv7fQf3le6bxLK0tDuIFYnHW
+          7qSfzpM96h7UlQYAvFyqAK6qf4ml/uoFtepYOBOg/LFby/Naf2MIT8pDrDe2ANARgNgZjNXLO4Sv
+          3rkC4KTSwsOIqwCEnmWor3ZqkPS/MQCYAhAvDIbKCmC/1gFgJgD4m8Cn5ayvzRUARDceAHQDYC+a
+          r6s9EiXW14EIwDcDINwRuj0AsW1IAKAbgFlzvzq90+NeA4AZAnD7AbCdymBwGgCOTVVAdk6PBoBv
+          CuBBqQcA8SQWA0wGgG011KhhGmUNgNgYwLYXAOKgxAWAbgBmfxtq1OzgPjUAjxkDYAMACACgI4BI
+          X6P62Q/VABwAmDaAmX5yzcsmaVQAmPR0XxWAxAeA8QHY66oAN29m98ZBN+6j9wMgBoCOACoBrfTp
+          nXyyZUQAEowC+gRQDbVXS6c/MgD7qVwRnASA+lcqqU66sJEBmEoFMAkAbn1y1aleBhgZAGciswBT
+          AqA8ejcoelmjAbCfypWAKQFgqvvyHYocjgWAM5mLwZMCoBoJlskeBYB4rbqBJAC0Wf/PtaHykeC6
+          1PDDAHx/GwpLyLyxLwgcPwDGqvffq40EOQw/DKB6czE2hTL2/PMAXNkVtjPXHIwLgNd00hwAGOSf
+          ByAu0XWKywDhSAB49b0ihwAAuuVfACAZCbp8P3sEncA48Ss7A84A0CX/AgDJSDDkl/uOZRgoblI7
+          AUCH/IsA1rUqQPiKjWcm0JrMuvCx518EwKqVq6+egBvRtQBcDWyf/wqA6kjQE0ZbIwIQWxPZGTD2
+          /FcAVLbcVNZwj2lByH4iW0THnv8KAPGaYBiK1wXHBGAqjcDY818FUDvrwR0rgMM0VgWOPf9VAEx2
+          nMsoAWynsUl87PmvAVhrzl8YFYBkGt3Asee/BkDXto4KQIyjYvvIfx1AqE4JAEwfAGsE4Krn2ABg
+          8gBYMwB+JFjJ3Yj7AA4AtMu/BMBZmeQRjwLOANAu/0ySSmW9OuJ5AEwEtcw/k3x7tkbH9v0wgHgi
+          Z8WNPf8yAEz1tfpZAOJQ35nI5cCx518KwFGcF7Y3bXVj4wUbbQEEU1kVNPb8M9mltFixziI0vQDn
+          Gn89t/oT6k6K93Ensz547Pn3pV/Rk/yb65ke0Gm+eTvUNxae/LqUP5314SPPP5PXoIG8XjVeirc3
+          PsLJeuGs4OfDgTeV40FGA0D5650Ubag0GwfTjRmB8S3d1pZ2Oqd6V4lwu11XfouQMQBomf+k/KKe
+          fLeamEp+Y7+2Kv8k/+4lYX0Tj7QSiIP6bUP8ouMRu9vmOw/sR3/bkNHm/6y/96LmYFbdl1aXs1j7
+          5X7pljGZv/0EbhjCRvv9dx3HCUMnK+Hjv4RBmC/08db8kx3+RY44GEgc+TMf/1fp/hfvUHvmXvWJ
+          xbP26/MUkj8OAAyFNACkgDYAZIA2ACSANgDEnzYAhJ82AESfNgAEnzYAxJ42AISeNgBEnjYABJ42
+          AMSdNgCEnTYARJ02AASdNgDEnDYAhJw2AEScNgAEnDYAxJs2AISbNgBEmzYABJs2AMSaNgCEmjYA
+          RJo2AASaNgDEmTYAhJk2AESZNgAEmTYAxJg2AISYNgBEmDYABJg2AMSXNgCElzYARJc2AASXNgDE
+          ljYAhJY2AESWNgAEljYAxJU2AISVNgBElTYABJU2AMSUNgCElDYARJQ2AASUNgDEkzYAhJM2AEST
+          NgAEkzYAxJI2AISSNgBEkjYABJI2AMSRNgCEkTYARJE2AASRNgDEkDYAhJA2AESQNgAEkDYAxI82
+          AISPNgBEjzYABI82AMSONgCEjjYARI42AASONgDEjTYAhI02AESNNgAEjTYAxIw2AISMNgBEjDYA
+          BIw2AMSLNgCEizYARIs2AASLNgDEijYAhIo2AESKNgAEijYAxIk2AISJNgBEiTYABIk2AMSINgCE
+          iDYARIg2AASINgDEhzYAhIc2AESHNgAEhzYAxIY2AISGNgBEhjYABIY2AMSFNgCEhTYARIU2AASF
+          NgDEhDYAhIQ2AESENgAEhDYAxIM2AISDNgBEgzYABIM2AMSCNgCEgjYARII2AASCNgDEgTYAhIE2
+          AESBNgAEgXL5HxBdZ3n0MaRIAAAAAElFTkSuQmCC
+          IHR_EOF
+          ls -R . | head -30
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -516,7 +825,12 @@ jobs:
             echo "Retrying in 30s (try $((n+1)) of 3)..."; sleep 30
           done
         working-directory: app/android
+      - name: Name the APK IHR.apk
+        run: |
+          f=$(ls app/android/app/build/outputs/apk/release/*.apk | head -1)
+          cp "$f" IHR.apk
+          ls -la IHR.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: iHR-apk
-          path: app/android/app/build/outputs/apk/release/*.apk
+          name: IHR
+          path: IHR.apk
