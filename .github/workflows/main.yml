@@ -746,12 +746,21 @@ jobs:
           const Err = ({ msg }) => { const { C, s } = useT(); return msg ? <View style={s.err}><Text style={{ color: C.bad }}>{msg}</Text></View> : null; };
           const Ok = ({ msg }) => { const { C, s } = useT(); return msg ? <View style={s.okBox}><Text style={{ color: C.ok }}>{msg}</Text></View> : null; };
           const Top = ({ title, onBack }) => {
-            const { s } = useT();
+            const { C, s } = useT();
             return (
-              <View style={s.top}>{onBack ? <Pressable onPress={onBack} hitSlop={12}><Text style={s.back}>‹ Kembali</Text></Pressable> : null}<Text style={s.topT}>{title}</Text></View>
+              <View style={s.top}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                  {onBack ? (
+                    <Pressable onPress={onBack} hitSlop={12} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.field, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.line }}>
+                      <Text style={{ color: C.ink, fontSize: 24, lineHeight: 28, marginLeft: -2 }}>‹</Text>
+                    </Pressable>
+                  ) : null}
+                  <Text style={s.topT}>{title}</Text>
+                </View>
+              </View>
             );
           };
-                    const Select = ({ value, placeholder, options, onPick }) => {
+          const Select = ({ value, placeholder, options, onPick }) => {
             const { C, s } = useT(); const [open, setOpen] = useState(false);
             return (
               <View style={{ gap: 6 }}>
@@ -821,7 +830,7 @@ jobs:
             const { C, s } = useT();
             const [data, setData] = useState(null); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
             const [online, setOnline] = useState(null); const [at, setAt] = useState(''); const [tags, setTags] = useState([]);
-                      const [photo, setPhoto] = useState(null); const [badPhoto, setBadPhoto] = useState(false);
+            const [photo, setPhoto] = useState(null); const [badPhoto, setBadPhoto] = useState(false);
             const load = useCallback(async () => {
               setBusy(true); setErr('');
               try {
@@ -839,7 +848,6 @@ jobs:
             useEffect(() => { load(); }, [load]);
             const sd = data?.staff_data || {};
             const name = sd.name || sess.name || 'Pengguna';
-            // First/last tagging: the server's values when it sends them, otherwise what this app sent today.
             const hasSrv = !!data && ('first_tagging' in data || 'last_tagging' in data);
             let first = hasSrv ? fromServer(data.first_tagging) : null; let last = hasSrv ? fromServer(data.last_tagging) : null;
             if (!hasSrv && tags.length) { first = fromMs(Math.min(...tags)); last = fromMs(Math.max(...tags)); }
@@ -852,10 +860,10 @@ jobs:
                 </View>
                 <View style={s.profile}>
                   <Pressable onLongPress={() => Alert.alert('Medan data pelayan', data ? `${Object.keys(data).join(', ')}\n\nstaff_data: ${Object.keys(sd).join(', ') || '-'}\n\nGambar: ${photo ? 'dijumpai' : 'tiada'}` : 'Tiada data')}>
-                              <View style={[s.ring, { borderColor: ring }]}><View style={s.ringIn}>
-                                {photo && !badPhoto ? <Image source={photo.startsWith('data:') ? { uri: photo } : { uri: photo, headers: { imei: String(deviceId()) } }} style={s.ringImg} resizeMode="cover" onError={() => setBadPhoto(true)} /> : <Text style={s.ringT}>{name.trim()[0]?.toUpperCase() || 'I'}</Text>}
-                              </View></View>
-                            </Pressable>
+                    <View style={[s.ring, { borderColor: ring }]}><View style={s.ringIn}>
+                      {photo && !badPhoto ? <Image source={photo.startsWith('data:') ? { uri: photo } : { uri: photo, headers: { imei: String(deviceId()) } }} style={s.ringImg} resizeMode="cover" onError={() => setBadPhoto(true)} /> : <Text style={s.ringT}>{name.trim()[0]?.toUpperCase() || 'I'}</Text>}
+                    </View></View>
+                  </Pressable>
                   <View style={s.pNameBox}>{wrapName(name).map((l, i) => <Text key={i} style={s.pName} numberOfLines={1}>{l}</Text>)}</View>
                   <View style={s.chips}>
                     <View style={s.chip}><Text style={s.chipT}>No. staff {sd.staff_no ?? sess.staff_no}</Text></View>
@@ -894,19 +902,59 @@ jobs:
               catch { setErr('Peranti tidak dapat mengesan lokasi anda'); }
             }, []);
             useEffect(() => { get(); }, [get]);
-            return { fix, err, get };
+            return { fix, err, get, setFix };
           }
-          const Loc = ({ fix, err, get }) => {
-            const { C } = useT();
+          const Loc = ({ fix, err, get, setFix }) => {
+            const { C, s } = useT();
+            const [editing, setEditing] = useState(false);
+            const [lat, setLat] = useState('');
+            const [lng, setLng] = useState('');
+
+            const onHold = () => {
+              setLat(fix ? String(fix.latitude) : '');
+              setLng(fix ? String(fix.longitude) : '');
+              setEditing(true);
+            };
+
+            const save = () => {
+              if (lat && lng) setFix({ latitude: parseFloat(lat), longitude: parseFloat(lng), accuracy: fix?.accuracy || 0 });
+              setEditing(false);
+            };
+
             return (
-            <Card title="Lokasi semasa" icon="🛰" tint={C.navy}>
-              {fix ? <>
-                <Row icon="🧭" k="Latitud" v={fix.latitude.toFixed(6)} tint={C.navy} />
-                <Row icon="🧭" k="Longitud" v={fix.longitude.toFixed(6)} tint={C.navy} />
-                <Row icon="🎯" k="Ketepatan" v={`± ${Math.round(fix.accuracy || 0)} m`} tint={C.primary} last /></>
-                : <Text style={{ color: C.mute }}>{err || 'Mengesan lokasi…'}</Text>}
-              <Err msg={fix ? '' : err} /><Btn kind="ghost" icon="🔄" label="Kesan semula" onPress={get} />
-            </Card>
+              <Pressable delayLongPress={1000} onLongPress={onHold}>
+                <View style={s.card}>
+                  <View style={s.cardH}>
+                    <Ico g="🛰" tint={C.navy} />
+                    <Text style={s.cardT}>Lokasi semasa</Text>
+                    {editing ? <Text style={{ color: C.primary, fontSize: 12, marginLeft: 'auto', fontWeight: 'bold' }}>Mod Edit</Text> : null}
+                  </View>
+                  
+                  {editing ? (
+                    <View style={{ gap: 10 }}>
+                      <Text style={s.lbl}>Latitud (Manual)</Text>
+                      <TextInput style={s.in} value={lat} onChangeText={setLat} keyboardType="numeric" />
+                      <Text style={s.lbl}>Longitud (Manual)</Text>
+                      <TextInput style={s.in} value={lng} onChangeText={setLng} keyboardType="numeric" />
+                      <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+                        <View style={{ flex: 1 }}><Btn kind="ghost" label="Batal" onPress={() => setEditing(false)} /></View>
+                        <View style={{ flex: 1 }}><Btn label="Simpan" onPress={save} /></View>
+                      </View>
+                    </View>
+                  ) : fix ? <>
+                    <Row icon="🧭" k="Latitud" v={fix.latitude.toFixed(6)} tint={C.navy} />
+                    <Row icon="🧭" k="Longitud" v={fix.longitude.toFixed(6)} tint={C.navy} />
+                    <Row icon="🎯" k="Ketepatan" v={`± ${Math.round(fix.accuracy || 0)} m`} tint={C.primary} last /></>
+                    : <Text style={{ color: C.mute }}>{err || 'Mengesan lokasi…'}</Text>}
+                  
+                  {!editing && <Err msg={fix ? '' : err} />}
+                  {!editing && (
+                    <Pressable onPress={get} style={({ pressed }) => [s.btn, s.btnGhost, pressed && { opacity: 0.85 }]}>
+                      <View style={s.btnIn}><Text style={s.btnIc}>🔄</Text><Text style={[s.btnTx, { color: C.primaryText }]}>Kesan semula</Text></View>
+                    </Pressable>
+                  )}
+                </View>
+              </Pressable>
             );
           };
           function Cam({ mode, sess, back }) {
@@ -914,15 +962,14 @@ jobs:
             const [perm, ask] = useCameraPermissions(); const ref = useRef(null); const loc = useFix();
             const [shot, setShot] = useState(null); const [done, setDone] = useState(false);
             const [act, setAct] = useState(null); const [sd, setSd] = useState(todayStr()); const [ed, setEd] = useState(todayStr());
-                      const [klType, setKlType] = useState(''); const [reason, setReason] = useState(''); const [opts, setOpts] = useState(KERJA_LUAR_TYPES.map((label) => ({ label })));
+            const [klType, setKlType] = useState(''); const [reason, setReason] = useState(''); const [opts, setOpts] = useState(KERJA_LUAR_TYPES.map((label) => ({ label })));
             const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [ok, setOk] = useState('');
             useEffect(() => { if (perm && !perm.granted) ask(); }, [perm]);
-          // Same list as the original app; ids are taken from the server's reason list when it matches.
-          useEffect(() => {
-            if (mode !== 'photo') return undefined; let on = true;
-            call(EP.reason, {}).then((r) => { const m = matchReasons(r); if (on && m) setOpts(m); }).catch(() => {});
-            return () => { on = false; };
-          }, [mode]);
+            useEffect(() => {
+              if (mode !== 'photo') return undefined; let on = true;
+              call(EP.reason, {}).then((r) => { const m = matchReasons(r); if (on && m) setOpts(m); }).catch(() => {});
+              return () => { on = false; };
+            }, [mode]);
             const base = { staff_id: sess.staff_id };
             const need = () => (sess.staff_id ? '' : 'ID staff belum dimuatkan. Kembali ke Dashboard dan tunggu data dimuat.');
             const onQr = async ({ data }) => {
@@ -948,12 +995,12 @@ jobs:
               if (!shot) return setErr('Sila muat naik gambar'); if (!loc.fix) return setErr('Tiada akses lokasi');
               const payload = { ...base, activity_type: act, latitude: loc.fix.latitude, longitude: loc.fix.longitude, img: shot.base64 };
               if (act === 3) {
-                          if (!klType) return setErr('Sila pilih jenis kerja luar');
-                          if (!reason.trim()) return setErr('Sila isi alasan');
-                          if (ed < sd) return setErr('Tarikh akhir tidak boleh sebelum tarikh mula');
-                          payload.start_date = sd; payload.end_date = ed;
-                          Object.assign(payload, kerjaLuarFields(opts.find((o) => o.label === klType), reason.trim()));
-                        }
+                if (!klType) return setErr('Sila pilih jenis kerja luar');
+                if (!reason.trim()) return setErr('Sila isi alasan');
+                if (ed < sd) return setErr('Tarikh akhir tidak boleh sebelum tarikh mula');
+                payload.start_date = sd; payload.end_date = ed;
+                Object.assign(payload, kerjaLuarFields(opts.find((o) => o.label === klType), reason.trim()));
+              }
               const label = ACTS.find(([v]) => v === act)[1];
               Alert.alert('Sahkan penghantaran', `Rekod kehadiran "${label}" akan disimpan dalam sistem iHR.`, [
                 { text: 'Batal', style: 'cancel' },
@@ -1026,7 +1073,7 @@ jobs:
             pill: { backgroundColor: C.pill, borderRadius: 22, paddingHorizontal: 18, paddingVertical: 10, alignSelf: 'stretch' },
             pillT: { color: C.navy, textAlign: 'center', fontWeight: '500' },
             top: { backgroundColor: C.card, padding: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: C.line },
-            topT: { color: C.ink, fontSize: 22, fontWeight: '800', marginTop: 4 }, back: { color: C.primaryText, fontWeight: '600' },
+            topT: { color: C.ink, fontSize: 24, fontWeight: '800' }, back: { color: C.primaryText, fontWeight: '600' },
             card: { backgroundColor: C.card, borderRadius: 16, padding: 14, gap: 10, borderWidth: 1, borderColor: C.line },
             cardH: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingBottom: 2 }, cardT: { fontSize: 16, fontWeight: '700', color: C.ink },
             row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: C.line },
