@@ -693,7 +693,7 @@ jobs:
           const toYMD = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
           const toDMY = (v) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v || '').trim()); return m ? `${m[3]}/${m[2]}/${m[1]}` : String(v || ''); };
           const ACTS = [[1, 'Kehadiran Biasa'], [2, 'BDR'], [3, 'Kerja Luar']];
-          const PORTAL = '[https://ihr.mtib.gov.my/user/leave_attendance/attendance_record](https://ihr.mtib.gov.my/user/leave_attendance/attendance_record)';
+          const PORTAL = 'https://ihr.mtib.gov.my/user/leave_attendance/attendance_record';
           const wrapName = (n, max = 26) => {
             const out = []; let cur = '';
             String(n || '').trim().split(/\s+/).forEach((w) => {
@@ -708,53 +708,53 @@ jobs:
           const Btn = ({ label, onPress, kind = 'main', busy, disabled, icon }) => {
             const { C, s } = useT();
             return (
-              <Pressable disabled="{busy" disabled} onPress="{onPress}" pressed style="{({" ||> [s.btn, kind === 'ghost' && s.btnGhost, (busy || disabled) && { opacity: 0.5 }, pressed && { opacity: 0.85 }]}>
-                {busy ? <ActivityIndicator 'ghost' : ? C.onPrimary} C.primaryText color="{kind"/> : (
-                  <View style="{s.btnIn}">{icon ? <Text style="{s.btnIc}">{icon}</Text> : null}<Text && 'ghost' C.primaryText color: kind="==" style="{[s.btnTx," { }]}>{label}</Text></View>)}
+              <Pressable onPress={onPress} disabled={busy || disabled} style={({ pressed }) => [s.btn, kind === 'ghost' && s.btnGhost, (busy || disabled) && { opacity: 0.5 }, pressed && { opacity: 0.85 }]}>
+                {busy ? <ActivityIndicator color={kind === 'ghost' ? C.primaryText : C.onPrimary} /> : (
+                  <View style={s.btnIn}>{icon ? <Text style={s.btnIc}>{icon}</Text> : null}<Text style={[s.btnTx, kind === 'ghost' && { color: C.primaryText }]}>{label}</Text></View>)}
               </Pressable>
             );
           };
           const Ico = ({ g, tint, size = 34 }) => {
             const { C } = useT(); const t = tint || C.primary;
             return (
-              <View '26', 'center' 'center', * + 0.3, alignItems: backgroundColor: borderRadius: height: justifyContent: size size, style="{{" t width: }}><Text * 0.5 fontSize: size style="{{" }}>{g}</Text></View>
+              <View style={{ width: size, height: size, borderRadius: size * 0.3, backgroundColor: t + '26', alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: size * 0.5 }}>{g}</Text></View>
             );
           };
           const Card = ({ title, icon, tint, children }) => {
             const { s } = useT();
             return (
-              <View style="{s.card}">{title ? (<View style="{s.cardH}">{icon ? <Ico g="{icon}" tint="{tint}"/> : null}<Text style="{s.cardT}">{title}</Text></View>) : null}{children}</View>
+              <View style={s.card}>{title ? (<View style={s.cardH}>{icon ? <Ico g={icon} tint={tint} /> : null}<Text style={s.cardT}>{title}</Text></View>) : null}{children}</View>
             );
           };
           const Row = ({ icon, k, v, tint, last, selectable, stack }) => {
             const { s } = useT();
             return (
-              <View && 0 borderBottomWidth: last style="{[s.row," { }]}>
-                {icon ? <Ico g="{icon}" size="{28}" tint="{tint}"/> : null}
-                {stack ? (<View 1 flex: style="{{" }}><Text style="{s.rowK}">{k}</Text><Text 'left', 2 marginTop: selectable="{selectable}" style="{[s.rowV," textAlign: { }]}>{v}</Text></View>)
-                  : (<><Text style="{s.rowK}">{k}</Text><Text selectable="{selectable}" style="{s.rowV}">{v}</Text></>)}
+              <View style={[s.row, last && { borderBottomWidth: 0 }]}>
+                {icon ? <Ico g={icon} tint={tint} size={28} /> : null}
+                {stack ? (<View style={{ flex: 1 }}><Text style={s.rowK}>{k}</Text><Text style={[s.rowV, { textAlign: 'left', marginTop: 2 }]} selectable={selectable}>{v}</Text></View>)
+                  : (<><Text style={s.rowK}>{k}</Text><Text style={s.rowV} selectable={selectable}>{v}</Text></>)}
               </View>
             );
           };
           const Stat = ({ icon, label, value, tint }) => {
             const { s } = useT();
             return (
-              <View style="{s.stat}"><View style="{s.statH}"><Ico g="{icon}" size="{26}" tint="{tint}"/><Text style="{s.statL}">{label}</Text></View><Text style="{s.statV}">{value}</Text></View>
+              <View style={s.stat}><View style={s.statH}><Ico g={icon} tint={tint} size={26} /><Text style={s.statL}>{label}</Text></View><Text style={s.statV}>{value}</Text></View>
             );
           };
-          const Err = ({ msg }) => { const { C, s } = useT(); return msg ? <View style="{s.err}"><Text C.bad color: style="{{" }}>{msg}</Text></View> : null; };
-          const Ok = ({ msg }) => { const { C, s } = useT(); return msg ? <View style="{s.okBox}"><Text C.ok color: style="{{" }}>{msg}</Text></View> : null; };
+          const Err = ({ msg }) => { const { C, s } = useT(); return msg ? <View style={s.err}><Text style={{ color: C.bad }}>{msg}</Text></View> : null; };
+          const Ok = ({ msg }) => { const { C, s } = useT(); return msg ? <View style={s.okBox}><Text style={{ color: C.ok }}>{msg}</Text></View> : null; };
           const Top = ({ title, onBack }) => {
             const { C, s } = useT();
             return (
-              <View style="{s.top}">
-                <View 'center', 'row', 14 alignItems: flexDirection: gap: style="{{" }}>
+              <View style={s.top}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
                   {onBack ? (
-                    <Pressable 'center', 1, 20, 40, C.field, C.line alignItems: backgroundColor: borderColor: borderRadius: borderWidth: height: hitSlop="{12}" justifyContent: onPress="{onBack}" style="{{" width: }}>
-                      <Text -2 24, 28, C.ink, color: fontSize: lineHeight: marginLeft: style="{{" }}>‹</Text>
+                    <Pressable onPress={onBack} hitSlop={12} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.field, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.line }}>
+                      <Text style={{ color: C.ink, fontSize: 24, lineHeight: 28, marginLeft: -2 }}>‹</Text>
                     </Pressable>
                   ) : null}
-                  <Text style="{s.topT}">{title}</Text>
+                  <Text style={s.topT}>{title}</Text>
                 </View>
               </View>
             );
@@ -762,14 +762,14 @@ jobs:
           const Select = ({ value, placeholder, options, onPick }) => {
             const { C, s } = useT(); const [open, setOpen] = useState(false);
             return (
-              <View 6 gap: style="{{" }}>
-                <Pressable onPress="{()"> setOpen(!open)} style={[s.in, s.sel]}>
-                  <Text 1 16, : ? C.ink C.mute, color: flex: fontSize: style="{{" value }}>{value || placeholder}</Text>
-                  <Text C.mute color: style="{{" }}>{open ? '▲' : '▼'}</Text>
+              <View style={{ gap: 6 }}>
+                <Pressable onPress={() => setOpen(!open)} style={[s.in, s.sel]}>
+                  <Text style={{ color: value ? C.ink : C.mute, fontSize: 16, flex: 1 }}>{value || placeholder}</Text>
+                  <Text style={{ color: C.mute }}>{open ? '▲' : '▼'}</Text>
                 </Pressable>
-                {open ? (<View style="{s.selList}">{options.map((o, i) => (
-                  <Pressable key="{o}" onPress="{()"> { onPick(o); setOpen(false); }} style={[s.selItem, i === options.length - 1 && { borderBottomWidth: 0 }, o === value && { backgroundColor: C.primarySoft }]}>
-                    <Text 16 C.ink, color: fontSize: style="{{" }}>{o}</Text>
+                {open ? (<View style={s.selList}>{options.map((o, i) => (
+                  <Pressable key={o} onPress={() => { onPick(o); setOpen(false); }} style={[s.selItem, i === options.length - 1 && { borderBottomWidth: 0 }, o === value && { backgroundColor: C.primarySoft }]}>
+                    <Text style={{ color: C.ink, fontSize: 16 }}>{o}</Text>
                   </Pressable>))}</View>) : null}
               </View>
             );
@@ -780,7 +780,7 @@ jobs:
               value: parseYMD(value), mode: 'date', minimumDate: min ? parseYMD(min) : undefined,
               onChange: (e, d) => { if (e?.type === 'set' && d) onPick(toYMD(d)); },
             });
-            return (<Pressable onPress="{open}" s.sel]} style="{[s.in,"><Text 1 16, C.ink, color: flex: fontSize: style="{{" }}>{toDMY(value)}</Text><Text 16 fontSize: style="{{" }}>📅</Text></Pressable>);
+            return (<Pressable onPress={open} style={[s.in, s.sel]}><Text style={{ color: C.ink, fontSize: 16, flex: 1 }}>{toDMY(value)}</Text><Text style={{ fontSize: 16 }}>📅</Text></Pressable>);
           };
           function Register({ onDone }) {
             const { C, s } = useT();
@@ -801,29 +801,29 @@ jobs:
               } catch (e) { setErr(e.message); } finally { setBusy(false); }
             };
             return (
-              <ScrollView 1 contentContainerStyle="{{" flexGrow: keyboardShouldPersistTaps="handled" }}>
-                <View 'center', 'column', 30 60, alignItems: flexDirection: paddingBottom: paddingTop: style="{[s.regTop," { }]}>
-                  <Pressable delayLongPress="{1000}" onLongPress="{()"> setAdv(!adv)} style={{ alignItems: 'center' }}>
-                    <Image 16, 20 90, borderRadius: height: marginBottom: source="{require('./assets/icon.png')}" style="{{" width: }}/>
-                    <Text 'center' style="{[s.logo," textAlign: { }]}>iHR</Text>
-                    <Text 'center' style="{[s.sub," textAlign: { }]}>Lembaga Perindustrian Kayu Malaysia</Text>
+              <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+                <View style={[s.regTop, { flexDirection: 'column', alignItems: 'center', paddingTop: 60, paddingBottom: 30 }]}>
+                  <Pressable delayLongPress={1000} onLongPress={() => setAdv(!adv)} style={{ alignItems: 'center' }}>
+                    <Image source={require('./assets/icon.png')} style={{ width: 90, height: 90, marginBottom: 16, borderRadius: 20 }} />
+                    <Text style={[s.logo, { textAlign: 'center' }]}>iHR</Text>
+                    <Text style={[s.sub, { textAlign: 'center' }]}>Lembaga Perindustrian Kayu Malaysia</Text>
                   </Pressable>
                 </View>
-                <View 14 16, gap: padding: style="{{" }}>
-                  <Card icon="👤" tint="{C.navy}" title="Daftar Pengguna Baru">
-                    <Text style="{s.lbl}">Nama penuh</Text>
-                    <TextInput onChangeText="{setName}" placeholder="Seperti dalam kad pengenalan" placeholderTextColor="{C.mute}" style="{s.in}" value="{name}"/>
-                    <Text style="{s.lbl}">Nombor staff</Text>
-                    <TextInput autoCapitalize="characters" onChangeText="{setNo}" placeholder="Contoh: 01234" placeholderTextColor="{C.mute}" style="{s.in}" value="{no}"/>
-                    <Err msg="{err}"/>
-                    <Btn busy="{busy}" label="Daftar" onPress="{submit}"/>
+                <View style={{ padding: 16, gap: 14 }}>
+                  <Card title="Daftar Pengguna Baru" icon="👤" tint={C.navy}>
+                    <Text style={s.lbl}>Nama penuh</Text>
+                    <TextInput style={s.in} value={name} onChangeText={setName} placeholder="Seperti dalam kad pengenalan" placeholderTextColor={C.mute} />
+                    <Text style={s.lbl}>Nombor staff</Text>
+                    <TextInput style={s.in} value={no} onChangeText={setNo} autoCapitalize="characters" placeholder="Contoh: 01234" placeholderTextColor={C.mute} />
+                    <Err msg={err} />
+                    <Btn label="Daftar" onPress={submit} busy={busy} />
                   </Card>
-                  {adv ? (<Card icon="⚙️" tint="{C.navy}" title="Tetapan lanjutan">
-                    <Text style="{s.lbl}">ID peranti. Tukar hanya jika perlu guna ID yang sudah didaftarkan untuk telefon ini.</Text>
-                    <TextInput autoCapitalize="none" autoCorrect="{false}" onChangeText="{setDev}" style="{s.in}" value="{dev}"/>
-                    <Btn kind="ghost" label="Sudah berdaftar - teruskan" onPress="{cont}"/>
+                  {adv ? (<Card title="Tetapan lanjutan" icon="⚙️" tint={C.navy}>
+                    <Text style={s.lbl}>ID peranti. Tukar hanya jika perlu guna ID yang sudah didaftarkan untuk telefon ini.</Text>
+                    <TextInput style={s.in} value={dev} onChangeText={setDev} autoCapitalize="none" autoCorrect={false} />
+                    <Btn kind="ghost" label="Sudah berdaftar - teruskan" onPress={cont} />
                   </Card>) : null}
-                  <Text style="{s.hint}">Peranti ini akan didaftarkan bersama nombor staff anda.</Text>
+                  <Text style={s.hint}>Peranti ini akan didaftarkan bersama nombor staff anda.</Text>
                 </View>
               </ScrollView>
             );
@@ -855,41 +855,41 @@ jobs:
             if (!hasSrv && tags.length) { first = fromMs(Math.min(...tags)); last = fromMs(Math.max(...tags)); }
             const ring = data ? colorOf(data.att_color, C.accent) : C.accent;
             return (
-              <ScrollView 28 contentContainerStyle="{{" paddingBottom: }}>
-                <View style="{s.dashTop}">
-                  <Text style="{s.logo}">iHR</Text>
-                  <View style="{s.status}"><View : ? C.bad C.mute C.ok backgroundColor: null online style="{[s.dot," { }]}/><Text style="{s.statusT}">{online == null ? 'Menyemak…' : online ? `Dalam talian ${at}` : 'Luar talian'}</Text></View>
+              <ScrollView contentContainerStyle={{ paddingBottom: 28 }}>
+                <View style={s.dashTop}>
+                  <Text style={s.logo}>iHR</Text>
+                  <View style={s.status}><View style={[s.dot, { backgroundColor: online == null ? C.mute : online ? C.ok : C.bad }]} /><Text style={s.statusT}>{online == null ? 'Menyemak…' : online ? `Dalam talian ${at}` : 'Luar talian'}</Text></View>
                 </View>
-                <View style="{s.profile}">
-                  <Pressable onLongPress="{()"> Alert.alert('Medan data pelayan', data ? `${Object.keys(data).join(', ')}\n\nstaff_data: ${Object.keys(sd).join(', ') || '-'}\n\nGambar: ${photo ? 'dijumpai' : 'tiada'}` : 'Tiada data')}>
-                    <View borderColor: ring style="{[s.ring," { }]}><View style="{s.ringIn}">
-                      {photo && !badPhoto ? <Image : ? String(deviceId()) headers: imei: onError="{()" photo photo, resizeMode="cover" source="{photo.startsWith('data:')" style="{s.ringImg}" uri: { } }}> setBadPhoto(true)} /> : <Text style="{s.ringT}">{name.trim()[0]?.toUpperCase() || 'I'}</Text>}
+                <View style={s.profile}>
+                  <Pressable onLongPress={() => Alert.alert('Medan data pelayan', data ? `${Object.keys(data).join(', ')}\n\nstaff_data: ${Object.keys(sd).join(', ') || '-'}\n\nGambar: ${photo ? 'dijumpai' : 'tiada'}` : 'Tiada data')}>
+                    <View style={[s.ring, { borderColor: ring }]}><View style={s.ringIn}>
+                      {photo && !badPhoto ? <Image source={photo.startsWith('data:') ? { uri: photo } : { uri: photo, headers: { imei: String(deviceId()) } }} style={s.ringImg} resizeMode="cover" onError={() => setBadPhoto(true)} /> : <Text style={s.ringT}>{name.trim()[0]?.toUpperCase() || 'I'}</Text>}
                     </View></View>
                   </Pressable>
-                  <View style="{s.pNameBox}">{wrapName(name).map((l, i) => <Text key="{i}" numberOfLines="{1}" style="{s.pName}">{l}</Text>)}</View>
-                  <View style="{s.chips}">
-                    <View style="{s.chip}"><Text style="{s.chipT}">No. staff {sd.staff_no ?? sess.staff_no}</Text></View>
+                  <View style={s.pNameBox}>{wrapName(name).map((l, i) => <Text key={i} style={s.pName} numberOfLines={1}>{l}</Text>)}</View>
+                  <View style={s.chips}>
+                    <View style={s.chip}><Text style={s.chipT}>No. staff {sd.staff_no ?? sess.staff_no}</Text></View>
                   </View>
-                  {data ? <View style="{s.pill}"><Text style="{s.pillT}">{data.msg?.clock_in || 'Belum ada rekod waktu masuk hari ini.'}</Text></View> : null}
+                  {data ? <View style={s.pill}><Text style={s.pillT}>{data.msg?.clock_in || 'Belum ada rekod waktu masuk hari ini.'}</Text></View> : null}
                 </View>
-                <View 14 16, gap: paddingHorizontal: style="{{" }}>
-                  <Err msg="{err}"/>
-                  {busy && !data ? <ActivityIndicator color="{C.primaryText}"/> : null}
+                <View style={{ paddingHorizontal: 16, gap: 14 }}>
+                  <Err msg={err} />
+                  {busy && !data ? <ActivityIndicator color={C.primaryText} /> : null}
                   {data ? (
-                    <Card icon="🗓" tint="{C.navy}" title="Hari ini">
-                      <View style="{s.statRow}">
-                        <Stat '—'} icon="📍" label="First Tagging" tint="{C.primary}" value="{first" ||/>
-                        <Stat '—'} icon="📌" label="Last Tagging" tint="{C.navy}" value="{last" ||/>
+                    <Card title="Hari ini" icon="🗓" tint={C.navy}>
+                      <View style={s.statRow}>
+                        <Stat icon="📍" label="First Tagging" value={first || '—'} tint={C.primary} />
+                        <Stat icon="📌" label="Last Tagging" value={last || '—'} tint={C.navy} />
                       </View>
-                      {!hasSrv ? <Text style="{s.note}">Masa tagging direkod daripada app ini sahaja.</Text> : null}
-                      <Pressable onPress="{()"> go('portal')} hitSlop={8}><Text style="{s.link}">🌐 Lihat rekod 7 hari di portal ›</Text></Pressable>
+                      {!hasSrv ? <Text style={s.note}>Masa tagging direkod daripada app ini sahaja.</Text> : null}
+                      <Pressable onPress={() => go('portal')} hitSlop={8}><Text style={s.link}>🌐 Lihat rekod 7 hari di portal ›</Text></Pressable>
                     </Card>
                   ) : null}
-                  <View 10 gap: style="{{" }}>
-                    <Btn icon="📍" label="Geo Tagging" onPress="{()"> go('geo')} />
-                    <Btn icon="📷" label="Imbas QR" onPress="{()"> go('qr')} />
+                  <View style={{ gap: 10 }}>
+                    <Btn icon="📍" label="Geo Tagging" onPress={() => go('geo')} />
+                    <Btn icon="📷" label="Imbas QR" onPress={() => go('qr')} />
                   </View>
-                  <Btn busy="{busy}" icon="🔄" kind="ghost" label="Muat semula" onPress="{load}"/>
+                  <Btn kind="ghost" icon="🔄" label="Muat semula" onPress={load} busy={busy} />
                 </View>
               </ScrollView>
             );
@@ -911,48 +911,43 @@ jobs:
             const [editing, setEditing] = useState(false);
             const [lat, setLat] = useState('');
             const [lng, setLng] = useState('');
-
             const onHold = () => {
               setLat(fix ? String(fix.latitude) : '');
               setLng(fix ? String(fix.longitude) : '');
               setEditing(true);
             };
-
             const save = () => {
               if (lat && lng) setFix({ latitude: parseFloat(lat), longitude: parseFloat(lng), accuracy: fix?.accuracy || 0 });
               setEditing(false);
             };
-
             return (
-              <Pressable delayLongPress="{1000}" onLongPress="{onHold}">
-                <View style="{s.card}">
-                  <View style="{s.cardH}">
-                    <Ico g="🛰" tint="{C.navy}"/>
-                    <Text style="{s.cardT}">Lokasi semasa</Text>
-                    {editing ? <Text 'auto', 'bold' 12, C.primary, color: fontSize: fontWeight: marginLeft: style="{{" }}>Mod Edit</Text> : null}
+              <Pressable delayLongPress={1000} onLongPress={onHold}>
+                <View style={s.card}>
+                  <View style={s.cardH}>
+                    <Ico g="🛰" tint={C.navy} />
+                    <Text style={s.cardT}>Lokasi semasa</Text>
+                    {editing ? <Text style={{ color: C.primary, fontSize: 12, marginLeft: 'auto', fontWeight: 'bold' }}>Mod Edit</Text> : null}
                   </View>
-                  
                   {editing ? (
-                    <View 10 gap: style="{{" }}>
-                      <Text style="{s.lbl}">Latitud (Manual)</Text>
-                      <TextInput keyboardType="numeric" onChangeText="{setLat}" style="{s.in}" value="{lat}"/>
-                      <Text style="{s.lbl}">Longitud (Manual)</Text>
-                      <TextInput keyboardType="numeric" onChangeText="{setLng}" style="{s.in}" value="{lng}"/>
-                      <View 'row', 10, 4 flexDirection: gap: marginTop: style="{{" }}>
-                        <View 1 flex: style="{{" }}><Btn kind="ghost" label="Batal" onPress="{()"> setEditing(false)} /></View>
-                        <View 1 flex: style="{{" }}><Btn label="Simpan" onPress="{save}"/></View>
+                    <View style={{ gap: 10 }}>
+                      <Text style={s.lbl}>Latitud (Manual)</Text>
+                      <TextInput style={s.in} value={lat} onChangeText={setLat} keyboardType="numeric" />
+                      <Text style={s.lbl}>Longitud (Manual)</Text>
+                      <TextInput style={s.in} value={lng} onChangeText={setLng} keyboardType="numeric" />
+                      <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+                        <View style={{ flex: 1 }}><Btn kind="ghost" label="Batal" onPress={() => setEditing(false)} /></View>
+                        <View style={{ flex: 1 }}><Btn label="Simpan" onPress={save} /></View>
                       </View>
                     </View>
                   ) : fix ? <>
-                    <Row icon="🧭" k="Latitud" tint="{C.navy}" v="{fix.latitude.toFixed(6)}"/>
-                    <Row icon="🧭" k="Longitud" tint="{C.navy}" v="{fix.longitude.toFixed(6)}"/>
-                    <Row ${Math.round(fix.accuracy 0)} icon="🎯" k="Ketepatan" last m`} tint="{C.primary}" v="{`±" ||/></>
-                    : <Text C.mute color: style="{{" }}>{err || 'Mengesan lokasi…'}</Text>}
-                  
-                  {!editing && <Err '' : ? err} msg="{fix"/>}
+                    <Row icon="🧭" k="Latitud" v={fix.latitude.toFixed(6)} tint={C.navy} />
+                    <Row icon="🧭" k="Longitud" v={fix.longitude.toFixed(6)} tint={C.navy} />
+                    <Row icon="🎯" k="Ketepatan" v={`± ${Math.round(fix.accuracy || 0)} m`} tint={C.primary} last /></>
+                    : <Text style={{ color: C.mute }}>{err || 'Mengesan lokasi…'}</Text>}
+                  {!editing && <Err msg={fix ? '' : err} />}
                   {!editing && (
-                    <Pressable onPress="{get}" pressed style="{({"> [s.btn, s.btnGhost, pressed && { opacity: 0.85 }]}>
-                      <View style="{s.btnIn}"><Text style="{s.btnIc}">🔄</Text><Text C.primaryText color: style="{[s.btnTx," { }]}>Kesan semula</Text></View>
+                    <Pressable onPress={get} style={({ pressed }) => [s.btn, s.btnGhost, pressed && { opacity: 0.85 }]}>
+                      <View style={s.btnIn}><Text style={s.btnIc}>🔄</Text><Text style={[s.btnTx, { color: C.primaryText }]}>Kesan semula</Text></View>
                     </Pressable>
                   )}
                 </View>
@@ -960,13 +955,12 @@ jobs:
             );
           };
 
-          const INJECTED_SCRAPER_JS = "(function(){var s=document.createElement('style');s.innerHTML='header, nav, .main-header, .navbar, .main-sidebar, .sidebar, footer, .page-header { display: none !important; } .content-wrapper, .main-panel, body { margin-left: 0 !important; padding-top: 0 !important; background-color: transparent !important; }';document.head.appendChild(s);setTimeout(function(){try{if(window.location.href.indexOf('login')!==-1){window.ReactNativeWebView.postMessage(JSON.stringify({type:'STATUS',status:'login'}));}else{var rows=document.querySelectorAll('table tbody tr');var records=[];for(var i=0;i<rows.length;i++){var cells=rows[i].querySelectorAll('td');if(cells.length>=4){var tarikh=cells[0].innerText.trim();if(tarikh.indexOf('-')!==-1){records.push({tarikh:tarikh,hari:cells[1].innerText.trim(),masuk:cells[2].innerText.trim(),keluar:cells[3].innerText.trim()});}}}if(records.length>0){window.ReactNativeWebView.postMessage(JSON.stringify({type:'DATA',payload:records}));}}}catch(e){}},1200);})();true;";
+          const INJECTED_SCRAPER_JS = "var s=document.createElement('style');s.innerHTML='header, nav, .main-header, .navbar, .main-sidebar, .sidebar, footer, .page-header { display: none !important; } .content-wrapper, .main-panel, body { margin-left: 0 !important; padding-top: 0 !important; background-color: transparent !important; }';document.head.appendChild(s);setTimeout(function(){try{if(window.location.href.indexOf('login')!==-1){window.ReactNativeWebView.postMessage(JSON.stringify({type:'STATUS',status:'login'}));}else{var rows=document.querySelectorAll('table tbody tr');var records=[];for(var i=0;i<rows.length;i++){var cells=rows[i].querySelectorAll('td');if(cells.length>=4){var tarikh=cells[0].innerText.trim();if(tarikh.indexOf('-')!==-1){records.push({tarikh:tarikh,hari:cells[1].innerText.trim(),masuk:cells[2].innerText.trim(),keluar:cells[3].innerText.trim()});}}}if(records.length>0){window.ReactNativeWebView.postMessage(JSON.stringify({type:'DATA',payload:records}));}}}catch(e){}},1200);true;";
 
           function PortalDashboard({ back }) {
             const { C, s } = useT();
             const [records, setRecords] = useState([]);
             const [showWeb, setShowWeb] = useState(true);
-
             const handleMessage = (event) => {
               try {
                 const msg = JSON.parse(event.nativeEvent.data);
@@ -977,43 +971,46 @@ jobs:
                 }
               } catch(e) {}
             };
-
             return (
-              <View 1, C.bg backgroundColor: flex: style="{{" }}>
-                <Top onBack="{back}" title="Rekod Kehadiran (7 Hari)"/>
-                
+              <View style={{ flex: 1, backgroundColor: C.bg }}>
+                <Top title="Rekod Kehadiran (7 Hari)" onBack={back} />
                 {showWeb ? (
-                  <WebView '[https://ihr.mtib.gov.my/user/leave_attendance/attendance_record](https://ihr.mtib.gov.my/user/leave_attendance/attendance_record)' 1, C.bg backgroundColor: flex: injectedJavaScript="{INJECTED_SCRAPER_JS}" onMessage="{handleMessage}" renderLoading="{()" source="{{" startInLoadingState="{true}" style="{{" uri: }}> (
-                      <View 'center', C.bg alignItems: backgroundColor: justifyContent: style="{[StyleSheet.absoluteFill," { }]}>
-                        <ActivityIndicator color="{C.primary}" size="large"/>
+                  <WebView 
+                    source={{ uri: 'https://ihr.mtib.gov.my/user/leave_attendance/attendance_record' }}
+                    injectedJavaScript={INJECTED_SCRAPER_JS}
+                    onMessage={handleMessage}
+                    style={{ flex: 1, backgroundColor: C.bg }}
+                    startInLoadingState={true}
+                    renderLoading={() => (
+                      <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg }]}>
+                        <ActivityIndicator size="large" color={C.primary} />
                       </View>
                     )}
                   />
                 ) : (
-                  <ScrollView 14 16, contentContainerStyle="{{" gap: padding: }}>
+                  <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
                     {records.map((r, idx) => (
-                      <Card (${r.hari})`} icon="📅" key="{idx}" tint="{C.primary}" title="{`${r.tarikh}">
-                        <View 'row', 'space-between', 4 flexDirection: justifyContent: marginTop: style="{{" }}>
-                          <View 'center', 1, C.line alignItems: borderRightColor: borderRightWidth: flex: style="{{" }}>
-                            <Text style="{s.lbl}">Waktu Masuk</Text>
-                            <Text 18 4, fontSize: marginTop: style="{[s.statV," { }]}>{r.masuk || '-'}</Text>
+                      <Card key={idx} title={`${r.tarikh} (${r.hari})`} icon="📅" tint={C.primary}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                          <View style={{ flex: 1, alignItems: 'center', borderRightWidth: 1, borderRightColor: C.line }}>
+                            <Text style={s.lbl}>Waktu Masuk</Text>
+                            <Text style={[s.statV, { marginTop: 4, fontSize: 18 }]}>{r.masuk || '-'}</Text>
                           </View>
-                          <View 'center' 1, alignItems: flex: style="{{" }}>
-                            <Text style="{s.lbl}">Waktu Keluar</Text>
-                            <Text 18 4, fontSize: marginTop: style="{[s.statV," { }]}>{r.keluar || '-'}</Text>
+                          <View style={{ flex: 1, alignItems: 'center' }}>
+                            <Text style={s.lbl}>Waktu Keluar</Text>
+                            <Text style={[s.statV, { marginTop: 4, fontSize: 18 }]}>{r.keluar || '-'}</Text>
                           </View>
                         </View>
                       </Card>
                     ))}
-                    <View 10 marginTop: style="{{" }}>
-                      <Btn label="Muat Semula / Log Keluar" onPress="{()"> setShowWeb(true)} kind="ghost" />
+                    <View style={{ marginTop: 10 }}>
+                      <Btn label="Muat Semula / Log Keluar" onPress={() => setShowWeb(true)} kind="ghost" />
                     </View>
                   </ScrollView>
                 )}
               </View>
             );
           }
-
           function Cam({ mode, sess, back }) {
             const { C, s } = useT();
             const [perm, ask] = useCameraPermissions(); const ref = useRef(null); const loc = useFix();
@@ -1068,27 +1065,27 @@ jobs:
                 } },
               ]);
             };
-            if (!perm?.granted) return (<View 1 flex: style="{{" }}><Top onBack="{back}" title="Kamera"/><View 12 16, gap: padding: style="{{" }}><Text C.ink color: style="{{" }}>Tiada akses kamera.</Text><Btn label="Benarkan kamera" onPress="{ask}"/></View></View>);
-            return (<ScrollView keyboardShouldPersistTaps="handled"><Top 'Geotagging'} 'Imbas 'qr' : ? QR' onBack="{back}" title="{mode"/><View 14 16, gap: padding: style="{{" }}>
-              {shot ? <Image shot.uri source="{{" style="{s.cam}" uri: }}/> :
-                <CameraView 'back' 'front'} 'qr' : ? ['qr'] barcodeScannerSettings="{{" barcodeTypes: facing="{mode" onBarcodeScanned="{mode" onQr ref="{ref}" style="{s.cam}" undefined} }}/>}
-              <Loc {...loc}/>
-              {mode === 'photo' ? (<Card icon="🗂" tint="{C.primary}" title="Jenis kehadiran">
-                {ACTS.map(([v, l]) => (<Pressable key="{v}" onPress="{()"> setAct(v)} style={[s.opt, act === v && s.optOn]}><Text '600' : ? C.ink, C.onPrimary act="==" color: fontWeight: style="{{" v }}>{l}</Text></Pressable>))}
+            if (!perm?.granted) return (<View style={{ flex: 1 }}><Top title="Kamera" onBack={back} /><View style={{ padding: 16, gap: 12 }}><Text style={{ color: C.ink }}>Tiada akses kamera.</Text><Btn label="Benarkan kamera" onPress={ask} /></View></View>);
+            return (<ScrollView keyboardShouldPersistTaps="handled"><Top title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} onBack={back} /><View style={{ padding: 16, gap: 14 }}>
+              {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
+                <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
+              <Loc {...loc} />
+              {mode === 'photo' ? (<Card title="Jenis kehadiran" icon="🗂" tint={C.primary}>
+                {ACTS.map(([v, l]) => (<Pressable key={v} onPress={() => setAct(v)} style={[s.opt, act === v && s.optOn]}><Text style={{ color: act === v ? C.onPrimary : C.ink, fontWeight: '600' }}>{l}</Text></Pressable>))}
                 {act === 3 ? (<>
-                  <Text style="{s.lbl}">Jenis Kerja Luar</Text>
-                  <Select options="{opts.map((o)" placeholder="Pilih Jenis Kerja Luar" value="{klType}"> o.label)} onPick={setKlType} />
-                  <Text style="{s.lbl}">Alasan</Text>
-                  <TextInput 48 minHeight: multiline onChangeText="{setReason}" placeholder="Nyatakan alasan" placeholderTextColor="{C.mute}" style="{[s.in," value="{reason}" { }]}/>
-                  <Text style="{s.lbl}">Tarikh Mula</Text>
-                  <DateField min="{todayStr()}" onPick="{(v)" value="{sd}"> { setSd(v); if (ed < v) setEd(v); }} />
-                  <Text style="{s.lbl}">Tarikh Akhir</Text>
-                  <DateField min="{sd}" onPick="{setEd}" value="{ed}"/>
+                  <Text style={s.lbl}>Jenis Kerja Luar</Text>
+                  <Select value={klType} placeholder="Pilih Jenis Kerja Luar" options={opts.map((o) => o.label)} onPick={setKlType} />
+                  <Text style={s.lbl}>Alasan</Text>
+                  <TextInput style={[s.in, { minHeight: 48 }]} value={reason} onChangeText={setReason} placeholder="Nyatakan alasan" placeholderTextColor={C.mute} multiline />
+                  <Text style={s.lbl}>Tarikh Mula</Text>
+                  <DateField value={sd} min={todayStr()} onPick={(v) => { setSd(v); if (ed < v) setEd(v); }} />
+                  <Text style={s.lbl}>Tarikh Akhir</Text>
+                  <DateField value={ed} min={sd} onPick={setEd} />
                 </>) : null}
               </Card>) : null}
-              <Err msg="{err}"/><Ok msg="{ok}"/>
-              {mode === 'photo' ? (shot ? <><Btn busy="{busy}" icon="📤" label="Hantar gambar" onPress="{sendPhoto}"/><Btn icon="🔄" kind="ghost" label="Ambil semula" onPress="{()"> { setShot(null); setOk(''); }} /></> : <Btn icon="📷" label="Ambil Gambar" onPress="{snap}"/>)
-                : (done && !busy ? <Btn icon="🔄" kind="ghost" label="Imbas semula" onPress="{()"> { setDone(false); setErr(''); setOk(''); }} /> : <Text style="{s.hint}">{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>)}
+              <Err msg={err} /><Ok msg={ok} />
+              {mode === 'photo' ? (shot ? <><Btn icon="📤" label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" icon="🔄" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn icon="📷" label="Ambil Gambar" onPress={snap} />)
+                : (done && !busy ? <Btn kind="ghost" icon="🔄" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>)}
             </View></ScrollView>);
           }
           export default function App() {
@@ -1099,13 +1096,13 @@ jobs:
             useEffect(() => { loadSession().then(setSess); }, []);
             const home = () => setView('home');
             let body;
-            if (sess === undefined) body = <View style="{s.center}"><ActivityIndicator color="{C.primary}" size="large"/></View>;
-            else if (!sess) body = <Register onDone="{setSess}"/>;
-            else if (view === 'qr') body = <Cam back="{home}" mode="qr" sess="{sess}"/>;
-            else if (view === 'geo') body = <Cam back="{home}" mode="photo" sess="{sess}"/>;
-            else if (view === 'portal') body = <PortalDashboard back="{home}"/>;
-            else body = <Dashboard go="{setView}" onSess="{setSess}" sess="{sess}"/>;
-            return (<ThemeCtx.Provider C, s, scheme value="{{" }}><SafeAreaView style="{s.root}"><StatusBar 'dark' 'dark'} 'light' : ? backgroundColor="{C.bg}" style="{scheme"/>{Platform.OS === 'android' ? <View 0, C.bg RNBar.currentHeight backgroundColor: height: style="{{" || }}/> : null}{body}</SafeAreaView></ThemeCtx.Provider>);
+            if (sess === undefined) body = <View style={s.center}><ActivityIndicator size="large" color={C.primary} /></View>;
+            else if (!sess) body = <Register onDone={setSess} />;
+            else if (view === 'qr') body = <Cam mode="qr" sess={sess} back={home} />;
+            else if (view === 'geo') body = <Cam mode="photo" sess={sess} back={home} />;
+            else if (view === 'portal') body = <PortalDashboard back={home} />;
+            else body = <Dashboard sess={sess} go={setView} onSess={setSess} />;
+            return (<ThemeCtx.Provider value={{ C, s, scheme }}><SafeAreaView style={s.root}><StatusBar style={scheme === 'dark' ? 'light' : 'dark'} backgroundColor={C.bg} />{Platform.OS === 'android' ? <View style={{ height: RNBar.currentHeight || 0, backgroundColor: C.bg }} /> : null}{body}</SafeAreaView></ThemeCtx.Provider>);
           }
           const makeStyles = (C) => StyleSheet.create({
             root: { flex: 1, backgroundColor: C.bg }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
