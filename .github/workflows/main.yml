@@ -879,24 +879,30 @@ jobs:
             const hasSrv = !!data && ('first_tagging' in data || 'last_tagging' in data);
             let first = hasSrv ? fromServer(data.first_tagging) : null; 
             let last = hasSrv ? fromServer(data.last_tagging) : null;
-            let firstM = data?.first_tagging_method; 
-            let lastM = data?.last_tagging_method;
+            let firstM = ''; 
+            let lastM = '';
             
             if (!first && data?.msg?.clock_in) { const m = data.msg.clock_in.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i); if (m) first = m[0]; }
             
+            // Gunakan sejarah memori telefon (tags) sepenuhnya untuk ikon
             if (tags.length > 0) {
-              const minT = tags.reduce((min, cur) => cur.t < min.t ? cur : min, tags[0]);
-              const maxT = tags.reduce((max, cur) => cur.t > max.t ? cur : max, tags[0]);
+              // tags disimpan mengikut turutan masa, jadi [0] adalah yang pertama, dan [tags.length - 1] adalah yang terakhir
+              const minT = tags[0]; 
+              const maxT = tags[tags.length - 1]; 
             
-              if (!first) { first = fromMs(minT.t); firstM = minT.m; }
-              
-              // Always update Last Tagging dynamically with the newest local tag if it's more recent than the server's record
+              if (!first) first = fromMs(minT.t);
+              firstM = minT.m; // Sentiasa ambil ikon pertama dari telefon
+            
               const serverLastMs = data?.last_tagging ? new Date(data.last_tagging.replace(' ', 'T')).getTime() : 0;
+              
               if (maxT.t > serverLastMs || !last) {
                 last = fromMs(maxT.t);
-                lastM = maxT.m;
+                lastM = maxT.m; // Guna ikon dan masa terakhir dari telefon
+              } else {
+                lastM = maxT.m; // Guna ikon terakhir dari telefon walaupun masa dari pelayan
               }
             }
+            
             const getMethodIcon = (m) => m === 'qr' ? '⊞' : (m === 'geo' ? '🗺️' : '');
             const ring = data ? colorOf(data.att_color, C.accent) : C.accent;
             return (
