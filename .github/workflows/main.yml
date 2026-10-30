@@ -861,7 +861,6 @@ jobs:
               </ScrollView>
             );
           }
-          
           function Dashboard({ sess, go, onSess }) {
             const { C, s } = useT();
             const [data, setData] = useState(null); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
@@ -950,7 +949,6 @@ jobs:
                   <View style={{ gap: 10 }}>
                     <Btn icon="📍" label="Geo Tagging" onPress={() => go('geo')} />
                     <Btn icon="📷" label="Imbas QR" onPress={() => go('qr')} />
-                    <Btn kind="ghost" icon="📊" label="Laporan Bulanan" onPress={() => go('report')} /> 
                   </View>
                   <Btn kind="ghost" icon="🔄" label="Muat semula" onPress={load} busy={busy} />
                 </View>
@@ -1105,42 +1103,6 @@ jobs:
                 : (done && !busy ? <Btn kind="ghost" icon="🔄" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>)}
             </View></ScrollView>);
           }
-          function Report({ sess, back }) {
-          const { C, s } = useT();
-          const [data, setData] = useState(null);
-          const [busy, setBusy] = useState(false);
-          const [err, setErr] = useState('');
-          useEffect(() => {
-            setBusy(true);
-            // Panggil API yang anda buat di server tadi
-            call(EP.report, { staff_id: sess.staff_id, month: new Date().getMonth() + 1, year: new Date().getFullYear() })
-              .then(setData).catch(e => setErr(e.message)).finally(() => setBusy(false));
-          }, []);
-          const getMethodIcon = (m) => m === 'qr' ? '⊞' : (m === 'geo' ? '🗺️' : '');
-          return (
-            <ScrollView contentContainerStyle={{ paddingBottom: 28 }}>
-              <Top title="Laporan Bulanan" onBack={back} />
-              <View style={{ padding: 16, gap: 14 }}>
-                <Err msg={err} />
-                {busy ? <ActivityIndicator size="large" color={C.primary} /> : null}
-                
-                {data?.ringkasan ? (
-                  <Card title={`Rumusan: ${data.bulan}`} icon="📊" tint={C.primary}>
-                    <Row k="Jumlah Rekod" v={data.ringkasan.jumlah_rekod} />
-                    <Row k="Penggunaan QR" v={data.ringkasan.penggunaan_qr} />
-                    <Row k="Penggunaan Geo" v={data.ringkasan.penggunaan_geo} last />
-                  </Card>
-                ) : null}
-                {data?.transaksi_kehadiran?.map((t, i) => (
-                  <Card key={i} title={t.tarikh} icon="🗓" tint={C.navy}>
-                    <Row k="Waktu" v={t.waktu} icon={getMethodIcon(t.kaedah)} tint={C.ink} />
-                    <Row k="Koordinat" v={t.koordinat} last />
-                  </Card>
-                ))}
-              </View>
-            </ScrollView>
-            );
-          }
           export default function App() {
             const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
             const C = themes[scheme];
@@ -1153,7 +1115,6 @@ jobs:
             else if (!sess) body = <Register onDone={setSess} />;
             else if (view === 'qr') body = <Cam mode="qr" sess={sess} back={home} />;
             else if (view === 'geo') body = <Cam mode="photo" sess={sess} back={home} />;
-            else if (view === 'report') body = <Report sess={sess} back={home} />;
             else body = <Dashboard sess={sess} go={setView} onSess={setSess} />;
             return (<ThemeCtx.Provider value={{ C, s, scheme }}><SafeAreaView style={s.root}><StatusBar style={scheme === 'dark' ? 'light' : 'dark'} backgroundColor={C.bg} />{Platform.OS === 'android' ? <View style={{ height: RNBar.currentHeight || 0, backgroundColor: C.bg }} /> : null}{body}</SafeAreaView></ThemeCtx.Provider>);
           }
@@ -1212,14 +1173,13 @@ jobs:
           // confirm them against the backend and adjust here only.
           export const BASE_URL = 'https://ihr.mtib.gov.my/';
           export const EP = {
-          register:  { path: 'api/user_registration', method: 'POST', code: 'R' },
-          dashboard: { path: 'api/dashboard',         method: 'POST', code: 'D', flip: true, retry: true },
-          geotag:    { path: 'api/geotagging',        method: 'POST', code: 'G' },
-          qr:        { path: 'api/qr_scanner',        method: 'POST', code: 'Q' },
-          mia:       { path: 'api/mia_report',        method: 'POST', code: 'M' },
-          reason:    { path: 'api/reason',            method: 'POST', code: 'P', flip: true, retry: true },
-          reference: { path: 'api/reference',         method: 'POST', code: 'P', flip: true, retry: true },
-          report:    { path: 'api/monthly_report',    method: 'POST', code: 'L' },
+            register:  { path: 'api/user_registration', method: 'POST', code: 'R' },
+            dashboard: { path: 'api/dashboard',         method: 'POST', code: 'D', flip: true, retry: true },
+            geotag:    { path: 'api/geotagging',        method: 'POST', code: 'G' },
+            qr:        { path: 'api/qr_scanner',        method: 'POST', code: 'Q' },
+            mia:       { path: 'api/mia_report',        method: 'POST', code: 'M' },
+            reason:    { path: 'api/reason',            method: 'POST', code: 'P', flip: true, retry: true },
+            reference: { path: 'api/reference',         method: 'POST', code: 'P', flip: true, retry: true },
           };
           let override = null;
           const realId = () => Application.getAndroidId() || 'unknown';
