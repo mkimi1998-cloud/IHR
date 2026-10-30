@@ -860,13 +860,14 @@ jobs:
               </ScrollView>
             );
           }
-          function Dashboard({ sess, go, onSess, onLogout }) { // ...
-            const handleLogout = () => {
-              Alert.alert('Daftar Keluar', 'Adakah anda pasti mahu kembali ke paparan pendaftaran?', [
-                { text: 'Batal', style: 'cancel' },
-                { text: 'Ya', onPress: async () => { await clearSession(); onLogout(sess); } }
-              ]);
-            };
+          function Dashboard({ sess, go, onSess, onLogout }) {
+          // ...
+                      const handleLogout = () => {
+                        Alert.alert('Daftar Keluar', 'Adakah anda pasti mahu kembali ke paparan pendaftaran?', [
+                          { text: 'Batal', style: 'cancel' },
+                          { text: 'Ya', onPress: async () => { await clearSession(); onLogout(sess); } }
+                        ]);
+                      };
 
             const { C, s } = useT();
             const [data, setData] = useState(null); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
