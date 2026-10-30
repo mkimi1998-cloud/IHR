@@ -673,6 +673,7 @@ jobs:
             }
           }
           IHR_EOF
+          cat > 'App.js' <<'IHR_EOF'
           import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
           import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
           import { StatusBar } from 'expo-status-bar';
@@ -817,7 +818,7 @@ jobs:
                 const r = unwrap(await call(EP.register, { name: name.trim(), staff_no: no.trim(), imei: deviceId() }));
                 const sess = { staff_no: no.trim(), staff_id: r?.staff_id ?? r?.id ?? '', name: r?.name ?? name.trim() };
                 await saveSession(sess); onDone(sess);
-              } catch (e) { setErr(e.message.replace(/\s*\(HTTP \d+\)/g, '')); } finally { setBusy(false); }
+              } catch (e) { setErr(e.message); } finally { setBusy(false); }
             };
             return (
               <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
@@ -863,8 +864,7 @@ jobs:
                 if (sd?.staff_id && String(sd.staff_id) !== String(sess.staff_id)) { const ns = { staff_no: String(sd.staff_no ?? sess.staff_no), staff_id: String(sd.staff_id), name: sd.name || sess.name }; saveSession(ns); onSess && onSess(ns); }
               } catch (e) {
                 setOnline(false);
-                const cleanMsg = e.message.replace(/\s*\(HTTP \d+\)/g, '');
-                setErr(e.message.includes('HTTP 500') ? cleanMsg + '\n\nPeranti ini belum dikaitkan dengan akaun di pelayan. ID peranti: ' + deviceId() : cleanMsg);
+                setErr(e.message.includes('HTTP 500') ? e.message + '\n\nPeranti ini belum dikaitkan dengan akaun di pelayan. ID peranti: ' + deviceId() : e.message);
               } finally { setBusy(false); }
             }, [sess]);
             useEffect(() => { load(); }, [load]);
@@ -968,7 +968,7 @@ jobs:
               try {
                 const r = await call(EP.qr, { ...base, method: 'qr', qr_code: data, latitude: loc.fix?.latitude, longitude: loc.fix?.longitude });
                 setOk(typeof r === 'string' ? r : 'Imbasan QR berjaya.');
-              } catch (e) { setErr(e.message.replace(/\s*\(HTTP \d+\)/g, '')); } finally { setBusy(false); }
+              } catch (e) { setErr(e.message); } finally { setBusy(false); }
             };
             const snap = async () => { 
               const p = await ref.current?.takePictureAsync({ quality: 0.5 }); 
@@ -998,7 +998,7 @@ jobs:
                 { text: 'Hantar', onPress: async () => {
                   setBusy(true); setErr('');
                   try { const r = await call(EP.geotag, payload); await addLocalTag(); setOk(typeof r === 'string' ? r : 'Geotagging berjaya dihantar.'); }
-                  catch (e) { setErr(e.message.replace(/\s*\(HTTP \d+\)/g, '')); } finally { setBusy(false); }
+                  catch (e) { setErr(e.message); } finally { setBusy(false); }
                 } },
               ]);
             };
