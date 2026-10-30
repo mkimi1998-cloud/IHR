@@ -692,10 +692,8 @@ jobs:
           const parseYMD = (v) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v || '').trim()); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(); };
           const toYMD = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
           const toDMY = (v) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v || '').trim()); return m ? `${m[3]}/${m[2]}/${m[1]}` : String(v || ''); };
-          // 2 = BDR and 3 = Kerja Luar come from GeotaggingController; 1 = Kehadiran Biasa was confirmed by a real record.
           const ACTS = [[1, 'Kehadiran Biasa'], [2, 'BDR'], [3, 'Kerja Luar']];
           const PORTAL = 'https://ihr.mtib.gov.my/user/leave_attendance/attendance_record';
-          // Splits the name into centred lines ourselves; wrapped centred text is mis-drawn on some Android phones.
           const wrapName = (n, max = 26) => {
             const out = []; let cur = '';
             String(n || '').trim().split(/\s+/).forEach((w) => {
@@ -738,7 +736,6 @@ jobs:
               </View>
             );
           };
-          // Card whose body drops down when the header is tapped; `summary` stays visible while it is closed.
           const Collapse = ({ title, icon, tint, summary, strong, warn, open, onToggle, children }) => {
             const { C, s } = useT();
             return (
@@ -755,25 +752,25 @@ jobs:
               </View>
             );
           };
-          constconst Stat = ({ icon, label, value, tint, methodIcon }) => {
-          const { s } = useT();
-          return (
-            <View style={s.stat}>
-              <View style={s.statH}><Ico g={icon} tint={tint} size={26} /><Text style={s.statL}>{label}</Text></View>
-              <View style={{ marginTop: 10 }}>
-                <Text style={[s.statV, { marginTop: 0 }]}>{value}</Text>
-                {methodIcon ? (
-                  <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center' }}>
-                    {typeof methodIcon === 'string' ? (
-                      <Text style={{ fontSize: 24, opacity: 0.8 }}>{methodIcon}</Text>
-                    ) : (
-                      methodIcon
-                    )}
-                  </View>
-                ) : null}
+          const Stat = ({ icon, label, value, tint, methodIcon }) => {
+            const { s } = useT();
+            return (
+              <View style={s.stat}>
+                <View style={s.statH}><Ico g={icon} tint={tint} size={26} /><Text style={s.statL}>{label}</Text></View>
+                <View style={{ marginTop: 10 }}>
+                  <Text style={[s.statV, { marginTop: 0 }]}>{value}</Text>
+                  {methodIcon ? (
+                    <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center' }}>
+                      {typeof methodIcon === 'string' ? (
+                        <Text style={{ fontSize: 24, opacity: 0.8 }}>{methodIcon}</Text>
+                      ) : (
+                        methodIcon
+                      )}
+                    </View>
+                  ) : null}
+                </View>
               </View>
-            </View>
-           );
+            );
           };
           const Err = ({ msg }) => { const { C, s } = useT(); return msg ? <View style={s.err}><Text style={{ color: C.bad }}>{msg}</Text></View> : null; };
           const Ok = ({ msg }) => { const { C, s } = useT(); return msg ? <View style={s.okBox}><Text style={{ color: C.ok }}>{msg}</Text></View> : null; };
@@ -883,34 +880,7 @@ jobs:
               } finally { setBusy(false); }
             }, [sess]);
             useEffect(() => { load(); }, [load]);
-            const sd = data?.staff_data || {};
-            const name = sd.name || sess.name || 'Pengguna';
-            const hasSrv = !!data && ('first_tagging' in data || 'last_tagging' in data);
-            let first = hasSrv ? fromServer(data.first_tagging) : null; 
-            let last = hasSrv ? fromServer(data.last_tagging) : null;
-            let firstM = ''; 
-            let lastM = '';
             
-            if (!first && data?.msg?.clock_in) { const m = data.msg.clock_in.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i); if (m) first = m[0]; }
-            
-            // Gunakan sejarah memori telefon (tags) sepenuhnya untuk ikon
-            if (tags.length > 0) {
-              // tags disimpan mengikut turutan masa, jadi [0] adalah yang pertama, dan [tags.length - 1] adalah yang terakhir
-              const minT = tags[0]; 
-              const maxT = tags[tags.length - 1]; 
-            
-              if (!first) first = fromMs(minT.t);
-              firstM = minT.m; // Sentiasa ambil ikon pertama dari telefon
-            
-              const serverLastMs = data?.last_tagging ? new Date(data.last_tagging.replace(' ', 'T')).getTime() : 0;
-              
-              if (maxT.t > serverLastMs || !last) {
-                last = fromMs(maxT.t);
-                lastM = maxT.m; // Guna ikon dan masa terakhir dari telefon
-              } else {
-                lastM = maxT.m; // Guna ikon terakhir dari telefon walaupun masa dari pelayan
-              }
-            } 
             const getMethodIcon = (m) => {
               if (m === 'qr') return (
                 <>
@@ -926,6 +896,30 @@ jobs:
               );
               return null;
             };
+            
+            const sd = data?.staff_data || {};
+            const name = sd.name || sess.name || 'Pengguna';
+            const hasSrv = !!data && ('first_tagging' in data || 'last_tagging' in data);
+            let first = hasSrv ? fromServer(data.first_tagging) : null; 
+            let last = hasSrv ? fromServer(data.last_tagging) : null;
+            let firstM = ''; 
+            let lastM = '';
+            
+            if (!first && data?.msg?.clock_in) { const m = data.msg.clock_in.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i); if (m) first = m[0]; }
+            
+            if (tags.length > 0) {
+              const minT = tags[0]; 
+              const maxT = tags[tags.length - 1]; 
+              if (!first) first = fromMs(minT.t);
+              firstM = minT.m; 
+              const serverLastMs = data?.last_tagging ? new Date(data.last_tagging.replace(' ', 'T')).getTime() : 0;
+              if (maxT.t > serverLastMs || !last) {
+                last = fromMs(maxT.t);
+                lastM = maxT.m; 
+              } else {
+                lastM = maxT.m; 
+              }
+            } 
             const ring = data ? colorOf(data.att_color, C.accent) : C.accent;
             return (
               <ScrollView contentContainerStyle={{ paddingBottom: 28 }}>
@@ -956,8 +950,8 @@ jobs:
                   {data ? (
                     <Card title="Hari ini" icon="🗓" tint={C.navy}>
                       <View style={s.statRow}>
-                        <Stat icon="📍" label="First Tagging" value={first || '—'} tint={C.primary} />
-                        <Stat icon="📌" label="Last Tagging" value={last || '—'} tint={C.navy} />
+                        <Stat icon="📍" label="First Tagging" value={first || '—'} tint={C.primary} methodIcon={firstM ? getMethodIcon(firstM) : null} />
+                        <Stat icon="📌" label="Last Tagging" value={last || '—'} tint={C.navy} methodIcon={lastM ? getMethodIcon(lastM) : null} />
                       </View>
                       {!hasSrv ? <Text style={s.note}>Masa tagging direkod daripada app ini sahaja.</Text> : null}
                       <Pressable onPress={() => Linking.openURL(PORTAL)} hitSlop={8}><Text style={s.link}>🌐 Lihat rekod kehadiran penuh di portal web ›</Text></Pressable>
@@ -1005,8 +999,6 @@ jobs:
             const [act, setAct] = useState(null); const [actOpen, setActOpen] = useState(false); const [sd, setSd] = useState(todayStr()); const [ed, setEd] = useState(todayStr());
             const [klType, setKlType] = useState(''); const [reason, setReason] = useState(''); const [opts, setOpts] = useState(KERJA_LUAR_TYPES.map((label) => ({ label })));
             const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [ok, setOk] = useState('');
-            
-            // Custom states for hidden location-edit feature
             const [askPwd, setAskPwd] = useState(false);
             const [unlocked, setUnlocked] = useState(false);
             const [pwd, setPwd] = useState('');
@@ -1019,6 +1011,7 @@ jobs:
             }, [mode]);
             const base = { staff_id: sess.staff_id };
             const need = () => (sess.staff_id ? '' : 'ID staff belum dimuatkan. Kembali ke Dashboard dan tunggu data dimuat.');
+            
             const onQr = async ({ data }) => {
               if (done) return; if (need()) return setErr(need()); setDone(true); setBusy(true); setErr('');
               try {
@@ -1027,6 +1020,7 @@ jobs:
                 setOk(typeof r === 'string' ? r : 'Imbasan QR berjaya.');
               } catch (e) { setErr(e.message); } finally { setBusy(false); }
             };
+            
             const snap = async () => { 
               const p = await ref.current?.takePictureAsync({ quality: 0.5 }); 
               if (p) {
