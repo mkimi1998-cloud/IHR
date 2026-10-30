@@ -683,7 +683,7 @@ jobs:
           import * as ImageManipulator from 'expo-image-manipulator';
           import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
           import { themes } from './src/theme';
-          import { EP, KERJA_LUAR_TYPES, addLocalTag, call, deviceId, findPhoto, getLocalTags, kerjaLuarFields, loadSession, matchReasons, saveDeviceId, saveSession, unwrap } from './src/api';
+          import { EP, KERJA_LUAR_TYPES, addLocalTag, call, clearSession, deviceId, findPhoto, getLocalTags, kerjaLuarFields, loadSession, matchReasons, saveDeviceId, saveSession, unwrap } from './src/api';
           const pad = (n) => String(n).padStart(2, '0');
           const t12 = (h, m) => `${pad(h % 12 || 12)}:${pad(m)} ${h < 12 ? 'AM' : 'PM'}`;
           const fromServer = (v) => { const m = /(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/.exec(String(v || '')); return m ? t12(+m[2], +m[3]) : null; };
@@ -814,10 +814,10 @@ jobs:
             });
             return (<Pressable onPress={open} style={[s.in, s.sel]}><Text style={{ color: C.ink, fontSize: 16, flex: 1 }}>{toDMY(value)}</Text><Text style={{ fontSize: 16 }}>📅</Text></Pressable>);
           };
-          function Register({ onDone }) {
-            const { C, s } = useT();
-            const [name, setName] = useState(''); const [no, setNo] = useState('');
-            const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [dev, setDev] = useState(String(deviceId())); const [adv, setAdv] = useState(false);
+          function Register({ onDone, initialName = '', initialNo = '' }) {
+          const { C, s } = useT();
+          const [name, setName] = useState(initialName); const [no, setNo] = useState(initialNo);
+           const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [dev, setDev] = useState(String(deviceId())); const [adv, setAdv] = useState(false);
             const cont = async () => {
               if (!no.trim()) return setErr('Sila masukkan nombor staff');
               await saveDeviceId(dev); const sess = { staff_no: no.trim(), staff_id: '', name: name.trim() }; await saveSession(sess); onDone(sess);
@@ -860,7 +860,14 @@ jobs:
               </ScrollView>
             );
           }
-          function Dashboard({ sess, go, onSess }) {
+          function Dashboard({ sess, go, onSess, onLogout }) { // ...
+            const handleLogout = () => {
+              Alert.alert('Daftar Keluar', 'Adakah anda pasti mahu kembali ke paparan pendaftaran?', [
+                { text: 'Batal', style: 'cancel' },
+                { text: 'Ya', onPress: async () => { await clearSession(); onLogout(sess); } }
+              ]);
+            };
+
             const { C, s } = useT();
             const [data, setData] = useState(null); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
             const [online, setOnline] = useState(null); const [at, setAt] = useState(''); const [tags, setTags] = useState([]);
@@ -906,7 +913,8 @@ jobs:
             let lastM = '';
             
             if (!first && data?.msg?.clock_in) { const m = data.msg.clock_in.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i); if (m) first = m[0]; }
-            
+            if (!last && data?.msg?.clock_out) { const m = data.msg.clock_out.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i); if (m) last = m[0]; }
+
             if (tags.length > 0) {
               const minT = tags[0]; 
               const maxT = tags[tags.length - 1]; 
@@ -921,15 +929,35 @@ jobs:
               }
             } 
             const ring = data ? colorOf(data.att_color, C.accent) : C.accent;
+
+            const handleLogout = () => {
+              Alert.alert('Daftar Keluar', 'Adakah anda pasti mahu kembali ke paparan pendaftaran?', [
+                { text: 'Batal', style: 'cancel' },
+                { text: 'Ya', onPress: async () => { await clearSession(); onSess(null); } }
+              ]);
+            };
+
             return (
               <ScrollView contentContainerStyle={{ paddingBottom: 28 }}>
                 <View style={s.dashTop}>
                   <Text style={s.logo}>iHR</Text>
                   <View style={{ alignItems: 'flex-end' }}>
-                    <View style={s.status}><View style={[s.dot, { backgroundColor: online == null ? C.mute : online ? C.ok : C.bad }]} /><Text style={s.statusT}>{online == null ? 'Menyemak…' : online ? `Dalam talian ${at}` : 'Luar talian'}</Text></View>
-                    <Pressable onPress={load} disabled={busy} hitSlop={10} style={{ padding: 6, marginTop: 2 }}>
-                      {busy ? <ActivityIndicator size="small" color={C.primaryText} /> : <Text style={{ fontSize: 16 }}>🔄</Text>}
+                    
+                    {/* Kotak status yang boleh ditekan untuk fungsi Back / Log Keluar */}
+                    <Pressable onPress={handleLogout} style={s.status}>
+                      <View style={[s.dot, { backgroundColor: online == null ? C.mute : online ? C.ok : C.bad }]} />
+                      <Text style={s.statusT}>{online == null ? 'Menyemak…' : online ? `Dalam talian ${at}` : 'Luar talian'}</Text>
                     </Pressable>
+
+                    {/* Butang Refresh dengan rekaan ikon standard aplikasi */}
+                    <Pressable onPress={load} disabled={busy} hitSlop={10} style={{ paddingHorizontal: 10, paddingVertical: 6, marginTop: 8, flexDirection: 'row', alignItems: 'center', backgroundColor: C.field, borderRadius: 14, borderWidth: 1, borderColor: C.line }}>
+                      {busy ? <ActivityIndicator size="small" color={C.primaryText} /> : (
+                        <>
+                          <MaterialIcons name="sync" size={16} color={C.primaryText} />
+                          <Text style={{ fontSize: 12, color: C.primaryText, fontWeight: '700', marginLeft: 4 }}>Muat Semula</Text>
+                        </>
+                      )}
+                    </Pressable>                
                   </View>
                 </View>
                 <View style={s.profile}>
