@@ -679,6 +679,7 @@ jobs:
           import { StatusBar } from 'expo-status-bar';
           import * as Location from 'expo-location';
           import { CameraView, useCameraPermissions } from 'expo-camera';
+          import { MaterialIcons } from '@expo/vector-icons';
           import * as ImageManipulator from 'expo-image-manipulator';
           import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
           import { themes } from './src/theme';
@@ -755,15 +756,21 @@ jobs:
             );
           };
           const Stat = ({ icon, label, value, tint, methodIcon }) => {
-          const { s } = useT();
-          return (
-            <View style={s.stat}>
-              <View style={s.statH}><Ico g={icon} tint={tint} size={26} /><Text style={s.statL}>{label}</Text></View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 10 }}>
-                <Text style={[s.statV, { marginTop: 0 }]}>{value}</Text>
-                {methodIcon ? <Text style={{ fontSize: 24, opacity: 0.8 }}>{methodIcon}</Text> : null}
+            const { s } = useT();
+            return (
+              <View style={s.stat}>
+                <View style={s.statH}><Ico g={icon} tint={tint} size={26} /><Text style={s.statL}>{label}</Text></View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 10 }}>
+                  <Text style={[s.statV, { marginTop: 0 }]}>{value}</Text>
+                  {methodIcon ? (
+                    typeof methodIcon === 'string' ? (
+                      <Text style={{ fontSize: 24, opacity: 0.8 }}>{methodIcon}</Text>
+                    ) : (
+                      methodIcon
+                    )
+                  ) : null}
+                </View>
               </View>
-            </View>
             );
           };
           const Err = ({ msg }) => { const { C, s } = useT(); return msg ? <View style={s.err}><Text style={{ color: C.bad }}>{msg}</Text></View> : null; };
@@ -901,9 +908,12 @@ jobs:
               } else {
                 lastM = maxT.m; // Guna ikon terakhir dari telefon walaupun masa dari pelayan
               }
-            }
-            
-            const getMethodIcon = (m) => m === 'qr' ? '⊞' : (m === 'geo' ? '🗺️' : '');
+            } 
+            const getMethodIcon = (m) => {
+            if (m === 'qr') return <MaterialIcons name="qr-code-2" size={26} color={C.ink} style={{ opacity: 0.6 }} />;
+            if (m === 'geo') return <MaterialIcons name="map" size={26} color={C.ink} style={{ opacity: 0.6 }} />;
+            return null;
+          };
             const ring = data ? colorOf(data.att_color, C.accent) : C.accent;
             return (
               <ScrollView contentContainerStyle={{ paddingBottom: 28 }}>
