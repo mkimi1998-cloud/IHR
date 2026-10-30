@@ -755,23 +755,25 @@ jobs:
               </View>
             );
           };
-          const Stat = ({ icon, label, value, tint, methodIcon }) => {
-            const { s } = useT();
-            return (
-              <View style={s.stat}>
-                <View style={s.statH}><Ico g={icon} tint={tint} size={26} /><Text style={s.statL}>{label}</Text></View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 10 }}>
-                  <Text style={[s.statV, { marginTop: 0 }]}>{value}</Text>
-                  {methodIcon ? (
-                    typeof methodIcon === 'string' ? (
+          constconst Stat = ({ icon, label, value, tint, methodIcon }) => {
+          const { s } = useT();
+          return (
+            <View style={s.stat}>
+              <View style={s.statH}><Ico g={icon} tint={tint} size={26} /><Text style={s.statL}>{label}</Text></View>
+              <View style={{ marginTop: 10 }}>
+                <Text style={[s.statV, { marginTop: 0 }]}>{value}</Text>
+                {methodIcon ? (
+                  <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center' }}>
+                    {typeof methodIcon === 'string' ? (
                       <Text style={{ fontSize: 24, opacity: 0.8 }}>{methodIcon}</Text>
                     ) : (
                       methodIcon
-                    )
-                  ) : null}
-                </View>
+                    )}
+                  </View>
+                ) : null}
               </View>
-            );
+            </View>
+           );
           };
           const Err = ({ msg }) => { const { C, s } = useT(); return msg ? <View style={s.err}><Text style={{ color: C.bad }}>{msg}</Text></View> : null; };
           const Ok = ({ msg }) => { const { C, s } = useT(); return msg ? <View style={s.okBox}><Text style={{ color: C.ok }}>{msg}</Text></View> : null; };
@@ -910,16 +912,31 @@ jobs:
               }
             } 
             const getMethodIcon = (m) => {
-            if (m === 'qr') return <MaterialIcons name="qr-code-2" size={26} color={C.ink} style={{ opacity: 0.6 }} />;
-            if (m === 'geo') return <MaterialIcons name="map" size={26} color={C.ink} style={{ opacity: 0.6 }} />;
-            return null;
-          };
+              if (m === 'qr') return (
+                <>
+                  <MaterialIcons name="qr-code-2" size={18} color={C.ink} style={{ opacity: 0.7 }} />
+                  <Text style={{ color: C.mute, fontSize: 12, marginLeft: 6, fontWeight: '600' }}>Imbas QR</Text>
+                </>
+              );
+              if (m === 'geo') return (
+                <>
+                  <MaterialIcons name="map" size={18} color={C.ink} style={{ opacity: 0.7 }} />
+                  <Text style={{ color: C.mute, fontSize: 12, marginLeft: 6, fontWeight: '600' }}>Geo Tagging</Text>
+                </>
+              );
+              return null;
+            };
             const ring = data ? colorOf(data.att_color, C.accent) : C.accent;
             return (
               <ScrollView contentContainerStyle={{ paddingBottom: 28 }}>
                 <View style={s.dashTop}>
                   <Text style={s.logo}>iHR</Text>
-                  <View style={s.status}><View style={[s.dot, { backgroundColor: online == null ? C.mute : online ? C.ok : C.bad }]} /><Text style={s.statusT}>{online == null ? 'Menyemak…' : online ? `Dalam talian ${at}` : 'Luar talian'}</Text></View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <View style={s.status}><View style={[s.dot, { backgroundColor: online == null ? C.mute : online ? C.ok : C.bad }]} /><Text style={s.statusT}>{online == null ? 'Menyemak…' : online ? `Dalam talian ${at}` : 'Luar talian'}</Text></View>
+                    <Pressable onPress={load} disabled={busy} hitSlop={10} style={{ padding: 6, marginTop: 2 }}>
+                      {busy ? <ActivityIndicator size="small" color={C.primaryText} /> : <Text style={{ fontSize: 16 }}>🔄</Text>}
+                    </Pressable>
+                  </View>
                 </View>
                 <View style={s.profile}>
                   <Pressable onLongPress={() => Alert.alert('Medan data pelayan', data ? `${Object.keys(data).join(', ')}\n\nstaff_data: ${Object.keys(sd).join(', ') || '-'}\n\nGambar: ${photo ? 'dijumpai' : 'tiada'}` : 'Tiada data')}>
@@ -950,7 +967,6 @@ jobs:
                     <Btn icon="📍" label="Geo Tagging" onPress={() => go('geo')} />
                     <Btn icon="📷" label="Imbas QR" onPress={() => go('qr')} />
                   </View>
-                  <Btn kind="ghost" icon="🔄" label="Muat semula" onPress={load} busy={busy} />
                 </View>
               </ScrollView>
             );
@@ -1007,6 +1023,7 @@ jobs:
               if (done) return; if (need()) return setErr(need()); setDone(true); setBusy(true); setErr('');
               try {
                 const r = await call(EP.qr, { ...base, method: 'qr', qr_code: data, latitude: loc.fix?.latitude, longitude: loc.fix?.longitude });
+                await addLocalTag('qr');
                 setOk(typeof r === 'string' ? r : 'Imbasan QR berjaya.');
               } catch (e) { setErr(e.message); } finally { setBusy(false); }
             };
