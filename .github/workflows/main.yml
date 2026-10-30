@@ -684,6 +684,7 @@ jobs:
           import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
           import { themes } from './src/theme';
           import { EP, KERJA_LUAR_TYPES, addLocalTag, call, clearSession, deviceId, findPhoto, getLocalTags, kerjaLuarFields, loadSession, matchReasons, saveDeviceId, saveSession, unwrap } from './src/api';
+          
           const pad = (n) => String(n).padStart(2, '0');
           const t12 = (h, m) => `${pad(h % 12 || 12)}:${pad(m)} ${h < 12 ? 'AM' : 'PM'}`;
           const fromServer = (v) => { const m = /(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/.exec(String(v || '')); return m ? t12(+m[2], +m[3]) : null; };
@@ -703,8 +704,10 @@ jobs:
             return out;
           };
           const colorOf = (c, fb) => { const v = String(c ?? '').trim(); return /^[0-9a-f]{6}$/i.test(v) ? '#' + v : v || fb; };
+          
           const ThemeCtx = createContext(null);
           const useT = () => useContext(ThemeCtx);
+          
           const Btn = ({ label, onPress, kind = 'main', busy, disabled, icon }) => {
             const { C, s } = useT();
             return (
@@ -814,10 +817,11 @@ jobs:
             });
             return (<Pressable onPress={open} style={[s.in, s.sel]}><Text style={{ color: C.ink, fontSize: 16, flex: 1 }}>{toDMY(value)}</Text><Text style={{ fontSize: 16 }}>📅</Text></Pressable>);
           };
+          
           function Register({ onDone, initialName = '', initialNo = '' }) {
-          const { C, s } = useT();
-          const [name, setName] = useState(initialName); const [no, setNo] = useState(initialNo);
-           const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [dev, setDev] = useState(String(deviceId())); const [adv, setAdv] = useState(false);
+            const { C, s } = useT();
+            const [name, setName] = useState(initialName); const [no, setNo] = useState(initialNo);
+            const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [dev, setDev] = useState(String(deviceId())); const [adv, setAdv] = useState(false);
             const cont = async () => {
               if (!no.trim()) return setErr('Sila masukkan nombor staff');
               await saveDeviceId(dev); const sess = { staff_no: no.trim(), staff_id: '', name: name.trim() }; await saveSession(sess); onDone(sess);
@@ -860,19 +864,13 @@ jobs:
               </ScrollView>
             );
           }
+          
           function Dashboard({ sess, go, onSess, onLogout }) {
-          // ...
-                      const handleLogout = () => {
-                        Alert.alert('Daftar Keluar', 'Adakah anda pasti mahu kembali ke paparan pendaftaran?', [
-                          { text: 'Batal', style: 'cancel' },
-                          { text: 'Ya', onPress: async () => { await clearSession(); onLogout(sess); } }
-                        ]);
-                      };
-
             const { C, s } = useT();
             const [data, setData] = useState(null); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
             const [online, setOnline] = useState(null); const [at, setAt] = useState(''); const [tags, setTags] = useState([]);
             const [photo, setPhoto] = useState(null); const [badPhoto, setBadPhoto] = useState(false);
+            
             const load = useCallback(async () => {
               setBusy(true); setErr('');
               try {
@@ -887,7 +885,15 @@ jobs:
                 setErr(e.message.includes('HTTP 500') ? e.message + '\n\nPeranti ini belum dikaitkan dengan akaun di pelayan. ID peranti: ' + deviceId() : e.message);
               } finally { setBusy(false); }
             }, [sess]);
+            
             useEffect(() => { load(); }, [load]);
+            
+            const handleLogout = () => {
+              Alert.alert('Daftar Keluar', 'Adakah anda pasti mahu kembali ke paparan pendaftaran?', [
+                { text: 'Batal', style: 'cancel' },
+                { text: 'Ya', onPress: async () => { await clearSession(); onLogout(sess); } }
+              ]);
+            };
             
             const getMethodIcon = (m) => {
               if (m === 'qr') return (
@@ -908,6 +914,7 @@ jobs:
             const sd = data?.staff_data || {};
             const name = sd.name || sess.name || 'Pengguna';
             const hasSrv = !!data && ('first_tagging' in data || 'last_tagging' in data);
+            
             let first = hasSrv ? fromServer(data.first_tagging) : null; 
             let last = hasSrv ? fromServer(data.last_tagging) : null;
             let firstM = ''; 
@@ -915,7 +922,7 @@ jobs:
             
             if (!first && data?.msg?.clock_in) { const m = data.msg.clock_in.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i); if (m) first = m[0]; }
             if (!last && data?.msg?.clock_out) { const m = data.msg.clock_out.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i); if (m) last = m[0]; }
-
+            
             if (tags.length > 0) {
               const minT = tags[0]; 
               const maxT = tags[tags.length - 1]; 
@@ -929,28 +936,18 @@ jobs:
                 lastM = maxT.m; 
               }
             } 
+            
             const ring = data ? colorOf(data.att_color, C.accent) : C.accent;
-
-            const handleLogout = () => {
-              Alert.alert('Daftar Keluar', 'Adakah anda pasti mahu kembali ke paparan pendaftaran?', [
-                { text: 'Batal', style: 'cancel' },
-                { text: 'Ya', onPress: async () => { await clearSession(); onSess(null); } }
-              ]);
-            };
-
+            
             return (
               <ScrollView contentContainerStyle={{ paddingBottom: 28 }}>
                 <View style={s.dashTop}>
                   <Text style={s.logo}>iHR</Text>
                   <View style={{ alignItems: 'flex-end' }}>
-                    
-                    {/* Kotak status yang boleh ditekan untuk fungsi Back / Log Keluar */}
                     <Pressable onPress={handleLogout} style={s.status}>
                       <View style={[s.dot, { backgroundColor: online == null ? C.mute : online ? C.ok : C.bad }]} />
                       <Text style={s.statusT}>{online == null ? 'Menyemak…' : online ? `Dalam talian ${at}` : 'Luar talian'}</Text>
                     </Pressable>
-
-                    {/* Butang Refresh dengan rekaan ikon standard aplikasi */}
                     <Pressable onPress={load} disabled={busy} hitSlop={10} style={{ paddingHorizontal: 10, paddingVertical: 6, marginTop: 8, flexDirection: 'row', alignItems: 'center', backgroundColor: C.field, borderRadius: 14, borderWidth: 1, borderColor: C.line }}>
                       {busy ? <ActivityIndicator size="small" color={C.primaryText} /> : (
                         <>
@@ -958,7 +955,7 @@ jobs:
                           <Text style={{ fontSize: 12, color: C.primaryText, fontWeight: '700', marginLeft: 4 }}>Muat Semula</Text>
                         </>
                       )}
-                    </Pressable>                
+                    </Pressable>
                   </View>
                 </View>
                 <View style={s.profile}>
@@ -994,6 +991,7 @@ jobs:
               </ScrollView>
             );
           }
+          
           function useFix() {
             const [fix, setFix] = useState(null); const [err, setErr] = useState('');
             const get = useCallback(async () => {
@@ -1006,6 +1004,7 @@ jobs:
             useEffect(() => { get(); }, [get]);
             return { fix, err, get, setFix };
           }
+          
           const Loc = ({ fix, err, get }) => {
             const { C } = useT(); const [open, setOpen] = useState(false);
             const summary = fix ? `${fix.latitude.toFixed(5)}, ${fix.longitude.toFixed(5)} · ± ${Math.round(fix.accuracy || 0)} m` : (err || 'Mengesan lokasi…');
@@ -1021,6 +1020,7 @@ jobs:
               </Collapse>
             );
           };
+          
           function Cam({ mode, sess, back }) {
             const { C, s } = useT();
             const [perm, ask] = useCameraPermissions(); const ref = useRef(null); const loc = useFix();
@@ -1038,6 +1038,7 @@ jobs:
               call(EP.reason, {}).then((r) => { const m = matchReasons(r); if (on && m) setOpts(m); }).catch(() => {});
               return () => { on = false; };
             }, [mode]);
+            
             const base = { staff_id: sess.staff_id };
             const need = () => (sess.staff_id ? '' : 'ID staff belum dimuatkan. Kembali ke Dashboard dan tunggu data dimuat.');
             
@@ -1061,6 +1062,7 @@ jobs:
                 setShot(resized); 
               } 
             };
+            
             const sendPhoto = () => {
               if (need()) return setErr(need()); if (!act) { setActOpen(true); return setErr('Sila pilih jenis kehadiran'); }
               if (!shot) return setErr('Sila muat naik gambar'); if (!loc.fix) return setErr('Tiada akses lokasi');
@@ -1082,67 +1084,69 @@ jobs:
                 } },
               ]);
             };
+            
             if (!perm?.granted) return (<View style={{ flex: 1 }}><Top title="Kamera" onBack={back} /><View style={{ padding: 16, gap: 12 }}><Text style={{ color: C.ink }}>Tiada akses kamera.</Text><Btn label="Benarkan kamera" onPress={ask} /></View></View>);
-            return (<ScrollView keyboardShouldPersistTaps="handled">
-              <Top title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} onBack={back} onTitleLongPress={() => mode === 'photo' && setAskPwd(!askPwd)} />
-              
-              {askPwd && !unlocked && (
-                <View style={{ padding: 16, gap: 10 }}>
-                  <TextInput 
-                    style={s.in} 
-                    secureTextEntry 
-                    placeholder="Kata laluan admin" 
-                    placeholderTextColor={C.mute}
-                    value={pwd} 
-                    onChangeText={t => {
-                      setPwd(t);
-                      if (t.trim() === 'Mtib@123') { setUnlocked(true); setAskPwd(false); setPwd(''); }
-                    }}
-                    onSubmitEditing={() => {
+            
+            return (
+              <ScrollView keyboardShouldPersistTaps="handled">
+                <Top title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} onBack={back} onTitleLongPress={() => mode === 'photo' && setAskPwd(!askPwd)} />
+                {askPwd && !unlocked && (
+                  <View style={{ padding: 16, gap: 10 }}>
+                    <TextInput 
+                      style={s.in} 
+                      secureTextEntry 
+                      placeholder="Kata laluan admin" 
+                      placeholderTextColor={C.mute}
+                      value={pwd} 
+                      onChangeText={t => {
+                        setPwd(t);
+                        if (t.trim() === 'Mtib@123') { setUnlocked(true); setAskPwd(false); setPwd(''); }
+                      }}
+                      onSubmitEditing={() => {
+                        if (pwd.trim() === 'Mtib@123') { setUnlocked(true); setAskPwd(false); setPwd(''); }
+                        else { Alert.alert('Ralat', 'Kata laluan salah'); setPwd(''); }
+                      }}
+                    />
+                    <Btn label="Sahkan" onPress={() => {
                       if (pwd.trim() === 'Mtib@123') { setUnlocked(true); setAskPwd(false); setPwd(''); }
                       else { Alert.alert('Ralat', 'Kata laluan salah'); setPwd(''); }
-                    }}
-                  />
-                  <Btn label="Sahkan" onPress={() => {
-                    if (pwd.trim() === 'Mtib@123') { setUnlocked(true); setAskPwd(false); setPwd(''); }
-                    else { Alert.alert('Ralat', 'Kata laluan salah'); setPwd(''); }
-                  }} />
-                </View>
-              )}
-          
-              {unlocked && (
-                <View style={{ padding: 16, gap: 10 }}>
-                  <Text style={s.lbl}>Manual Latitud</Text>
-                  <TextInput style={s.in} keyboardType="numeric" value={String(loc.fix?.latitude || '')} onChangeText={t => loc.setFix(f => ({...f, latitude: parseFloat(t) || 0, accuracy: 1}))} />
-                  <Text style={s.lbl}>Manual Longitud</Text>
-                  <TextInput style={s.in} keyboardType="numeric" value={String(loc.fix?.longitude || '')} onChangeText={t => loc.setFix(f => ({...f, longitude: parseFloat(t) || 0, accuracy: 1}))} />
-                </View>
-              )}
-          
-              <View style={{ padding: 16, gap: 14 }}>
-              {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
-                <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
-              <Loc {...loc} />
-              {mode === 'photo' ? (
-                <Collapse title="Jenis kehadiran" icon="🗂" tint={C.primary} summary={act ? ACTS.find(([v]) => v === act)[1] : 'Pilih jenis kehadiran'} strong={!!act} open={actOpen} onToggle={() => setActOpen(!actOpen)}>
-                  {ACTS.map(([v, l]) => (<Pressable key={v} onPress={() => { setAct(v); setActOpen(false); }} style={[s.opt, act === v && s.optOn]}><Text style={{ color: act === v ? C.onPrimary : C.ink, fontWeight: '600' }}>{l}</Text></Pressable>))}
-                </Collapse>
-              ) : null}
-              {mode === 'photo' && act === 3 ? (<Card title="Butiran Kerja Luar" icon="🧳" tint={C.primary}>
-                  <Text style={s.lbl}>Jenis Kerja Luar</Text>
-                  <Select value={klType} placeholder="Pilih Jenis Kerja Luar" options={opts.map((o) => o.label)} onPick={setKlType} />
-                  <Text style={s.lbl}>Alasan</Text>
-                  <TextInput style={[s.in, { minHeight: 48 }]} value={reason} onChangeText={setReason} placeholder="Nyatakan alasan" placeholderTextColor={C.mute} multiline />
-                  <Text style={s.lbl}>Tarikh Mula</Text>
-                  <DateField value={sd} min={todayStr()} onPick={(v) => { setSd(v); if (ed < v) setEd(v); }} />
-                  <Text style={s.lbl}>Tarikh Akhir</Text>
-                  <DateField value={ed} min={sd} onPick={setEd} />
-              </Card>) : null}
-              <Err msg={err} /><Ok msg={ok} />
-              {mode === 'photo' ? (shot ? <><Btn icon="📤" label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" icon="🔄" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn icon="📷" label="Ambil Gambar" onPress={snap} />)
-                : (done && !busy ? <Btn kind="ghost" icon="🔄" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>)}
-            </View></ScrollView>);
+                    }} />
+                  </View>
+                )}
+                {unlocked && (
+                  <View style={{ padding: 16, gap: 10 }}>
+                    <Text style={s.lbl}>Manual Latitud</Text>
+                    <TextInput style={s.in} keyboardType="numeric" value={String(loc.fix?.latitude || '')} onChangeText={t => loc.setFix(f => ({...f, latitude: parseFloat(t) || 0, accuracy: 1}))} />
+                    <Text style={s.lbl}>Manual Longitud</Text>
+                    <TextInput style={s.in} keyboardType="numeric" value={String(loc.fix?.longitude || '')} onChangeText={t => loc.setFix(f => ({...f, longitude: parseFloat(t) || 0, accuracy: 1}))} />
+                  </View>
+                )}
+                <View style={{ padding: 16, gap: 14 }}>
+                {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
+                  <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
+                <Loc {...loc} />
+                {mode === 'photo' ? (
+                  <Collapse title="Jenis kehadiran" icon="🗂" tint={C.primary} summary={act ? ACTS.find(([v]) => v === act)[1] : 'Pilih jenis kehadiran'} strong={!!act} open={actOpen} onToggle={() => setActOpen(!actOpen)}>
+                    {ACTS.map(([v, l]) => (<Pressable key={v} onPress={() => { setAct(v); setActOpen(false); }} style={[s.opt, act === v && s.optOn]}><Text style={{ color: act === v ? C.onPrimary : C.ink, fontWeight: '600' }}>{l}</Text></Pressable>))}
+                  </Collapse>
+                ) : null}
+                {mode === 'photo' && act === 3 ? (<Card title="Butiran Kerja Luar" icon="🧳" tint={C.primary}>
+                    <Text style={s.lbl}>Jenis Kerja Luar</Text>
+                    <Select value={klType} placeholder="Pilih Jenis Kerja Luar" options={opts.map((o) => o.label)} onPick={setKlType} />
+                    <Text style={s.lbl}>Alasan</Text>
+                    <TextInput style={[s.in, { minHeight: 48 }]} value={reason} onChangeText={setReason} placeholder="Nyatakan alasan" placeholderTextColor={C.mute} multiline />
+                    <Text style={s.lbl}>Tarikh Mula</Text>
+                    <DateField value={sd} min={todayStr()} onPick={(v) => { setSd(v); if (ed < v) setEd(v); }} />
+                    <Text style={s.lbl}>Tarikh Akhir</Text>
+                    <DateField value={ed} min={sd} onPick={setEd} />
+                </Card>) : null}
+                <Err msg={err} /><Ok msg={ok} />
+                {mode === 'photo' ? (shot ? <><Btn icon="📤" label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" icon="🔄" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn icon="📷" label="Ambil Gambar" onPress={snap} />)
+                  : (done && !busy ? <Btn kind="ghost" icon="🔄" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>)}
+              </View></ScrollView>
+            );
           }
+          
           export default function App() {
             const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
             const C = themes[scheme];
@@ -1152,6 +1156,7 @@ jobs:
             
             useEffect(() => { loadSession().then(setSess); }, []);
             const home = () => setView('home');
+            
             let body;
             if (sess === undefined) body = <View style={s.center}><ActivityIndicator size="large" color={C.primary} /></View>;
             else if (!sess) body = <Register onDone={setSess} initialName={logoutData?.name || ''} initialNo={logoutData?.staff_no || ''} />;
@@ -1161,7 +1166,7 @@ jobs:
             
             return (<ThemeCtx.Provider value={{ C, s, scheme }}><SafeAreaView style={s.root}><StatusBar style={scheme === 'dark' ? 'light' : 'dark'} backgroundColor={C.bg} />{Platform.OS === 'android' ? <View style={{ height: RNBar.currentHeight || 0, backgroundColor: C.bg }} /> : null}{body}</SafeAreaView></ThemeCtx.Provider>);
           }
-
+          
           const makeStyles = (C) => StyleSheet.create({
             root: { flex: 1, backgroundColor: C.bg }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
             logo: { color: C.ink, fontSize: 38, fontWeight: '800', letterSpacing: 0.5, textAlign: 'center' }, sub: { color: C.mute, marginTop: 2, textAlign: 'center' },
