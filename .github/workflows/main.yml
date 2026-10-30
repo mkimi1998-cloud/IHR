@@ -785,11 +785,19 @@ jobs:
             );
           };
           
+          // Stat component dikemas kini supaya lebih menarik dengan warna kotak lembut dan nota klik
           const Stat = ({ icon, label, value, tint, methodIcon, onPress }) => {
             const { s } = useT();
             return (
-              <Pressable onPress={onPress} style={({ pressed }) => [s.stat, pressed && { opacity: 0.6, backgroundColor: tint + '15' }]}>
-                <View style={s.statH}><Ico g={icon} tint={tint} size={26} /><Text style={s.statL}>{label}</Text></View>
+              <Pressable onPress={onPress} style={({ pressed }) => [
+                s.stat, 
+                { backgroundColor: tint + '12', borderColor: tint + '30' },
+                pressed && { opacity: 0.6, backgroundColor: tint + '25' }
+              ]}>
+                <View style={s.statH}>
+                  <Ico g={icon} tint={tint} size={26} />
+                  <Text style={[s.statL, { color: tint }]}>{label}</Text>
+                </View>
                 <View style={{ marginTop: 10 }}>
                   <Text style={[s.statV, { marginTop: 0 }]}>{value}</Text>
                   {methodIcon ? (
@@ -801,6 +809,10 @@ jobs:
                       )}
                     </View>
                   ) : null}
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 14, gap: 4 }}>
+                  <MaterialIcons name="touch-app" size={14} color={tint} style={{ opacity: 0.8 }} />
+                  <Text style={{ fontSize: 10, color: tint, fontWeight: '700', opacity: 0.8 }}>Klik untuk info</Text>
                 </View>
               </Pressable>
             );
