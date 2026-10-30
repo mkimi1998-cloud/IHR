@@ -737,6 +737,23 @@ jobs:
               </View>
             );
           };
+          // Card whose body drops down when the header is tapped; `summary` stays visible while it is closed.
+          const Collapse = ({ title, icon, tint, summary, strong, warn, open, onToggle, children }) => {
+            const { C, s } = useT();
+            return (
+              <View style={s.card}>
+                <Pressable onPress={onToggle} style={s.cardH} hitSlop={4}>
+                  {icon ? <Ico g={icon} tint={tint} /> : null}
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.cardT}>{title}</Text>
+                    {!open && summary ? <Text numberOfLines={1} style={{ color: warn ? C.bad : strong ? C.ink : C.mute, fontSize: 13, fontWeight: strong ? '600' : '400', marginTop: 2 }}>{summary}</Text> : null}
+                  </View>
+                  <Text style={{ color: C.mute }}>{open ? '▲' : '▼'}</Text>
+                </Pressable>
+                {open ? children : null}
+              </View>
+            );
+          };
           const Stat = ({ icon, label, value, tint }) => {
             const { s } = useT();
             return (
@@ -902,63 +919,28 @@ jobs:
               catch { setErr('Peranti tidak dapat mengesan lokasi anda'); }
             }, []);
             useEffect(() => { get(); }, [get]);
-            return { fix, err, get, setFix };
+            return { fix, err, get };
           }
-          const Loc = ({ fix, err, get, setFix }) => {
-            const { C, s } = useT();
-            const [editing, setEditing] = useState(false);
-            const [lat, setLat] = useState('');
-            const [lng, setLng] = useState('');
-            const onHold = () => {
-              setLat(fix ? String(fix.latitude) : '');
-              setLng(fix ? String(fix.longitude) : '');
-              setEditing(true);
-            };
-            const save = () => {
-              if (lat && lng) setFix({ latitude: parseFloat(lat), longitude: parseFloat(lng), accuracy: fix?.accuracy || 0 });
-              setEditing(false);
-            };
+          const Loc = ({ fix, err, get }) => {
+            const { C } = useT(); const [open, setOpen] = useState(false);
+            const summary = fix ? `${fix.latitude.toFixed(5)}, ${fix.longitude.toFixed(5)} · ± ${Math.round(fix.accuracy || 0)} m` : (err || 'Mengesan lokasi…');
             return (
-              <Pressable delayLongPress={1000} onLongPress={onHold}>
-                <View style={s.card}>
-                  <View style={s.cardH}>
-                    <Ico g="🛰" tint={C.navy} />
-                    <Text style={s.cardT}>Lokasi semasa</Text>
-                    {editing ? <Text style={{ color: C.primary, fontSize: 12, marginLeft: 'auto', fontWeight: 'bold' }}>Mod Edit</Text> : null}
-                  </View>
-                  
-                  {editing ? (
-                    <View style={{ gap: 10 }}>
-                      <Text style={s.lbl}>Latitud (Manual)</Text>
-                      <TextInput style={s.in} value={lat} onChangeText={setLat} keyboardType="numeric" />
-                      <Text style={s.lbl}>Longitud (Manual)</Text>
-                      <TextInput style={s.in} value={lng} onChangeText={setLng} keyboardType="numeric" />
-                      <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
-                        <View style={{ flex: 1 }}><Btn kind="ghost" label="Batal" onPress={() => setEditing(false)} /></View>
-                        <View style={{ flex: 1 }}><Btn label="Simpan" onPress={save} /></View>
-                      </View>
-                    </View>
-                  ) : fix ? <>
-                    <Row icon="🧭" k="Latitud" v={fix.latitude.toFixed(6)} tint={C.navy} />
-                    <Row icon="🧭" k="Longitud" v={fix.longitude.toFixed(6)} tint={C.navy} />
-                    <Row icon="🎯" k="Ketepatan" v={`± ${Math.round(fix.accuracy || 0)} m`} tint={C.primary} last /></>
-                    : <Text style={{ color: C.mute }}>{err || 'Mengesan lokasi…'}</Text>}
-                  
-                  {!editing && <Err msg={fix ? '' : err} />}
-                  {!editing && (
-                    <Pressable onPress={get} style={({ pressed }) => [s.btn, s.btnGhost, pressed && { opacity: 0.85 }]}>
-                      <View style={s.btnIn}><Text style={s.btnIc}>🔄</Text><Text style={[s.btnTx, { color: C.primaryText }]}>Kesan semula</Text></View>
-                    </Pressable>
-                  )}
-                </View>
-              </Pressable>
+              <Collapse title="Lokasi semasa" icon="🛰" tint={C.navy} summary={summary} warn={!fix && !!err} open={open} onToggle={() => setOpen(!open)}>
+                {fix ? <>
+                  <Row icon="🧭" k="Latitud" v={fix.latitude.toFixed(6)} tint={C.navy} />
+                  <Row icon="🧭" k="Longitud" v={fix.longitude.toFixed(6)} tint={C.navy} />
+                  <Row icon="🎯" k="Ketepatan" v={`± ${Math.round(fix.accuracy || 0)} m`} tint={C.primary} last /></>
+                  : <Text style={{ color: C.mute }}>{err || 'Mengesan lokasi…'}</Text>}
+                <Err msg={fix ? '' : err} />
+                <Btn kind="ghost" icon="🔄" label="Kesan semula" onPress={get} />
+              </Collapse>
             );
           };
           function Cam({ mode, sess, back }) {
             const { C, s } = useT();
             const [perm, ask] = useCameraPermissions(); const ref = useRef(null); const loc = useFix();
             const [shot, setShot] = useState(null); const [done, setDone] = useState(false);
-            const [act, setAct] = useState(null); const [sd, setSd] = useState(todayStr()); const [ed, setEd] = useState(todayStr());
+            const [act, setAct] = useState(null); const [actOpen, setActOpen] = useState(false); const [sd, setSd] = useState(todayStr()); const [ed, setEd] = useState(todayStr());
             const [klType, setKlType] = useState(''); const [reason, setReason] = useState(''); const [opts, setOpts] = useState(KERJA_LUAR_TYPES.map((label) => ({ label })));
             const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [ok, setOk] = useState('');
             useEffect(() => { if (perm && !perm.granted) ask(); }, [perm]);
@@ -988,7 +970,7 @@ jobs:
               } 
             };
             const sendPhoto = () => {
-              if (need()) return setErr(need()); if (!act) return setErr('Sila pilih jenis kehadiran');
+              if (need()) return setErr(need()); if (!act) { setActOpen(true); return setErr('Sila pilih jenis kehadiran'); }
               if (!shot) return setErr('Sila muat naik gambar'); if (!loc.fix) return setErr('Tiada akses lokasi');
               const payload = { ...base, activity_type: act, latitude: loc.fix.latitude, longitude: loc.fix.longitude, img: shot.base64 };
               if (act === 3) {
@@ -1013,9 +995,12 @@ jobs:
               {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
                 <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
               <Loc {...loc} />
-              {mode === 'photo' ? (<Card title="Jenis kehadiran" icon="🗂" tint={C.primary}>
-                {ACTS.map(([v, l]) => (<Pressable key={v} onPress={() => setAct(v)} style={[s.opt, act === v && s.optOn]}><Text style={{ color: act === v ? C.onPrimary : C.ink, fontWeight: '600' }}>{l}</Text></Pressable>))}
-                {act === 3 ? (<>
+              {mode === 'photo' ? (
+                <Collapse title="Jenis kehadiran" icon="🗂" tint={C.primary} summary={act ? ACTS.find(([v]) => v === act)[1] : 'Pilih jenis kehadiran'} strong={!!act} open={actOpen} onToggle={() => setActOpen(!actOpen)}>
+                  {ACTS.map(([v, l]) => (<Pressable key={v} onPress={() => { setAct(v); setActOpen(false); }} style={[s.opt, act === v && s.optOn]}><Text style={{ color: act === v ? C.onPrimary : C.ink, fontWeight: '600' }}>{l}</Text></Pressable>))}
+                </Collapse>
+              ) : null}
+              {mode === 'photo' && act === 3 ? (<Card title="Butiran Kerja Luar" icon="🧳" tint={C.primary}>
                   <Text style={s.lbl}>Jenis Kerja Luar</Text>
                   <Select value={klType} placeholder="Pilih Jenis Kerja Luar" options={opts.map((o) => o.label)} onPick={setKlType} />
                   <Text style={s.lbl}>Alasan</Text>
@@ -1024,7 +1009,6 @@ jobs:
                   <DateField value={sd} min={todayStr()} onPick={(v) => { setSd(v); if (ed < v) setEd(v); }} />
                   <Text style={s.lbl}>Tarikh Akhir</Text>
                   <DateField value={ed} min={sd} onPick={setEd} />
-                </>) : null}
               </Card>) : null}
               <Err msg={err} /><Ok msg={ok} />
               {mode === 'photo' ? (shot ? <><Btn icon="📤" label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" icon="🔄" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn icon="📷" label="Ambil Gambar" onPress={snap} />)
