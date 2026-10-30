@@ -838,15 +838,10 @@ jobs:
                 <View style={s.regTopCentered}>
                   <Pressable onLongPress={() => setAdv(!adv)} delayLongPress={1500} style={{ alignItems: 'center' }}>
                     <Image source={require('./assets/icon.png')} style={{ width: 90, height: 90, marginBottom: 12 }} resizeMode="contain" />
-                    <View style={s.dashTop}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                        <Pressable onPress={() => onSess(null)} hitSlop={12} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.field, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.line }}>
-                          <Text style={{ color: C.ink, fontSize: 24, lineHeight: 28, marginLeft: -2 }}>‹</Text>
-                        </Pressable>
-                        <Text style={s.logo}>iHR</Text>
-                      </View>
-                      <View style={s.status}><View style={[s.dot, { backgroundColor: online == null ? C.mute : online ? C.ok : C.bad }]} /><Text style={s.statusT}>{online == null ? 'Menyemak…' : online ? `Dalam talian ${at}` : 'Luar talian'}</Text></View>
-                    </View>
+                    <Text style={s.logo}>iHR</Text>
+                    <Text style={s.sub}>Lembaga Perindustrian Kayu Malaysia</Text>
+                  </Pressable>
+                </View>
                 <View style={{ padding: 16, gap: 14 }}>
                   <Card title="Daftar Pengguna Baru" icon="👤" tint={C.navy}>
                     <Text style={s.lbl}>Nama penuh</Text>
@@ -866,6 +861,7 @@ jobs:
               </ScrollView>
             );
           }
+          
           function Dashboard({ sess, go, onSess }) {
             const { C, s } = useT();
             const [data, setData] = useState(null); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
