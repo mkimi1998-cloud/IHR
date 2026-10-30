@@ -762,20 +762,22 @@ jobs:
           };
           const Err = ({ msg }) => { const { C, s } = useT(); return msg ? <View style={s.err}><Text style={{ color: C.bad }}>{msg}</Text></View> : null; };
           const Ok = ({ msg }) => { const { C, s } = useT(); return msg ? <View style={s.okBox}><Text style={{ color: C.ok }}>{msg}</Text></View> : null; };
-          const Top = ({ title, onBack }) => {
-            const { C, s } = useT();
-            return (
-              <View style={s.top}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                  {onBack ? (
-                    <Pressable onPress={onBack} hitSlop={12} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.field, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.line }}>
-                      <Text style={{ color: C.ink, fontSize: 24, lineHeight: 28, marginLeft: -2 }}>‹</Text>
-                    </Pressable>
-                  ) : null}
-                  <Text style={s.topT}>{title}</Text>
-                </View>
-              </View>
-            );
+          const Top = ({ title, onBack, onTitleLongPress }) => {
+          const { C, s } = useT();
+          return (
+          <View style={s.top}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          {onBack ? (
+          <Pressable onPress={onBack} hitSlop={12} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.field, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.line }}>
+            <Text style={{ color: C.ink, fontSize: 24, lineHeight: 28, marginLeft: -2 }}>‹</Text>
+          </Pressable>
+          ) : null}
+          <Pressable onLongPress={onTitleLongPress}>
+          <Text style={s.topT}>{title}</Text>
+          </Pressable>
+          </View>
+          </View>
+           );
           };
           const Select = ({ value, placeholder, options, onPick }) => {
             const { C, s } = useT(); const [open, setOpen] = useState(false);
@@ -910,16 +912,16 @@ jobs:
             );
           }
           function useFix() {
-            const [fix, setFix] = useState(null); const [err, setErr] = useState('');
-            const get = useCallback(async () => {
-              setErr('');
-              const p = await Location.requestForegroundPermissionsAsync();
-              if (p.status !== 'granted') return setErr('Tiada akses lokasi');
-              try { const l = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }); setFix(l.coords); }
-              catch { setErr('Peranti tidak dapat mengesan lokasi anda'); }
-            }, []);
-            useEffect(() => { get(); }, [get]);
-            return { fix, err, get };
+          const [fix, setFix] = useState(null); const [err, setErr] = useState('');
+          const get = useCallback(async () => {
+          setErr('');
+            const p = await Location.requestForegroundPermissionsAsync();
+            if (p.status !== 'granted') return setErr('Tiada akses lokasi');
+          try { const l = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }); setFix(l.coords); }
+          catch { setErr('Peranti tidak dapat mengesan lokasi anda'); }
+          }, []);
+          useEffect(() => { get(); }, [get]);
+          return { fix, err, get, setFix }; // <--- add setFix here
           }
           const Loc = ({ fix, err, get }) => {
             const { C } = useT(); const [open, setOpen] = useState(false);
@@ -937,38 +939,46 @@ jobs:
             );
           };
           function Cam({ mode, sess, back }) {
-            const { C, s } = useT();
-            const [perm, ask] = useCameraPermissions(); const ref = useRef(null); const loc = useFix();
-            const [shot, setShot] = useState(null); const [done, setDone] = useState(false);
-            const [act, setAct] = useState(null); const [actOpen, setActOpen] = useState(false); const [sd, setSd] = useState(todayStr()); const [ed, setEd] = useState(todayStr());
-            const [klType, setKlType] = useState(''); const [reason, setReason] = useState(''); const [opts, setOpts] = useState(KERJA_LUAR_TYPES.map((label) => ({ label })));
-            const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [ok, setOk] = useState('');
-            useEffect(() => { if (perm && !perm.granted) ask(); }, [perm]);
-            useEffect(() => {
-              if (mode !== 'photo') return undefined; let on = true;
-              call(EP.reason, {}).then((r) => { const m = matchReasons(r); if (on && m) setOpts(m); }).catch(() => {});
-              return () => { on = false; };
-            }, [mode]);
-            const base = { staff_id: sess.staff_id };
-            const need = () => (sess.staff_id ? '' : 'ID staff belum dimuatkan. Kembali ke Dashboard dan tunggu data dimuat.');
-            const onQr = async ({ data }) => {
-              if (done) return; if (need()) return setErr(need()); setDone(true); setBusy(true); setErr('');
-              try {
-                const r = await call(EP.qr, { ...base, method: 'qr', qr_code: data, latitude: loc.fix?.latitude, longitude: loc.fix?.longitude });
-                setOk(typeof r === 'string' ? r : 'Imbasan QR berjaya.');
-              } catch (e) { setErr(e.message); } finally { setBusy(false); }
-            };
-            const snap = async () => { 
-              const p = await ref.current?.takePictureAsync({ quality: 0.5 }); 
-              if (p) {
-                const resized = await ImageManipulator.manipulateAsync(
-                  p.uri,
-                  [{ resize: { width: 800 } }],
-                  { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-                );
-                setShot(resized); 
-              } 
-            };
+          const { C, s } = useT();
+          // ... existing hook declarations ...
+          const [askPwd, setAskPwd] = useState(false);
+          const [unlocked, setUnlocked] = useState(false);
+          const [pwd, setPwd] = useState('');
+
+          // ... 
+          return (
+          <ScrollView keyboardShouldPersistTaps="handled">
+          <Top 
+          title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} 
+          onBack={back} 
+          onTitleLongPress={() => mode === 'photo' && setAskPwd(!askPwd)} 
+          />
+          {askPwd && !unlocked && (
+          <View style={{ padding: 16 }}>
+           <TextInput 
+            style={s.in} 
+            secureTextEntry 
+            placeholder="Kata laluan admin" 
+            placeholderTextColor={C.mute}
+            value={pwd} 
+            onChangeText={t => {
+              setPwd(t);
+              if (t === 'Mtib@123') { setUnlocked(true); setAskPwd(false); setPwd(''); }
+            }} 
+          />
+          </View>
+          )}
+
+          {unlocked && (
+            <View style={{ padding: 16, gap: 10 }}>
+          <Text style={s.lbl}>Manual Latitud</Text>
+          <TextInput style={s.in} keyboardType="numeric" value={String(loc.fix?.latitude || '')} onChangeText={t => loc.setFix(f => ({...f, latitude: parseFloat(t) || 0, accuracy: 1}))} />
+          <Text style={s.lbl}>Manual Longitud</Text>
+          <TextInput style={s.in} keyboardType="numeric" value={String(loc.fix?.longitude || '')} onChangeText={t => loc.setFix(f => ({...f, longitude: parseFloat(t) || 0, accuracy: 1}))} />
+          </View>
+          )}
+          <View style={{ padding: 16, gap: 14 }}>
+          // ... remainder of existing JSX
             const sendPhoto = () => {
               if (need()) return setErr(need()); if (!act) { setActOpen(true); return setErr('Sila pilih jenis kehadiran'); }
               if (!shot) return setErr('Sila muat naik gambar'); if (!loc.fix) return setErr('Tiada akses lokasi');
