@@ -681,7 +681,6 @@ jobs:
           import { CameraView, useCameraPermissions } from 'expo-camera';
           import * as ImageManipulator from 'expo-image-manipulator';
           import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
-          import { WebView } from 'react-native-webview';
           import { themes } from './src/theme';
           import { EP, KERJA_LUAR_TYPES, addLocalTag, call, deviceId, findPhoto, getLocalTags, kerjaLuarFields, loadSession, matchReasons, saveDeviceId, saveSession, unwrap } from './src/api';
           const pad = (n) => String(n).padStart(2, '0');
@@ -692,8 +691,10 @@ jobs:
           const parseYMD = (v) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v || '').trim()); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(); };
           const toYMD = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
           const toDMY = (v) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v || '').trim()); return m ? `${m[3]}/${m[2]}/${m[1]}` : String(v || ''); };
+          // 2 = BDR and 3 = Kerja Luar come from GeotaggingController; 1 = Kehadiran Biasa was confirmed by a real record.
           const ACTS = [[1, 'Kehadiran Biasa'], [2, 'BDR'], [3, 'Kerja Luar']];
           const PORTAL = 'https://ihr.mtib.gov.my/user/leave_attendance/attendance_record';
+          // Splits the name into centred lines ourselves; wrapped centred text is mis-drawn on some Android phones.
           const wrapName = (n, max = 26) => {
             const out = []; let cur = '';
             String(n || '').trim().split(/\s+/).forEach((w) => {
@@ -802,12 +803,9 @@ jobs:
             };
             return (
               <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
-                <View style={[s.regTop, { flexDirection: 'column', alignItems: 'center', paddingTop: 60, paddingBottom: 30 }]}>
-                  <Pressable delayLongPress={1000} onLongPress={() => setAdv(!adv)} style={{ alignItems: 'center' }}>
-                    <Image source={require('./assets/icon.png')} style={{ width: 90, height: 90, marginBottom: 16, borderRadius: 20 }} />
-                    <Text style={[s.logo, { textAlign: 'center' }]}>iHR</Text>
-                    <Text style={[s.sub, { textAlign: 'center' }]}>Lembaga Perindustrian Kayu Malaysia</Text>
-                  </Pressable>
+                <View style={s.regTop}>
+                  <View style={{ flex: 1 }}><Text style={s.logo}>iHR</Text><Text style={s.sub}>Lembaga Perindustrian Kayu Malaysia</Text></View>
+                  <Pressable onPress={() => setAdv(!adv)} hitSlop={8} style={[s.gear, adv && s.gearOn]}><Text style={s.gearT}>⚙️</Text></Pressable>
                 </View>
                 <View style={{ padding: 16, gap: 14 }}>
                   <Card title="Daftar Pengguna Baru" icon="👤" tint={C.navy}>
@@ -882,7 +880,7 @@ jobs:
                         <Stat icon="📌" label="Last Tagging" value={last || '—'} tint={C.navy} />
                       </View>
                       {!hasSrv ? <Text style={s.note}>Masa tagging direkod daripada app ini sahaja.</Text> : null}
-                      <Pressable onPress={() => go('portal')} hitSlop={8}><Text style={s.link}>🌐 Lihat rekod 7 hari di portal ›</Text></Pressable>
+                      <Pressable onPress={() => Linking.openURL(PORTAL)} hitSlop={8}><Text style={s.link}>🌐 Lihat rekod kehadiran penuh di portal web ›</Text></Pressable>
                     </Card>
                   ) : null}
                   <View style={{ gap: 10 }}>
@@ -928,6 +926,7 @@ jobs:
                     <Text style={s.cardT}>Lokasi semasa</Text>
                     {editing ? <Text style={{ color: C.primary, fontSize: 12, marginLeft: 'auto', fontWeight: 'bold' }}>Mod Edit</Text> : null}
                   </View>
+                  
                   {editing ? (
                     <View style={{ gap: 10 }}>
                       <Text style={s.lbl}>Latitud (Manual)</Text>
@@ -944,6 +943,7 @@ jobs:
                     <Row icon="🧭" k="Longitud" v={fix.longitude.toFixed(6)} tint={C.navy} />
                     <Row icon="🎯" k="Ketepatan" v={`± ${Math.round(fix.accuracy || 0)} m`} tint={C.primary} last /></>
                     : <Text style={{ color: C.mute }}>{err || 'Mengesan lokasi…'}</Text>}
+                  
                   {!editing && <Err msg={fix ? '' : err} />}
                   {!editing && (
                     <Pressable onPress={get} style={({ pressed }) => [s.btn, s.btnGhost, pressed && { opacity: 0.85 }]}>
@@ -954,63 +954,6 @@ jobs:
               </Pressable>
             );
           };
-
-          const INJECTED_SCRAPER_JS = "var s=document.createElement('style');s.innerHTML='header, nav, .main-header, .navbar, .main-sidebar, .sidebar, footer, .page-header { display: none !important; } .content-wrapper, .main-panel, body { margin-left: 0 !important; padding-top: 0 !important; background-color: transparent !important; }';document.head.appendChild(s);setTimeout(function(){try{if(window.location.href.indexOf('login')!==-1){window.ReactNativeWebView.postMessage(JSON.stringify({type:'STATUS',status:'login'}));}else{var rows=document.querySelectorAll('table tbody tr');var records=[];for(var i=0;i<rows.length;i++){var cells=rows[i].querySelectorAll('td');if(cells.length>=4){var tarikh=cells[0].innerText.trim();if(tarikh.indexOf('-')!==-1){records.push({tarikh:tarikh,hari:cells[1].innerText.trim(),masuk:cells[2].innerText.trim(),keluar:cells[3].innerText.trim()});}}}if(records.length>0){window.ReactNativeWebView.postMessage(JSON.stringify({type:'DATA',payload:records}));}}}catch(e){}},1200);true;";
-
-          function PortalDashboard({ back }) {
-            const { C, s } = useT();
-            const [records, setRecords] = useState([]);
-            const [showWeb, setShowWeb] = useState(true);
-            const handleMessage = (event) => {
-              try {
-                const msg = JSON.parse(event.nativeEvent.data);
-                if (msg.type === 'DATA' && msg.payload.length > 0) {
-                  const latestRecords = msg.payload.slice(-7).reverse();
-                  setRecords(latestRecords);
-                  setShowWeb(false);
-                }
-              } catch(e) {}
-            };
-            return (
-              <View style={{ flex: 1, backgroundColor: C.bg }}>
-                <Top title="Rekod Kehadiran (7 Hari)" onBack={back} />
-                {showWeb ? (
-                  <WebView 
-                    source={{ uri: 'https://ihr.mtib.gov.my/user/leave_attendance/attendance_record' }}
-                    injectedJavaScript={INJECTED_SCRAPER_JS}
-                    onMessage={handleMessage}
-                    style={{ flex: 1, backgroundColor: C.bg }}
-                    startInLoadingState={true}
-                    renderLoading={() => (
-                      <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg }]}>
-                        <ActivityIndicator size="large" color={C.primary} />
-                      </View>
-                    )}
-                  />
-                ) : (
-                  <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
-                    {records.map((r, idx) => (
-                      <Card key={idx} title={`${r.tarikh} (${r.hari})`} icon="📅" tint={C.primary}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-                          <View style={{ flex: 1, alignItems: 'center', borderRightWidth: 1, borderRightColor: C.line }}>
-                            <Text style={s.lbl}>Waktu Masuk</Text>
-                            <Text style={[s.statV, { marginTop: 4, fontSize: 18 }]}>{r.masuk || '-'}</Text>
-                          </View>
-                          <View style={{ flex: 1, alignItems: 'center' }}>
-                            <Text style={s.lbl}>Waktu Keluar</Text>
-                            <Text style={[s.statV, { marginTop: 4, fontSize: 18 }]}>{r.keluar || '-'}</Text>
-                          </View>
-                        </View>
-                      </Card>
-                    ))}
-                    <View style={{ marginTop: 10 }}>
-                      <Btn label="Muat Semula / Log Keluar" onPress={() => setShowWeb(true)} kind="ghost" />
-                    </View>
-                  </ScrollView>
-                )}
-              </View>
-            );
-          }
           function Cam({ mode, sess, back }) {
             const { C, s } = useT();
             const [perm, ask] = useCameraPermissions(); const ref = useRef(null); const loc = useFix();
@@ -1100,7 +1043,6 @@ jobs:
             else if (!sess) body = <Register onDone={setSess} />;
             else if (view === 'qr') body = <Cam mode="qr" sess={sess} back={home} />;
             else if (view === 'geo') body = <Cam mode="photo" sess={sess} back={home} />;
-            else if (view === 'portal') body = <PortalDashboard back={home} />;
             else body = <Dashboard sess={sess} go={setView} onSess={setSess} />;
             return (<ThemeCtx.Provider value={{ C, s, scheme }}><SafeAreaView style={s.root}><StatusBar style={scheme === 'dark' ? 'light' : 'dark'} backgroundColor={C.bg} />{Platform.OS === 'android' ? <View style={{ height: RNBar.currentHeight || 0, backgroundColor: C.bg }} /> : null}{body}</SafeAreaView></ThemeCtx.Provider>);
           }
@@ -1108,6 +1050,8 @@ jobs:
             root: { flex: 1, backgroundColor: C.bg }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
             logo: { color: C.ink, fontSize: 38, fontWeight: '800', letterSpacing: 0.5 }, sub: { color: C.mute, marginTop: 2 },
             regTop: { flexDirection: 'row', alignItems: 'flex-start', padding: 20, paddingTop: 16 },
+            gear: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center' },
+            gearOn: { borderColor: C.primary, backgroundColor: C.primarySoft }, gearT: { fontSize: 20 },
             dashTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 10 },
             status: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
             statusT: { color: C.ink, fontSize: 12, fontWeight: '600' }, dot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
@@ -1355,7 +1299,6 @@ jobs:
           restore-keys: gradle-${{ runner.os }}-
       - name: Build APK (retries on network errors)
         run: |
-          export NODE_OPTIONS="--max-old-space-size=8192"
           chmod +x gradlew
           n=0
           until ./gradlew assembleRelease --no-daemon; do
