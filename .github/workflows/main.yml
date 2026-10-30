@@ -673,11 +673,12 @@ jobs:
             }
           }
           IHR_EOF
-                    cat > 'App.js' <<'IHR_EOF'
+          cat > 'App.js' <<'IHR_EOF'
           import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
           import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
           import { StatusBar } from 'expo-status-bar';
           import * as Location from 'expo-location';
+          import * as SecureStore from 'expo-secure-store';
           import { CameraView, useCameraPermissions } from 'expo-camera';
           import { MaterialIcons } from '@expo/vector-icons';
           import * as ImageManipulator from 'expo-image-manipulator';
@@ -705,6 +706,34 @@ jobs:
           };
           const colorOf = (c, fb) => { const v = String(c ?? '').trim(); return /^[0-9a-f]{6}$/i.test(v) ? '#' + v : v || fb; };
           
+          const saveTagDetails = async (method, lat, lng) => {
+            try {
+              const d = new Date();
+              const key = `TAG_DETAILS_${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+              const cur = JSON.parse((await SecureStore.getItemAsync(key)) || '[]');
+              let address = 'Sedang memproses lokasi...';
+              
+              if (lat && lng) {
+                try {
+                  const rev = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+                  if (rev && rev.length > 0) {
+                    const r = rev[0];
+                    address = [r.name, r.street, r.city, r.subregion].filter(Boolean).join(', ');
+                  } else {
+                    address = 'Lokasi tidak dapat dikenal pasti';
+                  }
+                } catch (err) {
+                  address = 'Gagal memuat turun nama lokasi';
+                }
+              } else {
+                address = 'Koordinat GPS tidak tersedia';
+              }
+              
+              cur.push({ t: Date.now(), m: method, lat, lng, address });
+              await SecureStore.setItemAsync(key, JSON.stringify(cur));
+            } catch (e) { console.log("Ralat simpan tag details:", e); }
+          };
+
           const ThemeCtx = createContext(null);
           const useT = () => useContext(ThemeCtx);
           
@@ -755,10 +784,11 @@ jobs:
               </View>
             );
           };
-          const Stat = ({ icon, label, value, tint, methodIcon }) => {
+          
+          const Stat = ({ icon, label, value, tint, methodIcon, onPress }) => {
             const { s } = useT();
             return (
-              <View style={s.stat}>
+              <Pressable onPress={onPress} style={({ pressed }) => [s.stat, pressed && { opacity: 0.6, backgroundColor: tint + '15' }]}>
                 <View style={s.statH}><Ico g={icon} tint={tint} size={26} /><Text style={s.statL}>{label}</Text></View>
                 <View style={{ marginTop: 10 }}>
                   <Text style={[s.statV, { marginTop: 0 }]}>{value}</Text>
@@ -772,9 +802,10 @@ jobs:
                     </View>
                   ) : null}
                 </View>
-              </View>
+              </Pressable>
             );
           };
+          
           const Err = ({ msg }) => { const { C, s } = useT(); return msg ? <View style={s.err}><Text style={{ color: C.bad }}>{msg}</Text></View> : null; };
           const Ok = ({ msg }) => { const { C, s } = useT(); return msg ? <View style={s.okBox}><Text style={{ color: C.ok }}>{msg}</Text></View> : null; };
           const Top = ({ title, onBack, onTitleLongPress }) => {
@@ -890,18 +921,15 @@ jobs:
             const [data, setData] = useState(null); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
             const [online, setOnline] = useState(null); const [at, setAt] = useState(''); const [tags, setTags] = useState([]);
             const [photo, setPhoto] = useState(null); const [badPhoto, setBadPhoto] = useState(false);
+            const [tagDetails, setTagDetails] = useState([]);
             
-            // State untuk Jam Digital & Status GPS
             const [now, setNow] = useState(new Date());
-            const [gpsOk, setGpsOk] = useState(false);
 
             useEffect(() => {
               const timer = setInterval(() => setNow(new Date()), 1000);
-              Location.getForegroundPermissionsAsync().then(p => setGpsOk(p.granted));
               return () => clearInterval(timer);
             }, []);
 
-            // Logik Ucapan Mengikut Waktu
             const h = now.getHours();
             const greeting = h < 12 ? 'Selamat Pagi' : h < 15 ? 'Selamat Tengah Hari' : h < 19 ? 'Selamat Petang' : 'Selamat Malam';
             
@@ -910,7 +938,13 @@ jobs:
               try {
                 const r = await call(EP.dashboard, { staff_no: sess.staff_no, staff_id: sess.staff_id });
                 setData(r); setOnline(true); setAt(new Date().toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' }));
+                
                 setTags(await getLocalTags());
+                const d = new Date();
+                const detailKey = `TAG_DETAILS_${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+                const detailsStr = await SecureStore.getItemAsync(detailKey);
+                if (detailsStr) setTagDetails(JSON.parse(detailsStr));
+                
                 { const p = findPhoto(r); if (p) { setPhoto(p); setBadPhoto(false); } }
                 const sd = r?.staff_data;
                 if (sd?.staff_id && String(sd.staff_id) !== String(sess.staff_id)) { const ns = { staff_no: String(sd.staff_no ?? sess.staff_no), staff_id: String(sd.staff_id), name: sd.name || sess.name }; saveSession(ns); onSess && onSess(ns); }
@@ -971,12 +1005,47 @@ jobs:
               }
             } 
             
+            const showTagInfo = (title, isFirst) => {
+              const timeVal = isFirst ? first : last;
+              const legacyMethod = isFirst ? firstM : lastM;
+              const detail = isFirst ? tagDetails[0] : tagDetails[tagDetails.length - 1];
+
+              if (!timeVal || timeVal === '—') {
+                Alert.alert(title, "Belum ada rekod kehadiran.");
+                return;
+              }
+              
+              if (detail) {
+                 const methodName = detail.m === 'qr' ? 'Imbas QR' : 'Geo Tagging';
+                 Alert.alert(
+                   `Maklumat ${title}`, 
+                   `Kaedah: ${methodName}\nMasa: ${fromMs(detail.t)}\nLokasi: ${detail.address || 'Tidak diketahui'}`
+                 );
+              } else if (legacyMethod) {
+                 const methodName = legacyMethod === 'qr' ? 'Imbas QR' : 'Geo Tagging';
+                 Alert.alert(
+                   `Maklumat ${title}`, 
+                   `Kaedah: ${methodName}\nMasa: ${timeVal}\n\n*Lokasi terperinci tidak ditemui untuk sesi ini (Hanya terpakai untuk rekod baharu selepas kemas kini).*`
+                 );
+              } else {
+                 Alert.alert(
+                   `Maklumat ${title}`, 
+                   `Masa: ${timeVal}\n\nRekod ini disegerakkan daripada pelayan web. Maklumat lokasi peranti tidak tersedia.`
+                 );
+              }
+            };
+            
             const ring = data ? colorOf(data.att_color, C.accent) : C.accent;
             
             return (
               <ScrollView contentContainerStyle={{ paddingBottom: 28 }}>
                 <View style={s.dashTop}>
-                  <Text style={s.logo}>iHR</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={{ backgroundColor: '#fff', borderRadius: 8, padding: 2 }}>
+                       <Image source={require('./assets/icon.png')} style={{ width: 36, height: 36 }} resizeMode="contain" />
+                    </View>
+                    <Text style={{ color: C.ink, fontSize: 32, fontWeight: '800', letterSpacing: 0.5 }}>iHR</Text>
+                  </View>
                   <View style={{ alignItems: 'flex-end' }}>
                     <Pressable onPress={handleLogout} style={s.status}>
                       <View style={[s.dot, { backgroundColor: online == null ? C.mute : online ? C.ok : C.bad }]} />
@@ -1007,10 +1076,8 @@ jobs:
                   </View>
                   {data ? <View style={s.pill}><Text style={s.pillT}>{data.msg?.clock_in || 'Belum ada rekod waktu masuk hari ini.'}</Text></View> : null}
                 </View>
-
+                
                 <View style={{ paddingHorizontal: 16, gap: 14 }}>
-                  
-                  {/* Modul Jam Digital Moden */}
                   <View style={{ alignItems: 'center', backgroundColor: C.card, paddingVertical: 18, borderRadius: 20, borderWidth: 1, borderColor: C.line, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }}>
                     <Text style={{ fontSize: 38, fontWeight: '800', color: C.ink, letterSpacing: 1, fontVariant: ['tabular-nums'] }}>
                       {now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
@@ -1019,32 +1086,27 @@ jobs:
                       {now.toLocaleDateString('ms-MY', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                     </Text>
                   </View>
-
+                  
                   <Err msg={err} />
                   {busy && !data ? <ActivityIndicator color={C.primaryText} /> : null}
                   {data ? (
                     <Card title="Hari ini" icon="🗓" tint={C.navy}>
                       <View style={s.statRow}>
-                        <Stat icon="📍" label="First Tagging" value={first || '—'} tint={C.primary} methodIcon={firstM ? getMethodIcon(firstM) : null} />
-                        <Stat icon="📌" label="Last Tagging" value={last || '—'} tint={C.navy} methodIcon={lastM ? getMethodIcon(lastM) : null} />
+                        <Stat icon="📍" label="First Tagging" value={first || '—'} tint={C.primary} methodIcon={firstM ? getMethodIcon(firstM) : null} onPress={() => showTagInfo('First Tagging', true)} />
+                        <Stat icon="📌" label="Last Tagging" value={last || '—'} tint={C.navy} methodIcon={lastM ? getMethodIcon(lastM) : null} onPress={() => showTagInfo('Last Tagging', false)} />
                       </View>
                       {!hasSrv ? <Text style={s.note}>Masa tagging direkod daripada app ini sahaja.</Text> : null}
                       <Pressable onPress={() => Linking.openURL(PORTAL)} hitSlop={8}><Text style={s.link}>🌐 Lihat rekod kehadiran penuh di portal web ›</Text></Pressable>
                     </Card>
                   ) : null}
-                  
                   <View style={{ gap: 10 }}>
-                    {/* Status GPS Indikator */}
-                    <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: -6, zIndex: 1 }}>
-                      <View style={{ backgroundColor: gpsOk ? C.okBg : C.card, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: gpsOk ? C.okLine : C.line }}>
-                         <Text style={{ fontSize: 11, color: gpsOk ? C.ok : C.mute, fontWeight: '700' }}>
-                           {gpsOk ? '🟢 GPS Sedia' : '⚪ Semak Akses GPS...'}
-                         </Text>
-                      </View>
-                    </View>
                     <Btn icon="📍" label="Geo Tagging" onPress={() => go('geo')} />
                     <Btn icon="📷" label="Imbas QR" onPress={() => go('qr')} />
                   </View>
+                </View>
+                
+                <View style={{ marginTop: 32, marginBottom: 10, alignItems: 'center' }}>
+                  <Text style={{ color: C.mute, fontSize: 12, fontWeight: '600' }}>Copyright © 2026 MTIB</Text>
                 </View>
               </ScrollView>
             );
@@ -1105,6 +1167,7 @@ jobs:
               try {
                 const r = await call(EP.qr, { ...base, method: 'qr', qr_code: data, latitude: loc.fix?.latitude, longitude: loc.fix?.longitude });
                 await addLocalTag('qr');
+                await saveTagDetails('qr', loc.fix?.latitude, loc.fix?.longitude);
                 setOk(typeof r === 'string' ? r : 'Imbasan QR berjaya.');
               } catch (e) { setErr(e.message); } finally { setBusy(false); }
             };
@@ -1137,8 +1200,12 @@ jobs:
                 { text: 'Batal', style: 'cancel' },
                 { text: 'Hantar', onPress: async () => {
                   setBusy(true); setErr('');
-                  try { const r = await call(EP.geotag, payload); await addLocalTag(); setOk(typeof r === 'string' ? r : 'Geotagging berjaya dihantar.'); }
-                  catch (e) { setErr(e.message); } finally { setBusy(false); }
+                  try { 
+                    const r = await call(EP.geotag, payload); 
+                    await addLocalTag('geo'); 
+                    await saveTagDetails('geo', loc.fix.latitude, loc.fix.longitude);
+                    setOk(typeof r === 'string' ? r : 'Geotagging berjaya dihantar.'); 
+                  } catch (e) { setErr(e.message); } finally { setBusy(false); }
                 } },
               ]);
             };
