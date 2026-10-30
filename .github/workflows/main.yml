@@ -822,19 +822,39 @@ jobs:
             const { C, s } = useT();
             const [name, setName] = useState(initialName); const [no, setNo] = useState(initialNo);
             const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [dev, setDev] = useState(String(deviceId())); const [adv, setAdv] = useState(false);
+            
+            const formatName = (text) => text.replace(/\s+/g, ' ').trim();
+            
             const cont = async () => {
               if (!no.trim()) return setErr('Sila masukkan nombor staff');
-              await saveDeviceId(dev); const sess = { staff_no: no.trim(), staff_id: '', name: name.trim() }; await saveSession(sess); onDone(sess);
+              await saveDeviceId(dev); 
+              const formattedName = formatName(name);
+              const sess = { staff_no: no.trim(), staff_id: '', name: formattedName }; 
+              await saveSession(sess); 
+              onDone(sess);
             };
             const submit = async () => {
-              if (!name.trim() || !no.trim()) return setErr('Sila masukkan nama dan nombor staff');
+              const formattedName = formatName(name);
+              if (!formattedName || !no.trim()) return setErr('Sila masukkan nama dan nombor staff');
               setBusy(true); setErr('');
+              if (initialNo && no.trim() === initialNo) {
+                 await saveDeviceId(dev);
+                 const sess = { staff_no: no.trim(), staff_id: '', name: formattedName };
+                 await saveSession(sess);
+                 setBusy(false);
+                 return onDone(sess);
+              }
               try {
                 await saveDeviceId(dev);
-                const r = unwrap(await call(EP.register, { name: name.trim(), staff_no: no.trim(), imei: deviceId() }));
-                const sess = { staff_no: no.trim(), staff_id: r?.staff_id ?? r?.id ?? '', name: r?.name ?? name.trim() };
-                await saveSession(sess); onDone(sess);
-              } catch (e) { setErr(e.message); } finally { setBusy(false); }
+                const r = unwrap(await call(EP.register, { name: formattedName, staff_no: no.trim(), imei: deviceId() }));
+                const sess = { staff_no: no.trim(), staff_id: r?.staff_id ?? r?.id ?? '', name: formatName(r?.name ?? formattedName) };
+                await saveSession(sess); 
+                onDone(sess);
+              } catch (e) { 
+                 setErr(e.message); 
+              } finally { 
+                 setBusy(false); 
+              }
             };
             return (
               <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
@@ -852,7 +872,7 @@ jobs:
                     <Text style={s.lbl}>Nombor staff</Text>
                     <TextInput style={s.in} value={no} onChangeText={setNo} autoCapitalize="characters" placeholder="Contoh: 01234" placeholderTextColor={C.mute} />
                     <Err msg={err} />
-                    <Btn label="Daftar" onPress={submit} busy={busy} />
+                    <Btn label={initialNo ? "Log Masuk" : "Daftar"} onPress={submit} busy={busy} />
                   </Card>
                   {adv ? (<Card title="Tetapan lanjutan" icon="⚙️" tint={C.navy}>
                     <Text style={s.lbl}>ID peranti. Tukar hanya jika perlu guna ID yang sudah didaftarkan untuk telefon ini.</Text>
