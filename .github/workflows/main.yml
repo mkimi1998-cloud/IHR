@@ -1148,16 +1148,20 @@ jobs:
             const C = themes[scheme];
             const s = useMemo(() => makeStyles(C), [scheme]);
             const [sess, setSess] = useState(undefined); const [view, setView] = useState('home');
+            const [logoutData, setLogoutData] = useState(null);
+            
             useEffect(() => { loadSession().then(setSess); }, []);
             const home = () => setView('home');
             let body;
             if (sess === undefined) body = <View style={s.center}><ActivityIndicator size="large" color={C.primary} /></View>;
-            else if (!sess) body = <Register onDone={setSess} />;
+            else if (!sess) body = <Register onDone={setSess} initialName={logoutData?.name || ''} initialNo={logoutData?.staff_no || ''} />;
             else if (view === 'qr') body = <Cam mode="qr" sess={sess} back={home} />;
             else if (view === 'geo') body = <Cam mode="photo" sess={sess} back={home} />;
-            else body = <Dashboard sess={sess} go={setView} onSess={setSess} />;
+            else body = <Dashboard sess={sess} go={setView} onSess={setSess} onLogout={(oldSess) => { setLogoutData(oldSess); setSess(null); }} />;
+            
             return (<ThemeCtx.Provider value={{ C, s, scheme }}><SafeAreaView style={s.root}><StatusBar style={scheme === 'dark' ? 'light' : 'dark'} backgroundColor={C.bg} />{Platform.OS === 'android' ? <View style={{ height: RNBar.currentHeight || 0, backgroundColor: C.bg }} /> : null}{body}</SafeAreaView></ThemeCtx.Provider>);
           }
+
           const makeStyles = (C) => StyleSheet.create({
             root: { flex: 1, backgroundColor: C.bg }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
             logo: { color: C.ink, fontSize: 38, fontWeight: '800', letterSpacing: 0.5, textAlign: 'center' }, sub: { color: C.mute, marginTop: 2, textAlign: 'center' },
