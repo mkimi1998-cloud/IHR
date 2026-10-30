@@ -1219,7 +1219,7 @@ jobs:
           mia:       { path: 'api/mia_report',        method: 'POST', code: 'M' },
           reason:    { path: 'api/reason',            method: 'POST', code: 'P', flip: true, retry: true },
           reference: { path: 'api/reference',         method: 'POST', code: 'P', flip: true, retry: true },
-          report:    { path: 'api/monthly_report',    method: 'POST', code: 'L' }, // <--- TAMBAH INI
+          report:    { path: 'api/monthly_report',    method: 'POST', code: 'L' },
           };
           let override = null;
           const realId = () => Application.getAndroidId() || 'unknown';
