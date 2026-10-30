@@ -968,7 +968,7 @@ jobs:
 
               setTimeout(function() {
                 try {
-                  if (window.location.href.includes('login')) {
+                  if (window.location.href.indexOf('login') !== -1) {
                     window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'STATUS', status: 'login' }));
                   } else {
                     var rows = document.querySelectorAll('table tbody tr');
@@ -977,7 +977,7 @@ jobs:
                       var cells = rows[i].querySelectorAll('td');
                       if (cells.length >= 4) {
                         var tarikh = cells[0].innerText.trim();
-                        if (tarikh.match(/\\d{1,2}-\\d{1,2}-\\d{4}/)) {
+                        if (tarikh.match(/[0-9]{1,2}-[0-9]{1,2}-[0-9]{4}/)) {
                           records.push({
                             tarikh: tarikh,
                             hari: cells[1].innerText.trim(),
@@ -1006,7 +1006,6 @@ jobs:
               try {
                 const msg = JSON.parse(event.nativeEvent.data);
                 if (msg.type === 'DATA' && msg.payload.length > 0) {
-                  // Get the most recent 7 entries
                   const latestRecords = msg.payload.slice(-7).reverse();
                   setRecords(latestRecords);
                   setShowWeb(false);
@@ -1084,7 +1083,7 @@ jobs:
                 const resized = await ImageManipulator.manipulateAsync(
                   p.uri,
                   [{ resize: { width: 800 } }],
-                  { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                  { compress: 0.5, format: 'jpeg', base64: true }
                 );
                 setShot(resized); 
               } 
@@ -1399,6 +1398,8 @@ jobs:
           key: gradle-${{ runner.os }}-${{ hashFiles('app/package.json') }}
           restore-keys: gradle-${{ runner.os }}-
       - name: Build APK (retries on network errors)
+        env:
+         NODE_OPTIONS: --max-old-space-size=4096
         run: |
           chmod +x gradlew
           n=0
