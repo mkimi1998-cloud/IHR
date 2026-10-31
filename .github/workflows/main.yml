@@ -609,10 +609,10 @@ jobs:
           NGjQoEGDBg0aNGjQoEGDBg0aNGjQoEGDBg0aNGjQoEGDBg0aNGjQoEGDBg0aNGjQoEGDBg0aNGjQ
           oEHD/w78fxzblwyrEir2AAAAAElFTkSuQmCC
           IHR_EOF
-                    cat > 'package.json' <<'IHR_EOF'
+                              cat > 'package.json' <<'IHR_EOF'
           {
             "name": "ihr",
-            "version": "1.0.5",
+            "version": "1.0.6",
             "main": "node_modules/expo/AppEntry.js",
             "scripts": { "start": "expo start", "android": "expo run:android" },
             "dependencies": {
@@ -620,9 +620,11 @@ jobs:
               "expo": "~51.0.28",
               "expo-application": "~5.9.1",
               "expo-camera": "~15.0.16",
+              "expo-file-system": "~17.0.1",
               "expo-image-manipulator": "~12.0.5",
               "expo-location": "~17.0.1",
               "expo-secure-store": "~13.0.2",
+              "expo-sharing": "~11.10.0",
               "expo-status-bar": "~1.12.1",
               "expo-system-ui": "~3.0.7",
               "react": "18.2.0",
@@ -632,10 +634,7 @@ jobs:
             "private": true
           }
           IHR_EOF
-          cat > 'babel.config.js' <<'IHR_EOF'
-          module.exports = function (api) { api.cache(true); return { presets: ['babel-preset-expo'] }; };
-          IHR_EOF
-                    cat > 'app.json' <<'IHR_EOF'
+          cat > 'app.json' <<'IHR_EOF'
           {
             "expo": {
               "name": "iHR Ujian",
@@ -683,6 +682,9 @@ jobs:
           import { MaterialIcons } from '@expo/vector-icons';
           import * as ImageManipulator from 'expo-image-manipulator';
           import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+          import * as FileSystem from 'expo-file-system';
+          import * as Sharing from 'expo-sharing';
+          
           import { themes } from './src/theme';
           import { EP, KERJA_LUAR_TYPES, addLocalTag, call, clearSession, deviceId, findPhoto, getLocalTags, kerjaLuarFields, loadSession, matchReasons, saveDeviceId, saveSession, unwrap } from './src/api';
           
@@ -709,7 +711,7 @@ jobs:
           const saveTagDetails = async (method, lat, lng) => {
             try {
               const d = new Date();
-              const key = `TAG_DETAILS_${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+              const key = `DUMMY_V3_TAG_DETAILS_${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
               const cur = JSON.parse((await SecureStore.getItemAsync(key)) || '[]');
               let address = 'Sedang memproses lokasi...';
               
@@ -903,7 +905,7 @@ jobs:
                 <View style={s.regTopCentered}>
                   <Pressable onLongPress={() => setAdv(!adv)} delayLongPress={1500} style={{ alignItems: 'center' }}>
                     <Image source={require('./assets/icon.png')} style={{ width: 90, height: 90, marginBottom: 12 }} resizeMode="contain" />
-                    <Text style={s.logo}>iHR</Text>
+                    <Text style={s.logo}>iHR Ujian</Text>
                     <Text style={s.sub}>Lembaga Perindustrian Kayu Malaysia</Text>
                   </Pressable>
                 </View>
@@ -952,7 +954,7 @@ jobs:
                 
                 setTags(await getLocalTags());
                 const d = new Date();
-                const detailKey = `TAG_DETAILS_${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+                const detailKey = `DUMMY_V3_TAG_DETAILS_${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
                 const detailsStr = await SecureStore.getItemAsync(detailKey);
                 if (detailsStr) setTagDetails(JSON.parse(detailsStr));
                 
@@ -972,6 +974,44 @@ jobs:
                 { text: 'Batal', style: 'cancel' },
                 { text: 'Ya', onPress: async () => { await clearSession(); onLogout(sess); } }
               ]);
+            };
+            
+            // FUNGSI EKSPORT KE .TXT
+            const exportData = async () => {
+              try {
+                setBusy(true);
+                let textContent = "====================================\n";
+                textContent += "      REKOD KEHADIRAN iHR (UJIAN)   \n";
+                textContent += "====================================\n\n";
+                textContent += `Nama        : ${sess.name}\n`;
+                textContent += `No. Staff   : ${sess.staff_no}\n`;
+                textContent += `Tarikh Cetak: ${new Date().toLocaleString('ms-MY')}\n\n`;
+                
+                if (tagDetails && tagDetails.length > 0) {
+                  tagDetails.forEach((t, i) => {
+                    textContent += `--- [ REKOD #${i+1} ] ---\n`;
+                    textContent += `Masa   : ${fromMs(t.t)}\n`;
+                    textContent += `Kaedah : ${t.m === 'qr' ? 'Imbas QR' : 'Geo Tagging'}\n`;
+                    if (t.lat && t.lng) textContent += `GPS    : ${t.lat.toFixed(5)}, ${t.lng.toFixed(5)}\n`;
+                    textContent += `Lokasi : ${t.address || '-'}\n\n`;
+                  });
+                } else {
+                  textContent += "Tiada rekod kehadiran tempatan untuk hari ini.\n";
+                }
+                
+                const fileUri = FileSystem.documentDirectory + 'Rekod_Kehadiran_iHR_Ujian.txt';
+                await FileSystem.writeAsStringAsync(fileUri, textContent, { encoding: FileSystem.EncodingType.UTF8 });
+                
+                if (await Sharing.isAvailableAsync()) {
+                  await Sharing.shareAsync(fileUri, { mimeType: 'text/plain', dialogTitle: 'Simpan / Kongsi Rekod (TXT)' });
+                } else {
+                  Alert.alert("Gagal", "Fungsi perkongsian tidak disokong pada peranti ini.");
+                }
+              } catch (e) {
+                Alert.alert("Ralat", "Gagal mengeksport fail: " + e.message);
+              } finally {
+                setBusy(false);
+              }
             };
             
             const getMethodIcon = (m) => {
@@ -1036,7 +1076,7 @@ jobs:
                  const methodName = legacyMethod === 'qr' ? 'Imbas QR' : 'Geo Tagging';
                  Alert.alert(
                    `Maklumat ${title}`, 
-                   `Kaedah: ${methodName}\nMasa: ${timeVal}\n\n*Lokasi terperinci tidak ditemui untuk sesi ini (Hanya terpakai untuk rekod baharu selepas kemas kini).*`
+                   `Kaedah: ${methodName}\nMasa: ${timeVal}\n\n*Lokasi terperinci tidak ditemui untuk sesi ini.*`
                  );
               } else {
                  Alert.alert(
@@ -1055,7 +1095,7 @@ jobs:
                     <View style={{ backgroundColor: '#fff', borderRadius: 8, padding: 2 }}>
                        <Image source={require('./assets/icon.png')} style={{ width: 36, height: 36 }} resizeMode="contain" />
                     </View>
-                    <Text style={{ color: C.ink, fontSize: 32, fontWeight: '800', letterSpacing: 0.5 }}>iHR</Text>
+                    <Text style={{ color: C.ink, fontSize: 32, fontWeight: '800', letterSpacing: 0.5 }}>iHR Ujian</Text>
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>
                     <Pressable onPress={handleLogout} style={s.status}>
@@ -1113,6 +1153,7 @@ jobs:
                   <View style={{ gap: 10 }}>
                     <Btn icon="📍" label="Geo Tagging" onPress={() => go('geo')} />
                     <Btn icon="📷" label="Imbas QR" onPress={() => go('qr')} />
+                    <Btn kind="ghost" icon="📄" label="Eksport Rekod (.txt)" onPress={exportData} busy={busy} />
                   </View>
                 </View>
                 
@@ -1370,31 +1411,26 @@ jobs:
           
           export async function saveDeviceId(v) {
             const t = (v || '').trim();
-            if (!t || t === realId()) { override = null; await SecureStore.deleteItemAsync('DEVICE_ID'); }
-            else { override = t; await SecureStore.setItemAsync('DEVICE_ID', t); }
+            if (!t || t === realId()) { override = null; await SecureStore.deleteItemAsync('DUMMY_V3_DEVICE_ID'); }
+            else { override = t; await SecureStore.setItemAsync('DUMMY_V3_DEVICE_ID', t); }
           }
           
-          // --- MOCK SERVER (DUMMY DB) LOGIC ---
           export async function call(ep, body = {}) {
-            // Simulasi masa loading internet
             await new Promise(resolve => setTimeout(resolve, 800));
             
             const d = new Date();
             const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-            const mockDbKey = `MOCK_SERVER_TAGS_${dateStr}`;
+            const mockDbKey = `DUMMY_V3_SERVERTAGS_${dateStr}`;
             
-            // Pintasan 1: Pendaftaran Akaun
             if (ep.path === 'api/user_registration') {
               const uid = '99' + Math.floor(Math.random() * 10000);
               return { data: { staff_id: uid, name: body.name, staff_no: body.staff_no } };
             }
             
-            // Pintasan 2: Pilihan Sebab Kerja Luar
             if (ep.path === 'api/reason') {
               return { data: ['Mesyuarat', 'Kursus', 'Bengkel', 'Lawatan Tapak', 'Pameran', 'Lain-lain'] };
             }
             
-            // Pintasan 3: Tagging (Geo / QR)
             if (ep.path === 'api/geotagging' || ep.path === 'api/qr_scanner') {
               const existing = JSON.parse((await SecureStore.getItemAsync(mockDbKey)) || '[]');
               const t = `${dateStr} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
@@ -1403,31 +1439,30 @@ jobs:
               return { result: "Kehadiran berjaya direkod dalam Dummy Server!" };
             }
             
-            // Pintasan 4: Permintaan Dashboard
             if (ep.path === 'api/dashboard') {
               const existing = JSON.parse((await SecureStore.getItemAsync(mockDbKey)) || '[]');
               let first = existing.length > 0 ? existing[0] : null;
               let last = existing.length > 1 ? existing[existing.length - 1] : null;
               
               return {
-                staff_data: { staff_no: body.staff_no, staff_id: body.staff_id, name: 'Akaun Ujian Dummy' },
+                staff_data: { staff_no: body.staff_no, staff_id: body.staff_id, name: body.name || 'Akaun Ujian Dummy' },
                 first_tagging: first,
                 last_tagging: last,
-                att_color: "2E7D4F", // Warna Hijau Status
+                att_color: "2E7D4F",
                 msg: { 
                   clock_in: first ? `Waktu masuk direkod pada: ${first}` : null, 
                   clock_out: last ? `Waktu keluar direkod pada: ${last}` : null 
-                }
+                },
+                photo: null
               };
             }
             
             throw new Error(`[${ep.code}404] Endpoint ujian tidak wujud`);
           }
           
-          // --- EXISTING CORE UTILITIES (KEKAL) ---
-          const K = { no: 'STAFF_NO', id: 'STAFF_ID', name: 'STAFF_NAME' };
+          const K = { no: 'DUMMY_V3_STAFF_NO', id: 'DUMMY_V3_STAFF_ID', name: 'DUMMY_V3_STAFF_NAME' };
           export async function loadSession() {
-            const dev = await SecureStore.getItemAsync('DEVICE_ID'); if (dev) override = dev;
+            const dev = await SecureStore.getItemAsync('DUMMY_V3_DEVICE_ID'); if (dev) override = dev;
             const [staff_no, staff_id, name] = await Promise.all(Object.values(K).map((k) => SecureStore.getItemAsync(k)));
             return staff_no ? { staff_no, staff_id, name } : null;
           }
@@ -1439,7 +1474,7 @@ jobs:
           export const clearSession = () => Promise.all(Object.values(K).map((k) => SecureStore.deleteItemAsync(k)));
           
           const q2 = (n) => String(n).padStart(2, '0');
-          const dayKey = () => { const d = new Date(); return `TAGS_${d.getFullYear()}-${q2(d.getMonth() + 1)}-${q2(d.getDate())}`; };
+          const dayKey = () => { const d = new Date(); return `DUMMY_V3_LOCALTAGS_${d.getFullYear()}-${q2(d.getMonth() + 1)}-${q2(d.getDate())}`; };
           
           export async function addLocalTag(method = 'geo') {
             try { 
@@ -1468,30 +1503,7 @@ jobs:
           }
           
           export const unwrap = (r) => (r && (r.data ?? r.staff_data ?? r.result)) ?? r;
-          
-          const PHOTO_KEY = /(photo|image|img|picture|pic|avatar|gambar|foto|profile)/i;
-          const NOT_PHOTO = /(color|colour|type|count|msg|status|path_id)/i;
-          function toUri(v) {
-            const s = String(v).trim();
-            if (/^data:image\//i.test(s)) return s;
-            if (/^https?:\/\//i.test(s)) return s.replace(/^http:\/\/ihr\.mtib\.gov\.my/i, 'https://ihr.mtib.gov.my');
-            if (/^[A-Za-z0-9+/=\s]{200,}$/.test(s)) return 'data:image/jpeg;base64,' + s.replace(/\s+/g, '');
-            if (s.length < 300 && !/\s/.test(s) && /[\/.]/.test(s)) return BASE_URL + s.replace(/^\/+/, '');
-            return null;
-          }
-          export function findPhoto(r) {
-            const seen = new Set();
-            const walk = (o, d) => {
-              if (!o || typeof o !== 'object' || d > 3 || seen.has(o)) return null;
-              seen.add(o);
-              for (const [k, v] of Object.entries(o)) {
-                if (typeof v === 'string' && v.length > 3 && PHOTO_KEY.test(k) && !NOT_PHOTO.test(k)) { const u = toUri(v); if (u) return u; }
-              }
-              for (const v of Object.values(o)) { if (v && typeof v === 'object') { const u = walk(v, d + 1); if (u) return u; } }
-              return null;
-            };
-            return walk(r, 0);
-          }
+          export function findPhoto(r) { return null; }
           
           export const KERJA_LUAR_TYPES = ['Mesyuarat', 'Kursus', 'Bengkel', 'Lawatan Tapak', 'Pameran', 'Lain-lain'];
           const norm = (x) => String(x || '').toLowerCase().replace(/[^a-z]/g, '');
