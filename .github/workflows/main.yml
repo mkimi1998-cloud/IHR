@@ -674,7 +674,7 @@ jobs:
             }
           }
           IHR_EOF
-          cat > 'App.js' <<'IHR_EOF'
+                    cat > 'App.js' <<'IHR_EOF'
           import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
           import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
           import { StatusBar } from 'expo-status-bar';
@@ -785,7 +785,6 @@ jobs:
             );
           };
           
-          // Stat component dikemas kini supaya lebih menarik dengan warna kotak lembut dan nota klik
           const Stat = ({ icon, label, value, tint, methodIcon, onPress }) => {
             const { s } = useT();
             return (
@@ -861,6 +860,25 @@ jobs:
             return (<Pressable onPress={open} style={[s.in, s.sel]}><Text style={{ color: C.ink, fontSize: 16, flex: 1 }}>{toDMY(value)}</Text><Text style={{ fontSize: 16 }}>📅</Text></Pressable>);
           };
           
+          function LandingPage({ onContinue, ready }) {
+            const { C, s } = useT();
+            return (
+              <View style={{ flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                <View style={{ backgroundColor: C.card, padding: 35, borderRadius: 24, width: '100%', maxWidth: 400, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 15, elevation: 4, borderWidth: 1, borderColor: C.line }}>
+                  <Image source={require('./assets/icon.png')} style={{ width: 100, height: 100, marginBottom: 20 }} resizeMode="contain" />
+                  <Text style={{ fontSize: 32, fontWeight: '800', color: C.navy, marginBottom: 8, letterSpacing: 0.5 }}>Sistem iHR</Text>
+                  <Text style={{ fontSize: 14, color: C.mute, textAlign: 'center', marginBottom: 40, lineHeight: 22 }}>Aplikasi rasmi sistem kehadiran (Geo Tagging & QR) untuk Lembaga Perindustrian Kayu Malaysia (MTIB).</Text>
+                  
+                  <View style={{ width: '100%' }}>
+                    <Btn label={ready ? "Teruskan" : "Memuatkan..."} onPress={onContinue} disabled={!ready} />
+                  </View>
+                  
+                  <Text style={{ fontSize: 12, color: C.mute, fontWeight: '600', marginTop: 30 }}>Disediakan Oleh Muhd Ha'akimi</Text>
+                </View>
+              </View>
+            );
+          }
+          
           function Register({ onDone, initialName = '', initialNo = '' }) {
             const { C, s } = useT();
             const [name, setName] = useState(initialName); const [no, setNo] = useState(initialNo);
@@ -904,12 +922,11 @@ jobs:
                 <View style={s.regTopCentered}>
                   <Pressable onLongPress={() => setAdv(!adv)} delayLongPress={1500} style={{ alignItems: 'center' }}>
                     <Image source={require('./assets/icon.png')} style={{ width: 90, height: 90, marginBottom: 12 }} resizeMode="contain" />
-                    <Text style={s.logo}>iHR</Text>
-                    <Text style={s.sub}>Lembaga Perindustrian Kayu Malaysia</Text>
+                    <Text style={s.logo}>Log Masuk</Text>
                   </Pressable>
                 </View>
                 <View style={{ padding: 16, gap: 14 }}>
-                  <Card title="Daftar Pengguna Baru" icon="👤" tint={C.navy}>
+                  <Card title="Daftar / Log Masuk Pengguna" icon="👤" tint={C.navy}>
                     <Text style={s.lbl}>Nama penuh</Text>
                     <TextInput style={s.in} value={name} onChangeText={setName} placeholder="Seperti dalam kad pengenalan" placeholderTextColor={C.mute} />
                     <Text style={s.lbl}>Nombor staff</Text>
@@ -967,7 +984,7 @@ jobs:
             useEffect(() => { load(); }, [load]);
             
             const handleLogout = () => {
-              Alert.alert('Daftar Keluar', 'Adakah anda pasti mahu kembali ke paparan pendaftaran?', [
+              Alert.alert('Log Keluar', 'Adakah anda pasti mahu kembali ke paparan log masuk?', [
                 { text: 'Batal', style: 'cancel' },
                 { text: 'Ya', onPress: async () => { await clearSession(); onLogout(sess); } }
               ]);
@@ -1285,18 +1302,28 @@ jobs:
             const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
             const C = themes[scheme];
             const s = useMemo(() => makeStyles(C), [scheme]);
-            const [sess, setSess] = useState(undefined); const [view, setView] = useState('home');
+            const [sess, setSess] = useState(undefined); 
+            const [view, setView] = useState('home');
             const [logoutData, setLogoutData] = useState(null);
+            const [showLanding, setShowLanding] = useState(true); // Memaparkan Landing Page pada mulanya
             
             useEffect(() => { loadSession().then(setSess); }, []);
             const home = () => setView('home');
             
             let body;
-            if (sess === undefined) body = <View style={s.center}><ActivityIndicator size="large" color={C.primary} /></View>;
-            else if (!sess) body = <Register onDone={setSess} initialName={logoutData?.name || ''} initialNo={logoutData?.staff_no || ''} />;
-            else if (view === 'qr') body = <Cam mode="qr" sess={sess} back={home} />;
-            else if (view === 'geo') body = <Cam mode="photo" sess={sess} back={home} />;
-            else body = <Dashboard sess={sess} go={setView} onSess={setSess} onLogout={(oldSess) => { setLogoutData(oldSess); setSess(null); }} />;
+            if (showLanding) {
+              body = <LandingPage onContinue={() => setShowLanding(false)} ready={sess !== undefined} />;
+            } else if (sess === undefined) {
+              body = <View style={s.center}><ActivityIndicator size="large" color={C.primary} /></View>;
+            } else if (!sess) {
+              body = <Register onDone={setSess} initialName={logoutData?.name || ''} initialNo={logoutData?.staff_no || ''} />;
+            } else if (view === 'qr') {
+              body = <Cam mode="qr" sess={sess} back={home} />;
+            } else if (view === 'geo') {
+              body = <Cam mode="photo" sess={sess} back={home} />;
+            } else {
+              body = <Dashboard sess={sess} go={setView} onSess={setSess} onLogout={(oldSess) => { setLogoutData(oldSess); setSess(null); setShowLanding(true); }} />;
+            }
             
             return (<ThemeCtx.Provider value={{ C, s, scheme }}><SafeAreaView style={s.root}><StatusBar style={scheme === 'dark' ? 'light' : 'dark'} backgroundColor={C.bg} />{Platform.OS === 'android' ? <View style={{ height: RNBar.currentHeight || 0, backgroundColor: C.bg }} /> : null}{body}</SafeAreaView></ThemeCtx.Provider>);
           }
@@ -1349,6 +1376,7 @@ jobs:
             cam: { height: 300, borderRadius: 16, overflow: 'hidden', backgroundColor: '#000', borderWidth: 1, borderColor: C.line },
           });
           IHR_EOF
+
           cat > 'src/api.js' <<'IHR_EOF'
           import * as SecureStore from 'expo-secure-store';
           import * as Application from 'expo-application';
@@ -1576,63 +1604,3 @@ jobs:
         with:
           name: iHR-apk
           path: app/android/app/build/outputs/apk/release/*.apk
-
-      - name: Create Landing Page
-        run: |
-          mkdir -p landing_page
-          
-          # Salin fail video ke dalam folder landing_page
-          # (Pastikan video anda telah dimuat naik ke dalam repositori dengan nama mtib_video.mp4)
-          cp mtib_video.mp4 landing_page/ 2>/dev/null || true
-          
-          cat > 'landing_page/index.html' <<'HTML_EOF'
-          <!DOCTYPE html>
-          <html lang="ms">
-          <head>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <title>Muat Turun iHR MTIB</title>
-              <style>
-                  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #EEEDEE; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
-                  .card { background: #FFFFFF; padding: 35px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; max-width: 400px; width: 100%; border: 1px solid #D9D5D7; }
-                  h1 { color: #1F2D55; margin-top: 0; margin-bottom: 15px; font-weight: 800; font-size: 28px; }
-                  .video-wrapper { width: 100%; border-radius: 12px; overflow: hidden; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); background-color: #000; display: flex; justify-content: center; align-items: center; }
-                  video { width: 100%; height: auto; display: block; object-fit: cover; }
-                  p.desc { color: #6B6B75; margin-bottom: 25px; line-height: 1.5; font-size: 15px; }
-                  .btn { background: #BC4A32; color: #FFFFFF; text-decoration: none; padding: 15px 30px; border-radius: 28px; font-weight: 700; display: inline-block; transition: background 0.3s; border: none; cursor: pointer; font-size: 16px; width: 100%; box-sizing: border-box; }
-                  .btn:hover { background: #A03A26; }
-                  .footer { margin-top: 25px; font-size: 12px; color: #A3A3AE; margin-bottom: 0; font-weight: 600; }
-              </style>
-          </head>
-          <body>
-              <div class="card">
-                  <h1>Sistem iHR</h1>
-                  
-                  <!-- Bahagian Paparan Video -->
-                  <div class="video-wrapper">
-                      <video autoplay loop muted playsinline>
-                          <source src="mtib_video.mp4" type="video/mp4">
-                          Penyemak imbas anda tidak menyokong paparan video.
-                      </video>
-                  </div>
-
-                  <p class="desc">Aplikasi rasmi sistem kehadiran (Geo Tagging & QR) untuk Lembaga Perindustrian Kayu Malaysia (MTIB).</p>
-                  
-                  <button id="downloadBtn" class="btn">Muat Turun APK (Android)</button>
-                  <p class="footer">Disediakan Oleh Muhd Ha'akimi</p>
-              </div>
-              
-              <script>
-                  document.getElementById('downloadBtn').addEventListener('click', function() {
-                      alert('Muat turun akan bermula sebentar lagi...');
-                      window.location.href = 'iHR-release.apk'; 
-                  });
-              </script>
-          </body>
-          </html>
-          HTML_EOF
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: iHR-Landing-Page
-          path: landing_page/
