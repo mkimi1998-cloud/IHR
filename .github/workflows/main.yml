@@ -1,4 +1,3 @@
-
 name: Build iHR APK
 on:
   workflow_dispatch:
@@ -674,7 +673,7 @@ jobs:
             }
           }
           IHR_EOF
-                    cat > 'App.js' <<'IHR_EOF'
+          cat > 'App.js' <<'IHR_EOF'
           import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
           import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
           import { StatusBar } from 'expo-status-bar';
@@ -785,6 +784,7 @@ jobs:
             );
           };
           
+          // Stat component dikemas kini supaya lebih menarik dengan warna kotak lembut dan nota klik
           const Stat = ({ icon, label, value, tint, methodIcon, onPress }) => {
             const { s } = useT();
             return (
@@ -860,25 +860,6 @@ jobs:
             return (<Pressable onPress={open} style={[s.in, s.sel]}><Text style={{ color: C.ink, fontSize: 16, flex: 1 }}>{toDMY(value)}</Text><Text style={{ fontSize: 16 }}>📅</Text></Pressable>);
           };
           
-          function LandingPage({ onContinue, ready }) {
-            const { C, s } = useT();
-            return (
-              <View style={{ flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-                <View style={{ backgroundColor: C.card, padding: 35, borderRadius: 24, width: '100%', maxWidth: 400, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 15, elevation: 4, borderWidth: 1, borderColor: C.line }}>
-                  <Image source={require('./assets/icon.png')} style={{ width: 100, height: 100, marginBottom: 20 }} resizeMode="contain" />
-                  <Text style={{ fontSize: 32, fontWeight: '800', color: C.navy, marginBottom: 8, letterSpacing: 0.5 }}>Sistem iHR</Text>
-                  <Text style={{ fontSize: 14, color: C.mute, textAlign: 'center', marginBottom: 40, lineHeight: 22 }}>Aplikasi rasmi sistem kehadiran (Geo Tagging & QR) untuk Lembaga Perindustrian Kayu Malaysia (MTIB).</Text>
-                  
-                  <View style={{ width: '100%' }}>
-                    <Btn label={ready ? "Teruskan" : "Memuatkan..."} onPress={onContinue} disabled={!ready} />
-                  </View>
-                  
-                  <Text style={{ fontSize: 12, color: C.mute, fontWeight: '600', marginTop: 30 }}>Disediakan Oleh Muhd Ha'akimi</Text>
-                </View>
-              </View>
-            );
-          }
-          
           function Register({ onDone, initialName = '', initialNo = '' }) {
             const { C, s } = useT();
             const [name, setName] = useState(initialName); const [no, setNo] = useState(initialNo);
@@ -922,11 +903,12 @@ jobs:
                 <View style={s.regTopCentered}>
                   <Pressable onLongPress={() => setAdv(!adv)} delayLongPress={1500} style={{ alignItems: 'center' }}>
                     <Image source={require('./assets/icon.png')} style={{ width: 90, height: 90, marginBottom: 12 }} resizeMode="contain" />
-                    <Text style={s.logo}>Log Masuk</Text>
+                    <Text style={s.logo}>iHR</Text>
+                    <Text style={s.sub}>Lembaga Perindustrian Kayu Malaysia</Text>
                   </Pressable>
                 </View>
                 <View style={{ padding: 16, gap: 14 }}>
-                  <Card title="Daftar / Log Masuk Pengguna" icon="👤" tint={C.navy}>
+                  <Card title="Daftar Pengguna Baru" icon="👤" tint={C.navy}>
                     <Text style={s.lbl}>Nama penuh</Text>
                     <TextInput style={s.in} value={name} onChangeText={setName} placeholder="Seperti dalam kad pengenalan" placeholderTextColor={C.mute} />
                     <Text style={s.lbl}>Nombor staff</Text>
@@ -984,7 +966,7 @@ jobs:
             useEffect(() => { load(); }, [load]);
             
             const handleLogout = () => {
-              Alert.alert('Log Keluar', 'Adakah anda pasti mahu kembali ke paparan log masuk?', [
+              Alert.alert('Daftar Keluar', 'Adakah anda pasti mahu kembali ke paparan pendaftaran?', [
                 { text: 'Batal', style: 'cancel' },
                 { text: 'Ya', onPress: async () => { await clearSession(); onLogout(sess); } }
               ]);
@@ -1302,28 +1284,18 @@ jobs:
             const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
             const C = themes[scheme];
             const s = useMemo(() => makeStyles(C), [scheme]);
-            const [sess, setSess] = useState(undefined); 
-            const [view, setView] = useState('home');
+            const [sess, setSess] = useState(undefined); const [view, setView] = useState('home');
             const [logoutData, setLogoutData] = useState(null);
-            const [showLanding, setShowLanding] = useState(true); // Memaparkan Landing Page pada mulanya
             
             useEffect(() => { loadSession().then(setSess); }, []);
             const home = () => setView('home');
             
             let body;
-            if (showLanding) {
-              body = <LandingPage onContinue={() => setShowLanding(false)} ready={sess !== undefined} />;
-            } else if (sess === undefined) {
-              body = <View style={s.center}><ActivityIndicator size="large" color={C.primary} /></View>;
-            } else if (!sess) {
-              body = <Register onDone={setSess} initialName={logoutData?.name || ''} initialNo={logoutData?.staff_no || ''} />;
-            } else if (view === 'qr') {
-              body = <Cam mode="qr" sess={sess} back={home} />;
-            } else if (view === 'geo') {
-              body = <Cam mode="photo" sess={sess} back={home} />;
-            } else {
-              body = <Dashboard sess={sess} go={setView} onSess={setSess} onLogout={(oldSess) => { setLogoutData(oldSess); setSess(null); setShowLanding(true); }} />;
-            }
+            if (sess === undefined) body = <View style={s.center}><ActivityIndicator size="large" color={C.primary} /></View>;
+            else if (!sess) body = <Register onDone={setSess} initialName={logoutData?.name || ''} initialNo={logoutData?.staff_no || ''} />;
+            else if (view === 'qr') body = <Cam mode="qr" sess={sess} back={home} />;
+            else if (view === 'geo') body = <Cam mode="photo" sess={sess} back={home} />;
+            else body = <Dashboard sess={sess} go={setView} onSess={setSess} onLogout={(oldSess) => { setLogoutData(oldSess); setSess(null); }} />;
             
             return (<ThemeCtx.Provider value={{ C, s, scheme }}><SafeAreaView style={s.root}><StatusBar style={scheme === 'dark' ? 'light' : 'dark'} backgroundColor={C.bg} />{Platform.OS === 'android' ? <View style={{ height: RNBar.currentHeight || 0, backgroundColor: C.bg }} /> : null}{body}</SafeAreaView></ThemeCtx.Provider>);
           }
@@ -1376,7 +1348,6 @@ jobs:
             cam: { height: 300, borderRadius: 16, overflow: 'hidden', backgroundColor: '#000', borderWidth: 1, borderColor: C.line },
           });
           IHR_EOF
-
           cat > 'src/api.js' <<'IHR_EOF'
           import * as SecureStore from 'expo-secure-store';
           import * as Application from 'expo-application';
