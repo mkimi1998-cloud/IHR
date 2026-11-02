@@ -688,11 +688,10 @@ jobs:
           import * as Location from 'expo-location';
           import * as SecureStore from 'expo-secure-store';
           import { CameraView, useCameraPermissions } from 'expo-camera';
+          import * as ImagePicker from 'expo-image-picker';
           import { MaterialIcons } from '@expo/vector-icons';
           import * as ImageManipulator from 'expo-image-manipulator';
           import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
-          import * as ImagePicker from 'expo-image-picker';
-          import { BarCodeScanner } from 'expo-barcode-scanner';
           import { themes } from './src/theme';
           import { EP, KERJA_LUAR_TYPES, addLocalTag, call, clearSession, deviceId, findPhoto, getLocalTags, kerjaLuarFields, loadSession, matchReasons, saveDeviceId, saveSession, unwrap } from './src/api';
           
@@ -869,6 +868,25 @@ jobs:
             return (<Pressable onPress={open} style={[s.in, s.sel]}><Text style={{ color: C.ink, fontSize: 16, flex: 1 }}>{toDMY(value)}</Text><Text style={{ fontSize: 16 }}>📅</Text></Pressable>);
           };
           
+          function LandingPage({ onContinue, ready }) {
+            const { C, s } = useT();
+            return (
+              <View style={{ flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                <View style={{ backgroundColor: C.card, padding: 35, borderRadius: 24, width: '100%', maxWidth: 400, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 15, elevation: 4, borderWidth: 1, borderColor: C.line }}>
+                  <Image source={require('./assets/icon.png')} style={{ width: 100, height: 100, marginBottom: 20 }} resizeMode="contain" />
+                  <Text style={{ fontSize: 32, fontWeight: '800', color: C.navy, marginBottom: 8, letterSpacing: 0.5 }}>Sistem iHR</Text>
+                  <Text style={{ fontSize: 14, color: C.mute, textAlign: 'center', marginBottom: 40, lineHeight: 22 }}>Aplikasi rasmi sistem kehadiran (Geo Tagging & QR) untuk Lembaga Perindustrian Kayu Malaysia (MTIB).</Text>
+                  
+                  <View style={{ width: '100%' }}>
+                    <Btn label={ready ? "Teruskan" : "Memuatkan..."} onPress={onContinue} disabled={!ready} />
+                  </View>
+                  
+                  <Text style={{ fontSize: 12, color: C.mute, fontWeight: '600', marginTop: 30 }}>Disediakan Oleh Muhd Ha'akimi</Text>
+                </View>
+              </View>
+            );
+          }
+          
           function Register({ onDone, initialName = '', initialNo = '' }) {
             const { C, s } = useT();
             const [name, setName] = useState(initialName); const [no, setNo] = useState(initialNo);
@@ -912,12 +930,11 @@ jobs:
                 <View style={s.regTopCentered}>
                   <Pressable onLongPress={() => setAdv(!adv)} delayLongPress={1500} style={{ alignItems: 'center' }}>
                     <Image source={require('./assets/icon.png')} style={{ width: 90, height: 90, marginBottom: 12 }} resizeMode="contain" />
-                    <Text style={s.logo}>iHR</Text>
-                    <Text style={s.sub}>Lembaga Perindustrian Kayu Malaysia</Text>
+                    <Text style={s.logo}>Log Masuk</Text>
                   </Pressable>
                 </View>
                 <View style={{ padding: 16, gap: 14 }}>
-                  <Card title="Daftar Pengguna Baru" icon="👤" tint={C.navy}>
+                  <Card title="Daftar / Log Masuk Pengguna" icon="👤" tint={C.navy}>
                     <Text style={s.lbl}>Nama penuh</Text>
                     <TextInput style={s.in} value={name} onChangeText={setName} placeholder="Seperti dalam kad pengenalan" placeholderTextColor={C.mute} />
                     <Text style={s.lbl}>Nombor staff</Text>
@@ -975,7 +992,7 @@ jobs:
             useEffect(() => { load(); }, [load]);
             
             const handleLogout = () => {
-              Alert.alert('Daftar Keluar', 'Adakah anda pasti mahu kembali ke paparan pendaftaran?', [
+              Alert.alert('Log Keluar', 'Adakah anda pasti mahu kembali ke paparan log masuk?', [
                 { text: 'Batal', style: 'cancel' },
                 { text: 'Ya', onPress: async () => { await clearSession(); onLogout(sess); } }
               ]);
@@ -1169,11 +1186,6 @@ jobs:
             const [unlocked, setUnlocked] = useState(false);
             const [pwd, setPwd] = useState('');
           
-            // States baharu untuk muat naik QR yang tersembunyi
-            const [askQrPwd, setAskQrPwd] = useState(false);
-            const [qrUnlocked, setQrUnlocked] = useState(false);
-            const [qrPwdText, setQrPwdText] = useState('');
-          
             useEffect(() => { if (perm && !perm.granted) ask(); }, [perm]);
             useEffect(() => {
               if (mode !== 'photo') return undefined; let on = true;
@@ -1191,42 +1203,44 @@ jobs:
                 await addLocalTag('qr');
                 await saveTagDetails('qr', loc.fix?.latitude, loc.fix?.longitude);
                 setOk(typeof r === 'string' ? r : 'Imbasan QR berjaya.');
-                Alert.alert('Berjaya', 'Kehadiran QR anda telah direkodkan.');
               } catch (e) { setErr(e.message); } finally { setBusy(false); }
             };
-            
-            // Fungsi memilih imej daripada galeri dan mengimbas QR daripadanya
-            const pickImageAndScanQR = async () => {
+
+            const pickQrImage = async () => {
               try {
                 let result = await ImagePicker.launchImageLibraryAsync({
                   mediaTypes: ImagePicker.MediaTypeOptions.Images,
                   allowsEditing: false,
-                  quality: 1,
+                  quality: 0.8,
                 });
-          
                 if (!result.canceled && result.assets && result.assets.length > 0) {
-                  setBusy(true);
-                  setErr('');
-                  const uri = result.assets[0].uri;
-                  
-                  // Membaca kod QR daripada gambar
-                  const scannedResults = await BarCodeScanner.scanFromURLAsync(uri);
-                  
-                  if (scannedResults && scannedResults.length > 0) {
-                    const qrData = scannedResults[0].data;
-                    // Panggil logik kehadiran onQr menggunakan data QR tersebut
-                    await onQr({ data: qrData });
+                  setBusy(true); setErr(''); setOk('');
+                  const asset = result.assets[0];
+                  const formData = new FormData();
+                  formData.append('file', {
+                    uri: asset.uri,
+                    name: 'qr.jpg',
+                    type: 'image/jpeg'
+                  });
+                  const res = await fetch('https://api.qrserver.com/v1/read-qr-code/', {
+                    method: 'POST',
+                    body: formData,
+                  });
+                  const json = await res.json();
+                  const qrData = json[0]?.symbol[0]?.data;
+                  if (qrData) {
+                    onQr({ data: qrData });
                   } else {
-                    setErr('Tiada kod QR yang sah ditemui dalam gambar ini.');
+                    setErr("Gambar tidak mengandungi kod QR yang sah atau jelas untuk dibaca.");
                   }
                 }
               } catch (error) {
-                setErr('Gagal memproses gambar: ' + error.message);
+                setErr("Ralat ketika memproses gambar QR.");
               } finally {
                 setBusy(false);
               }
             };
-          
+            
             const snap = async () => { 
               const p = await ref.current?.takePictureAsync({ quality: 0.5 }); 
               if (p) {
@@ -1272,9 +1286,10 @@ jobs:
                 <Top 
                   title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} 
                   onBack={back} 
-                  onTitleLongPress={() => mode === 'photo' ? setAskPwd(!askPwd) : setAskQrPwd(!askQrPwd)} 
+                  onTitleLongPress={() => setAskPwd(!askPwd)} 
                 />
-                {askPwd && !unlocked && mode === 'photo' && (
+
+                {askPwd && !unlocked && (
                   <View style={{ padding: 16, gap: 10 }}>
                     <TextInput 
                       style={s.in} 
@@ -1305,37 +1320,14 @@ jobs:
                     <TextInput style={s.in} keyboardType="numeric" value={String(loc.fix?.longitude || '')} onChangeText={t => loc.setFix(f => ({...f, longitude: parseFloat(t) || 0, accuracy: 1}))} />
                   </View>
                 )}
+                {unlocked && mode === 'qr' && (
+                  <View style={{ padding: 16, backgroundColor: C.primarySoft, borderBottomWidth: 1, borderColor: C.line, paddingBottom: 20 }}>
+                     <Text style={[s.lbl, {color: C.primary, marginBottom: 12, fontWeight: '700', fontSize: 14}]}>Fungsi Tersembunyi: Muat Naik QR</Text>
+                     <Btn label="Pilih Gambar Kod QR" onPress={pickQrImage} busy={busy} />
+                     <Text style={{fontSize: 11, color: C.mute, marginTop: 10, lineHeight: 16}}>* Gambar akan dibaca menggunakan server untuk mengekstrak data QR, kemudian dihantar ke iHR.</Text>
+                  </View>
+                )}
                 
-                {askQrPwd && !qrUnlocked && mode === 'qr' && (
-                  <View style={{ padding: 16, gap: 10 }}>
-                    <TextInput 
-                      style={s.in} 
-                      secureTextEntry 
-                      placeholder="Kata laluan muat naik QR" 
-                      placeholderTextColor={C.mute}
-                      value={qrPwdText} 
-                      onChangeText={t => {
-                        setQrPwdText(t);
-                        if (t.trim() === 'Mtib@123') { setQrUnlocked(true); setAskQrPwd(false); setQrPwdText(''); }
-                      }}
-                      onSubmitEditing={() => {
-                        if (qrPwdText.trim() === 'Mtib@123') { setQrUnlocked(true); setAskQrPwd(false); setQrPwdText(''); }
-                        else { Alert.alert('Ralat', 'Kata laluan salah'); setQrPwdText(''); }
-                      }}
-                    />
-                    <Btn label="Sahkan" onPress={() => {
-                      if (qrPwdText.trim() === 'Mtib@123') { setQrUnlocked(true); setAskQrPwd(false); setQrPwdText(''); }
-                      else { Alert.alert('Ralat', 'Kata laluan salah'); setQrPwdText(''); }
-                    }} />
-                  </View>
-                )}
-                {qrUnlocked && mode === 'qr' && (
-                  <View style={{ padding: 16, gap: 10 }}>
-                    <Text style={s.lbl}>Fungsi Rahsia: Muat Naik QR dari Galeri</Text>
-                    <Btn icon="📤" label="Muat Naik QR" onPress={pickImageAndScanQR} busy={busy} />
-                  </View>
-                )}
-          
                 <View style={{ padding: 16, gap: 14 }}>
                 {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
                   <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
@@ -1366,18 +1358,28 @@ jobs:
             const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
             const C = themes[scheme];
             const s = useMemo(() => makeStyles(C), [scheme]);
-            const [sess, setSess] = useState(undefined); const [view, setView] = useState('home');
+            const [sess, setSess] = useState(undefined); 
+            const [view, setView] = useState('home');
             const [logoutData, setLogoutData] = useState(null);
+            const [showLanding, setShowLanding] = useState(true); 
             
             useEffect(() => { loadSession().then(setSess); }, []);
             const home = () => setView('home');
             
             let body;
-            if (sess === undefined) body = <View style={s.center}><ActivityIndicator size="large" color={C.primary} /></View>;
-            else if (!sess) body = <Register onDone={setSess} initialName={logoutData?.name || ''} initialNo={logoutData?.staff_no || ''} />;
-            else if (view === 'qr') body = <Cam mode="qr" sess={sess} back={home} />;
-            else if (view === 'geo') body = <Cam mode="photo" sess={sess} back={home} />;
-            else body = <Dashboard sess={sess} go={setView} onSess={setSess} onLogout={(oldSess) => { setLogoutData(oldSess); setSess(null); }} />;
+            if (showLanding) {
+              body = <LandingPage onContinue={() => setShowLanding(false)} ready={sess !== undefined} />;
+            } else if (sess === undefined) {
+              body = <View style={s.center}><ActivityIndicator size="large" color={C.primary} /></View>;
+            } else if (!sess) {
+              body = <Register onDone={setSess} initialName={logoutData?.name || ''} initialNo={logoutData?.staff_no || ''} />;
+            } else if (view === 'qr') {
+              body = <Cam mode="qr" sess={sess} back={home} />;
+            } else if (view === 'geo') {
+              body = <Cam mode="photo" sess={sess} back={home} />;
+            } else {
+              body = <Dashboard sess={sess} go={setView} onSess={setSess} onLogout={(oldSess) => { setLogoutData(oldSess); setSess(null); setShowLanding(true); }} />;
+            }
             
             return (<ThemeCtx.Provider value={{ C, s, scheme }}><SafeAreaView style={s.root}><StatusBar style={scheme === 'dark' ? 'light' : 'dark'} backgroundColor={C.bg} />{Platform.OS === 'android' ? <View style={{ height: RNBar.currentHeight || 0, backgroundColor: C.bg }} /> : null}{body}</SafeAreaView></ThemeCtx.Provider>);
           }
