@@ -1656,4 +1656,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: iHR-apk
-          path: app/android/app/build/outputs/iHR/*.apk
+          path: app/android/app/build/outputs/app/release/*.apk
