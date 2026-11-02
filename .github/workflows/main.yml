@@ -1,3 +1,4 @@
+
 name: Build iHR APK
 on:
   workflow_dispatch:
@@ -606,10 +607,10 @@ jobs:
           Bs1/GQCU00/4ASCsfynF1J2NDAZtmbYlmHiGGmaHAYDpXzIki+TZxj9uSRFSRi8/j6+c6ldxjmEM
           G244RqORLF/529w9bC7mDt8d7bIUg7ujNi467LdeTHb4L0T7rW5lihTFhgnXJ4kMYRdabilO2b2B
           BGQXNGjQoEGDBg0aNGjQoEGDBg0aNGjQoEGDBg0aNGjQoEGDBg0aNGjQoEGDBg0aNGjQoEGDBg0a
-          NGjQoEGDBg0aNGjQoEGDBg0aNGjQoEGDBg0aNGjQoEGDBg0aNGjQoEGDBg0aNGjQoEHD/w78fxzb
-          lwyrEir2AAAAAElFTkSuQmCC
+          NGjQoEGDBg0aNGjQoEGDBg0aNGjQoEGDBg0aNGjQoEGDBg0aNGjQoEGDBg0aNGjQoEGDBg0aNGjQ
+          oEHD/w78fxzblwyrEir2AAAAAElFTkSuQmCC
           IHR_EOF
-          cat > 'package.json' <<'IHR_EOF'
+                    cat > 'package.json' <<'IHR_EOF'
           {
             "name": "ihr",
             "version": "1.0.5",
@@ -784,6 +785,7 @@ jobs:
             );
           };
           
+          // Stat component dikemas kini supaya lebih menarik dengan warna kotak lembut dan nota klik
           const Stat = ({ icon, label, value, tint, methodIcon, onPress }) => {
             const { s } = useT();
             return (
