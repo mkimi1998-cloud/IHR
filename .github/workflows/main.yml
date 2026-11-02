@@ -673,7 +673,6 @@ jobs:
             }
           }
           IHR_EOF
-          cat > 'App.js' <<'IHR_EOF'
           import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
           import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
           import { StatusBar } from 'expo-status-bar';
@@ -683,10 +682,10 @@ jobs:
           import { MaterialIcons } from '@expo/vector-icons';
           import * as ImageManipulator from 'expo-image-manipulator';
           import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+          import * as ImagePicker from 'expo-image-picker';
+          import { BarCodeScanner } from 'expo-barcode-scanner';
           import { themes } from './src/theme';
           import { EP, KERJA_LUAR_TYPES, addLocalTag, call, clearSession, deviceId, findPhoto, getLocalTags, kerjaLuarFields, loadSession, matchReasons, saveDeviceId, saveSession, unwrap } from './src/api';
-          // Nota: Jika anda ingin menggunakan expo-image-picker untuk galeri, pastikan ia di-install dan diimport di sini:
-          // import * as ImagePicker from 'expo-image-picker';
           
           const pad = (n) => String(n).padStart(2, '0');
           const t12 = (h, m) => `${pad(h % 12 || 12)}:${pad(m)} ${h < 12 ? 'AM' : 'PM'}`;
@@ -1183,9 +1182,42 @@ jobs:
                 await addLocalTag('qr');
                 await saveTagDetails('qr', loc.fix?.latitude, loc.fix?.longitude);
                 setOk(typeof r === 'string' ? r : 'Imbasan QR berjaya.');
+                Alert.alert('Berjaya', 'Kehadiran QR anda telah direkodkan.');
               } catch (e) { setErr(e.message); } finally { setBusy(false); }
             };
             
+            // Fungsi memilih imej daripada galeri dan mengimbas QR daripadanya
+            const pickImageAndScanQR = async () => {
+              try {
+                let result = await ImagePicker.launchImageLibraryAsync({
+                  mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                  allowsEditing: false,
+                  quality: 1,
+                });
+          
+                if (!result.canceled && result.assets && result.assets.length > 0) {
+                  setBusy(true);
+                  setErr('');
+                  const uri = result.assets[0].uri;
+                  
+                  // Membaca kod QR daripada gambar
+                  const scannedResults = await BarCodeScanner.scanFromURLAsync(uri);
+                  
+                  if (scannedResults && scannedResults.length > 0) {
+                    const qrData = scannedResults[0].data;
+                    // Panggil logik kehadiran onQr menggunakan data QR tersebut
+                    await onQr({ data: qrData });
+                  } else {
+                    setErr('Tiada kod QR yang sah ditemui dalam gambar ini.');
+                  }
+                }
+              } catch (error) {
+                setErr('Gagal memproses gambar: ' + error.message);
+              } finally {
+                setBusy(false);
+              }
+            };
+          
             const snap = async () => { 
               const p = await ref.current?.takePictureAsync({ quality: 0.5 }); 
               if (p) {
@@ -1291,12 +1323,7 @@ jobs:
                 {qrUnlocked && mode === 'qr' && (
                   <View style={{ padding: 16, gap: 10 }}>
                     <Text style={s.lbl}>Fungsi Rahsia: Muat Naik QR dari Galeri</Text>
-                    <Btn icon="📤" label="Muat Naik QR" onPress={async () => {
-                      // Logik muat naik QR sebenar jika menggunakan expo-image-picker:
-                      // let result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images });
-                      // ... seterusnya proses imej tersebut dengan perpustakaan pembaca QR statik
-                      Alert.alert('Fungsi', 'Pilih gambar dari galeri untuk diimbas (Memerlukan pemasangan expo-image-picker)');
-                    }} />
+                    <Btn icon="📤" label="Muat Naik QR" onPress={pickImageAndScanQR} busy={busy} />
                   </View>
                 )}
           
