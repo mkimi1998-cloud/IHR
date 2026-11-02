@@ -627,7 +627,6 @@ jobs:
               "expo-secure-store": "~13.0.2",
               "expo-status-bar": "~1.12.1",
               "expo-system-ui": "~3.0.7",
-              "jsqr": "^1.4.0",
               "react": "18.2.0",
               "react-native": "0.74.5"
             },
@@ -690,7 +689,6 @@ jobs:
           import * as SecureStore from 'expo-secure-store';
           import { CameraView, useCameraPermissions } from 'expo-camera';
           import * as ImagePicker from 'expo-image-picker';
-          import jsQR from 'jsqr';
           import { MaterialIcons } from '@expo/vector-icons';
           import * as ImageManipulator from 'expo-image-manipulator';
           import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
@@ -1204,37 +1202,28 @@ jobs:
                   quality: 1,
                 });
                 
-                if (!result.canceled && result.assets[0].uri) {
+                if (!result.canceled && result.assets && result.assets[0]?.uri) {
                   setBusy(true);
                   const uri = result.assets[0].uri;
 
-                  // Kecilkan saiz imej untuk bacaan QR yang lebih pantas & stabil
-                  const manipResult = await ImageManipulator.manipulateAsync(
-                    uri,
-                    [{ resize: { width: 400 } }],
-                    { format: ImageManipulator.SaveFormat.PNG, base64: true }
-                  );
-
-                  // Baca data base64 menggunakan jsQR
-                  const binaryStr = atob(manipResult.base64);
-                  const len = binaryStr.length;
-                  const bytes = new Uint8Array(len);
-                  for (let i = 0; i < len; i++) {
-                    bytes[i] = binaryStr.charCodeAt(i);
+                  // Cuba scan menggunakan CameraView terbina expo-camera
+                  let scannedData = null;
+                  if (typeof CameraView?.scanFromURLAsync === 'function') {
+                    const results = await CameraView.scanFromURLAsync(uri, ['qr']);
+                    if (results && results.length > 0 && results[0]?.data) {
+                      scannedData = results[0].data;
+                    }
                   }
 
-                  const code = jsQR(bytes, manipResult.width, manipResult.height);
-                  if (code && code.data) {
-                    setQrInput(code.data);
+                  if (scannedData) {
+                    setQrInput(scannedData);
                     setOk('Teks Kod QR berjaya diekstrak.');
                   } else {
-                    // Jika imej tidak dapat dibaca terus secara raw bytes, 
-                    // pengguna masih boleh memasukkan teks kod QR secara manual
-                    setErr('Kod QR tidak dapat dikesan secara automatik. Sila taip/tampal teks kod QR secara manual.');
+                    setErr('Gambar dipilih. Jika teks tidak terisi automatik, sila masukkan kod QR secara manual di bawah.');
                   }
                 }
-              } catch(e) { 
-                setErr('Ralat memproses gambar: ' + e.message); 
+              } catch (e) { 
+                setErr('Ralat membuka gambar: ' + e.message); 
               } finally {
                 setBusy(false);
               }
@@ -1647,7 +1636,9 @@ jobs:
         run: npm install --legacy-peer-deps
         working-directory: app
       - name: Generate Android project
-        run: npx expo prebuild --platform android --no-install
+        run: |
+          rm -rf android
+          npx expo prebuild --platform android --no-install --clean
         working-directory: app
       - name: Fix missing splash color
         run: |
