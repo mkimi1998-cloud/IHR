@@ -670,12 +670,13 @@ jobs:
                     "locationWhenInUsePermission": "Allow iHR to use your location for geotagging attendance."
                   }
                 ],
-                "expo-secure-store"
+                "expo-secure-store",
                 [
-                "expo-image-picker",
-              {
-                "photosPermission": "Benarkan iHR mengakses galeri untuk memuat naik kod QR."
-                }
+                  "expo-image-picker",
+                  {
+                    "photosPermission": "Benarkan iHR mengakses galeri untuk memuat naik kod QR."
+                  }
+                ]
               ],
               "scheme": "ihr2"
             }
