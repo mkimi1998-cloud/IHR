@@ -1662,6 +1662,7 @@ jobs:
             ~/.gradle/wrapper
           key: gradle-${{ runner.os }}-${{ hashFiles('app/package.json') }}
           restore-keys: gradle-${{ runner.os }}-
+          
       - name: Build APK (retries on network errors)
         run: |
           chmod +x gradlew
@@ -1672,7 +1673,9 @@ jobs:
             echo "Retrying in 30s (try $((n+1)) of 3)..."; sleep 30
           done
         working-directory: app/android
+        
       - uses: actions/upload-artifact@v4
         with:
           name: iHR-apk
-          path: app/android/app/build/outputs/app/release/*.apk
+          path: app/android/**/*.apk
+
