@@ -620,8 +620,10 @@ jobs:
               "@react-native-community/datetimepicker": "7.7.0",
               "expo": "~51.0.28",
               "expo-application": "~5.9.1",
+              "expo-barcode-scanner": "~12.9.3",
               "expo-camera": "~15.0.16",
               "expo-image-manipulator": "~12.0.5",
+              "expo-image-picker": "~15.0.7",
               "expo-location": "~17.0.1",
               "expo-secure-store": "~13.0.2",
               "expo-status-bar": "~1.12.1",
@@ -663,6 +665,12 @@ jobs:
                   }
                 ],
                 [
+                  "expo-image-picker",
+                  {
+                    "photosPermission": "Allow iHR to access your photos to extract QR codes."
+                  }
+                ],
+                [
                   "expo-location",
                   {
                     "locationWhenInUsePermission": "Allow iHR to use your location for geotagging attendance."
@@ -681,6 +689,8 @@ jobs:
           import * as Location from 'expo-location';
           import * as SecureStore from 'expo-secure-store';
           import { CameraView, useCameraPermissions } from 'expo-camera';
+          import * as ImagePicker from 'expo-image-picker';
+          import { BarcodeScanner } from 'expo-barcode-scanner';
           import { MaterialIcons } from '@expo/vector-icons';
           import * as ImageManipulator from 'expo-image-manipulator';
           import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
@@ -1161,6 +1171,7 @@ jobs:
             const [unlocked, setUnlocked] = useState(false);
             const [pwd, setPwd] = useState('');
             const [qrInput, setQrInput] = useState('');
+            const [includeLoc, setIncludeLoc] = useState(true);
           
             useEffect(() => { if (perm && !perm.granted) ask(); }, [perm]);
             useEffect(() => {
@@ -1175,11 +1186,38 @@ jobs:
             const onQr = async ({ data }) => {
               if (done) return; if (need()) return setErr(need()); setDone(true); setBusy(true); setErr('');
               try {
-                const r = await call(EP.qr, { ...base, method: 'qr', qr_code: data, latitude: loc.fix?.latitude, longitude: loc.fix?.longitude });
+                const lat = includeLoc ? loc.fix?.latitude : '';
+                const lng = includeLoc ? loc.fix?.longitude : '';
+                const r = await call(EP.qr, { ...base, method: 'qr', qr_code: data, latitude: lat, longitude: lng });
                 await addLocalTag('qr');
-                await saveTagDetails('qr', loc.fix?.latitude, loc.fix?.longitude);
+                await saveTagDetails('qr', lat, lng);
                 setOk(typeof r === 'string' ? r : 'Imbasan QR berjaya.');
               } catch (e) { setErr(e.message); } finally { setBusy(false); }
+            };
+
+            const pickQrImage = async () => {
+              setErr(''); setOk('');
+              try {
+                const result = await ImagePicker.launchImageLibraryAsync({
+                  mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                  quality: 1,
+                });
+                if (!result.canceled && result.assets[0].uri) {
+                  setBusy(true);
+                  const uri = result.assets[0].uri;
+                  const scanned = await BarcodeScanner.scanFromURLAsync(uri);
+                  if (scanned && scanned.length > 0 && scanned[0].data) {
+                    setQrInput(scanned[0].data);
+                    setOk('Teks Kod QR berjaya diekstrak daripada gambar.');
+                  } else {
+                    setErr('Gagal mengesan sebarang kod QR di dalam gambar tersebut.');
+                  }
+                }
+              } catch(e) { 
+                setErr('Ralat memproses gambar: ' + e.message); 
+              } finally {
+                setBusy(false);
+              }
             };
             
             const snap = async () => { 
@@ -1253,14 +1291,32 @@ jobs:
                     {mode === 'qr' ? (
                       <>
                         <Text style={s.lbl}>Muat Naik / Masukkan Kod QR Manual</Text>
-                        <TextInput 
-                          style={s.in} 
-                          placeholder="Masukkan teks Kod QR..." 
-                          placeholderTextColor={C.mute}
-                          value={qrInput} 
-                          onChangeText={setQrInput} 
-                        />
-                        <Btn label="Hantar QR" onPress={() => onQr({ data: qrInput })} />
+                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                          <View style={{ flex: 1 }}>
+                            <TextInput 
+                              style={s.in} 
+                              placeholder="Teks Kod QR..." 
+                              placeholderTextColor={C.mute}
+                              value={qrInput} 
+                              onChangeText={setQrInput} 
+                            />
+                          </View>
+                          <Pressable onPress={pickQrImage} style={[s.btn, { paddingHorizontal: 16, paddingVertical: 12, backgroundColor: C.navy, justifyContent: 'center' }]}>
+                            <Text style={s.btnTx}>📷 Upload</Text>
+                          </Pressable>
+                        </View>
+                        
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 }}>
+                          <Text style={[s.lbl, { color: C.ink, fontWeight: '600' }]}>Sertakan Koordinat Lokasi?</Text>
+                          <Pressable 
+                            onPress={() => setIncludeLoc(!includeLoc)} 
+                            style={[s.btn, { paddingVertical: 8, paddingHorizontal: 16, backgroundColor: includeLoc ? C.ok : C.mute }]}
+                          >
+                            <Text style={s.btnTx}>{includeLoc ? 'ON' : 'OFF'}</Text>
+                          </Pressable>
+                        </View>
+
+                        <Btn label="Hantar QR" onPress={() => onQr({ data: qrInput })} disabled={!qrInput.trim()} />
                       </>
                     ) : (
                       <>
@@ -1272,7 +1328,6 @@ jobs:
                     )}
                   </View>
                 )}
-                   
                 <View style={{ padding: 16, gap: 14 }}>
                 {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
                   <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
