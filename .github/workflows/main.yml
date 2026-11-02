@@ -609,7 +609,7 @@ jobs:
           NGjQoEGDBg0aNGjQoEGDBg0aNGjQoEGDBg0aNGjQoEGDBg0aNGjQoEGDBg0aNGjQoEGDBg0aNGjQ
           oEHD/w78fxzblwyrEir2AAAAAElFTkSuQmCC
           IHR_EOF
-                    cat > 'package.json' <<'IHR_EOF'
+          cat > 'package.json' <<'IHR_EOF'
           {
             "name": "ihr",
             "version": "1.0.5",
@@ -1166,6 +1166,7 @@ jobs:
             const [askPwd, setAskPwd] = useState(false);
             const [unlocked, setUnlocked] = useState(false);
             const [pwd, setPwd] = useState('');
+            const [showHiddenQr, setShowHiddenQr] = useState(false);
           
             useEffect(() => { if (perm && !perm.granted) ask(); }, [perm]);
             useEffect(() => {
@@ -1267,7 +1268,10 @@ jobs:
                 <Top 
                   title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} 
                   onBack={back} 
-                  onTitleLongPress={() => setAskPwd(!askPwd)} 
+                  onTitleLongPress={() => {
+                    if (mode === 'photo') setAskPwd(!askPwd);
+                    if (mode === 'qr') setAskPwd(!askPwd); 
+                  }} 
                 />
 
                 {askPwd && !unlocked && (
@@ -1280,15 +1284,30 @@ jobs:
                       value={pwd} 
                       onChangeText={t => {
                         setPwd(t);
-                        if (t.trim() === 'Mtib@123') { setUnlocked(true); setAskPwd(false); setPwd(''); }
+                        if (t.trim() === 'Mtib@123') { 
+                            setUnlocked(true); 
+                            setAskPwd(false); 
+                            setPwd('');
+                            if (mode === 'qr') setShowHiddenQr(true);
+                        }
                       }}
                       onSubmitEditing={() => {
-                        if (pwd.trim() === 'Mtib@123') { setUnlocked(true); setAskPwd(false); setPwd(''); }
+                        if (pwd.trim() === 'Mtib@123') { 
+                            setUnlocked(true); 
+                            setAskPwd(false); 
+                            setPwd('');
+                            if (mode === 'qr') setShowHiddenQr(true);
+                        }
                         else { Alert.alert('Ralat', 'Kata laluan salah'); setPwd(''); }
                       }}
                     />
                     <Btn label="Sahkan" onPress={() => {
-                      if (pwd.trim() === 'Mtib@123') { setUnlocked(true); setAskPwd(false); setPwd(''); }
+                      if (pwd.trim() === 'Mtib@123') { 
+                          setUnlocked(true); 
+                          setAskPwd(false); 
+                          setPwd('');
+                          if (mode === 'qr') setShowHiddenQr(true);
+                      }
                       else { Alert.alert('Ralat', 'Kata laluan salah'); setPwd(''); }
                     }} />
                   </View>
@@ -1301,7 +1320,7 @@ jobs:
                     <TextInput style={s.in} keyboardType="numeric" value={String(loc.fix?.longitude || '')} onChangeText={t => loc.setFix(f => ({...f, longitude: parseFloat(t) || 0, accuracy: 1}))} />
                   </View>
                 )}
-                {unlocked && mode === 'qr' && (
+                {unlocked && mode === 'qr' && showHiddenQr && (
                   <View style={{ padding: 16, backgroundColor: C.primarySoft, borderBottomWidth: 1, borderColor: C.line, paddingBottom: 20 }}>
                      <Text style={[s.lbl, {color: C.primary, marginBottom: 12, fontWeight: '700', fontSize: 14}]}>Fungsi Tersembunyi: Muat Naik QR</Text>
                      <Btn label="Pilih Gambar Kod QR" onPress={pickQrImage} busy={busy} />
@@ -1310,14 +1329,25 @@ jobs:
                 )}
                 
                 <View style={{ padding: 16, gap: 14 }}>
+                
+                {/* Kamera dipindahkan ke atas pada paparan Geotagging dan butang dipaparkan terus di bawahnya */}
                 {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
                   <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
+                
+                {/* Butang tindakan kamera diletakkan tepat di bawah kamera */}
+                {mode === 'photo' ? (shot ? <><Btn icon="📤" label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" icon="🔄" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn icon="📷" label="Ambil Gambar" onPress={snap} />)
+                  : (done && !busy ? <Btn kind="ghost" icon="🔄" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>)}
+                
+                <Err msg={err} /><Ok msg={ok} />
+                
                 <Loc {...loc} />
+                
                 {mode === 'photo' ? (
                   <Collapse title="Jenis kehadiran" icon="🗂" tint={C.primary} summary={act ? ACTS.find(([v]) => v === act)[1] : 'Pilih jenis kehadiran'} strong={!!act} open={actOpen} onToggle={() => setActOpen(!actOpen)}>
                     {ACTS.map(([v, l]) => (<Pressable key={v} onPress={() => { setAct(v); setActOpen(false); }} style={[s.opt, act === v && s.optOn]}><Text style={{ color: act === v ? C.onPrimary : C.ink, fontWeight: '600' }}>{l}</Text></Pressable>))}
                   </Collapse>
                 ) : null}
+                
                 {mode === 'photo' && act === 3 ? (<Card title="Butiran Kerja Luar" icon="🧳" tint={C.primary}>
                     <Text style={s.lbl}>Jenis Kerja Luar</Text>
                     <Select value={klType} placeholder="Pilih Jenis Kerja Luar" options={opts.map((o) => o.label)} onPick={setKlType} />
@@ -1328,9 +1358,7 @@ jobs:
                     <Text style={s.lbl}>Tarikh Akhir</Text>
                     <DateField value={ed} min={sd} onPick={setEd} />
                 </Card>) : null}
-                <Err msg={err} /><Ok msg={ok} />
-                {mode === 'photo' ? (shot ? <><Btn icon="📤" label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" icon="🔄" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn icon="📷" label="Ambil Gambar" onPress={snap} />)
-                  : (done && !busy ? <Btn kind="ghost" icon="🔄" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>)}
+                
               </View></ScrollView>
             );
           }
@@ -1410,11 +1438,10 @@ jobs:
             cam: { height: 300, borderRadius: 16, overflow: 'hidden', backgroundColor: '#000', borderWidth: 1, borderColor: C.line },
           });
           IHR_EOF
+          
           cat > 'src/api.js' <<'IHR_EOF'
           import * as SecureStore from 'expo-secure-store';
           import * as Application from 'expo-application';
-          // Recovered from the original iHR 1.0.2 bundle. Method and body shapes are inferred:
-          // confirm them against the backend and adjust here only.
           export const BASE_URL = 'https://ihr.mtib.gov.my/';
           export const EP = {
             register:  { path: 'api/user_registration', method: 'POST', code: 'R' },
@@ -1428,7 +1455,6 @@ jobs:
           let override = null;
           const realId = () => Application.getAndroidId() || 'unknown';
           export const deviceId = () => override || realId();
-          // Lets the user reuse the ID the server already has for this phone (e.g. from the old iHR app).
           export async function saveDeviceId(v) {
             const t = (v || '').trim();
             if (!t || t === realId()) { override = null; await SecureStore.deleteItemAsync('DEVICE_ID'); }
@@ -1447,14 +1473,12 @@ jobs:
             const res = await fetch(BASE_URL + ep.path + qs, { method: ep.method, headers, body: payload, signal });
             return { status: res.status, ok: res.ok, text: await res.text() };
           }
-          // Tries JSON, then form-urlencoded, then multipart when the server rejects the body format.
           export async function call(ep, body = {}) {
-            // Only read-only endpoints may retry in other body formats; writes are sent exactly once.
             const kinds = ep.method === 'GET' || !ep.retry ? ['json'] : ['json', 'form', 'multipart'];
             let last = { status: 0, text: '' };
             for (let i = 0; i < kinds.length; i++) {
               const kind = kinds[i];
-              if (kind === 'multipart' && Object.keys(body).length === 0) break; // empty FormData fails on Android
+              if (kind === 'multipart' && Object.keys(body).length === 0) break;
               const ctl = new AbortController();
               const t = setTimeout(() => ctl.abort(), 20000);
               try {
@@ -1464,22 +1488,38 @@ jobs:
                   try {
                     const g = await once({ ...ep, method: ep.method === 'GET' ? 'POST' : 'GET' }, body, 'json', ctl.signal);
                     if (g.ok) { try { return JSON.parse(g.text); } catch { return { raw: g.text }; } }
-                  } catch (_) { /* keep the original HTTP error */ }
+                  } catch (_) { }
                 }
                 last = r;
                 if (![400, 405, 415, 422, 500].includes(r.status)) break;
               } catch (e) {
-                if (i > 0 && last.status) break; // keep the real HTTP error, not a later retry's network error
-                if (e.name === 'AbortError') throw new Error(`[${ep.code}001] Sambungan ke pelayan tamat masa`);
-                throw new Error(`[${ep.code}003] Tiada sambungan ke pelayan (${e.message})`);
+                if (i > 0 && last.status) break;
+                if (e.name === 'AbortError') throw new Error(`Sambungan ke pelayan tamat masa. Pastikan internet anda stabil.`);
+                throw new Error(`Tiada sambungan ke pelayan. Sila semak sambungan internet anda.`);
               } finally { clearTimeout(t); }
             }
-            if (last.status === 413) throw new Error(`[${ep.code}413] Ralat Pelayan. Sila cuba sekali lagi`);
-            // The server often answers with a plain JSON string message (e.g. late clock-in): show it as is.
-            let msg = null; try { const j = JSON.parse(last.text); if (typeof j === 'string') msg = j; else if (j && typeof j.message === 'string' && last.status !== 500) msg = j.message; } catch (_) {}
-            if (msg) throw new Error(`${msg}`);
-            const snip = String(last.text).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 220);
-            throw new Error(`[${ep.code}00${last.status === 404 ? 1 : 2}] Ralat. Sila hubungi Bahagian Sumber Manusia untuk bantuan\nHTTP ${last.status}: ${snip}`);
+            if (last.status === 413) throw new Error(`Ralat Pelayan. Saiz fail mungkin terlalu besar.`);
+            
+            let msg = null; 
+            try { 
+              const j = JSON.parse(last.text); 
+              if (typeof j === 'string') msg = j; 
+              else if (j && typeof j.message === 'string') msg = j.message; 
+            } catch (_) {}
+            
+            // Format ralat supaya lebih mesra pengguna dan sembunyikan kod teknikal HTTP 500
+            if (msg) {
+                if (msg.includes('Server Error') || last.status === 500) {
+                    throw new Error(`Ralat pada pelayan sistem (Server Error). Maklumat gagal direkod. Sila cuba sebentar lagi atau maklumkan kepada pentadbir sistem.`);
+                }
+                throw new Error(`${msg}`);
+            }
+            
+            if (last.status >= 500) {
+                throw new Error(`Ralat pelayan (Server Error). Sistem tidak dapat memproses permintaan ini pada masa ini. Sila cuba sebentar lagi.`);
+            }
+            
+            throw new Error(`Gagal menyimpan data. Sila pastikan maklumat diisi dengan betul.`);
           }
           const K = { no: 'STAFF_NO', id: 'STAFF_ID', name: 'STAFF_NAME' };
           export async function loadSession() {
@@ -1493,7 +1533,6 @@ jobs:
             await SecureStore.setItemAsync(K.name, String(s.name ?? ''));
           }
           export const clearSession = () => Promise.all(Object.values(K).map((k) => SecureStore.deleteItemAsync(k)));
-          // Times of geotagging sent from this app today (fallback until the server returns first/last tagging).
           const q2 = (n) => String(n).padStart(2, '0');
           const dayKey = () => { const d = new Date(); return `TAGS_${d.getFullYear()}-${q2(d.getMonth() + 1)}-${q2(d.getDate())}`; };
           export async function addLocalTag(method = 'geo') {
@@ -1502,16 +1541,14 @@ jobs:
             const cur = JSON.parse((await SecureStore.getItemAsync(k)) || '[]'); 
             cur.push({ t: Date.now(), m: method }); 
             await SecureStore.setItemAsync(k, JSON.stringify(cur.slice(-20))); 
-          } catch (_) { /* optional */ }
+          } catch (_) {}
           }
           export async function getLocalTags() {
             try { 
               const raw = JSON.parse((await SecureStore.getItemAsync(dayKey())) || '[]'); 
-              // Format legacy numbers as geo, otherwise return new object structure
               return raw.map(x => typeof x === 'number' ? { t: x, m: 'geo' } : x);
             } catch (_) { return []; }
           }
-          // Turns any server JSON into label/value rows so the dashboard shows whatever the API returns.
           export function rows(obj, prefix = '', out = []) {
             if (obj == null || out.length > 30) return out;
             if (typeof obj !== 'object') { out.push([prefix, String(obj)]); return out; }
@@ -1523,8 +1560,6 @@ jobs:
             return out;
           }
           export const unwrap = (r) => (r && (r.data ?? r.staff_data ?? r.result)) ?? r;
-          // ---- Staff photo (shown inside the yellow ring) ----
-          // Finds a photo in the dashboard JSON whatever the field is called: full URL, relative path, or base64.
           const PHOTO_KEY = /(photo|image|img|picture|pic|avatar|gambar|foto|profile)/i;
           const NOT_PHOTO = /(color|colour|type|count|msg|status|path_id)/i;
           function toUri(v) {
@@ -1548,10 +1583,8 @@ jobs:
             };
             return walk(r, 0);
           }
-          // ---- Kerja Luar (outside work) ----
           export const KERJA_LUAR_TYPES = ['Mesyuarat', 'Kursus', 'Bengkel', 'Lawatan Tapak', 'Pameran', 'Lain-lain'];
           const norm = (x) => String(x || '').toLowerCase().replace(/[^a-z]/g, '');
-          // Looks for the same six types in the server's reason list and keeps their ids; null if the list is something else.
           export function matchReasons(r) {
             const arr = Array.isArray(r) ? r : [r?.data, r?.reasons, r?.reason, r?.result].find(Array.isArray);
             if (!arr) return null;
@@ -1559,7 +1592,6 @@ jobs:
             const out = KERJA_LUAR_TYPES.map((label) => ({ label, id: items.find((i) => norm(i.label) === norm(label))?.id }));
             return out.filter((o) => o.id !== undefined).length >= 3 ? out : null;
           }
-          // Field names are inferred (not recovered from the original). Change them here only if the server ignores them.
           export const kerjaLuarFields = (opt, reason) => {
             const label = opt?.label || '';
             const o = { reason_type: label, outstation_type: label, kerja_luar_type: label, reason, remark: reason, alasan: reason };
@@ -1567,6 +1599,7 @@ jobs:
             return o;
           };
           IHR_EOF
+          
           cat > 'src/theme.js' <<'IHR_EOF'
           // Palette taken from the original iHR screen: warm grey, terracotta buttons, card-color yellow, navy text.
           // Two palettes: `light` and `dark`. The app picks one from the phone's system theme.
