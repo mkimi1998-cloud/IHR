@@ -1331,12 +1331,27 @@ jobs:
                 <View style={{ padding: 16, gap: 14 }}>
                 {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
                   <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
+                
+                {/* --- Butang Dipindahkan Di Bawah Paparan Kamera --- */}
+                {mode === 'photo' ? (
+                  shot ? (
+                    <>
+                      <Btn icon="📤" label="Hantar gambar" onPress={sendPhoto} busy={busy} />
+                      <Btn kind="ghost" icon="🔄" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} />
+                    </>
+                  ) : (
+                    <Btn icon="📷" label="Ambil Gambar" onPress={snap} />
+                  )
+                ) : null}
+
                 <Loc {...loc} />
+                
                 {mode === 'photo' ? (
                   <Collapse title="Jenis kehadiran" icon="🗂" tint={C.primary} summary={act ? ACTS.find(([v]) => v === act)[1] : 'Pilih jenis kehadiran'} strong={!!act} open={actOpen} onToggle={() => setActOpen(!actOpen)}>
                     {ACTS.map(([v, l]) => (<Pressable key={v} onPress={() => { setAct(v); setActOpen(false); }} style={[s.opt, act === v && s.optOn]}><Text style={{ color: act === v ? C.onPrimary : C.ink, fontWeight: '600' }}>{l}</Text></Pressable>))}
                   </Collapse>
                 ) : null}
+                
                 {mode === 'photo' && act === 3 ? (<Card title="Butiran Kerja Luar" icon="🧳" tint={C.primary}>
                     <Text style={s.lbl}>Jenis Kerja Luar</Text>
                     <Select value={klType} placeholder="Pilih Jenis Kerja Luar" options={opts.map((o) => o.label)} onPick={setKlType} />
@@ -1347,12 +1362,16 @@ jobs:
                     <Text style={s.lbl}>Tarikh Akhir</Text>
                     <DateField value={ed} min={sd} onPick={setEd} />
                 </Card>) : null}
+                
                 <Err msg={err} /><Ok msg={ok} />
-                {mode === 'photo' ? (shot ? <><Btn icon="📤" label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" icon="🔄" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn icon="📷" label="Ambil Gambar" onPress={snap} />)
-                  : (done && !busy ? <Btn kind="ghost" icon="🔄" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>)}
-              </View></ScrollView>
-            );
-          }
+                
+                {/* --- Bahagian Butang Bawah Ditukar Untuk Mod QR Sahaja --- */}
+                {mode === 'qr' && (done && !busy ? (
+                  <Btn kind="ghost" icon="🔄" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} />
+                ) : (
+                  <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>
+                ))}
+              </View>
           
           export default function App() {
             const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
