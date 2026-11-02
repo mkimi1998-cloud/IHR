@@ -620,7 +620,6 @@ jobs:
               "@react-native-community/datetimepicker": "7.7.0",
               "expo": "~51.0.28",
               "expo-application": "~5.9.1",
-              "expo-barcode-scanner": "~12.9.3",
               "expo-camera": "~15.0.16",
               "expo-image-manipulator": "~12.0.5",
               "expo-image-picker": "~15.0.7",
@@ -628,6 +627,7 @@ jobs:
               "expo-secure-store": "~13.0.2",
               "expo-status-bar": "~1.12.1",
               "expo-system-ui": "~3.0.7",
+              "jsqr": "^1.4.0",
               "react": "18.2.0",
               "react-native": "0.74.5"
             },
@@ -690,7 +690,7 @@ jobs:
           import * as SecureStore from 'expo-secure-store';
           import { CameraView, useCameraPermissions } from 'expo-camera';
           import * as ImagePicker from 'expo-image-picker';
-          import { BarcodeScanner } from 'expo-barcode-scanner';
+          import jsQR from 'jsqr';
           import { MaterialIcons } from '@expo/vector-icons';
           import * as ImageManipulator from 'expo-image-manipulator';
           import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
@@ -1200,17 +1200,37 @@ jobs:
               try {
                 const result = await ImagePicker.launchImageLibraryAsync({
                   mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                  allowsEditing: false,
                   quality: 1,
                 });
+                
                 if (!result.canceled && result.assets[0].uri) {
                   setBusy(true);
                   const uri = result.assets[0].uri;
-                  const scanned = await BarcodeScanner.scanFromURLAsync(uri);
-                  if (scanned && scanned.length > 0 && scanned[0].data) {
-                    setQrInput(scanned[0].data);
-                    setOk('Teks Kod QR berjaya diekstrak daripada gambar.');
+
+                  // Kecilkan saiz imej untuk bacaan QR yang lebih pantas & stabil
+                  const manipResult = await ImageManipulator.manipulateAsync(
+                    uri,
+                    [{ resize: { width: 400 } }],
+                    { format: ImageManipulator.SaveFormat.PNG, base64: true }
+                  );
+
+                  // Baca data base64 menggunakan jsQR
+                  const binaryStr = atob(manipResult.base64);
+                  const len = binaryStr.length;
+                  const bytes = new Uint8Array(len);
+                  for (let i = 0; i < len; i++) {
+                    bytes[i] = binaryStr.charCodeAt(i);
+                  }
+
+                  const code = jsQR(bytes, manipResult.width, manipResult.height);
+                  if (code && code.data) {
+                    setQrInput(code.data);
+                    setOk('Teks Kod QR berjaya diekstrak.');
                   } else {
-                    setErr('Gagal mengesan sebarang kod QR di dalam gambar tersebut.');
+                    // Jika imej tidak dapat dibaca terus secara raw bytes, 
+                    // pengguna masih boleh memasukkan teks kod QR secara manual
+                    setErr('Kod QR tidak dapat dikesan secara automatik. Sila taip/tampal teks kod QR secara manual.');
                   }
                 }
               } catch(e) { 
