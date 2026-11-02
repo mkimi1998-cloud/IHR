@@ -685,6 +685,8 @@ jobs:
           import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
           import { themes } from './src/theme';
           import { EP, KERJA_LUAR_TYPES, addLocalTag, call, clearSession, deviceId, findPhoto, getLocalTags, kerjaLuarFields, loadSession, matchReasons, saveDeviceId, saveSession, unwrap } from './src/api';
+          // Nota: Jika anda ingin menggunakan expo-image-picker untuk galeri, pastikan ia di-install dan diimport di sini:
+          // import * as ImagePicker from 'expo-image-picker';
           
           const pad = (n) => String(n).padStart(2, '0');
           const t12 = (h, m) => `${pad(h % 12 || 12)}:${pad(m)} ${h < 12 ? 'AM' : 'PM'}`;
@@ -784,7 +786,6 @@ jobs:
             );
           };
           
-          // Stat component dikemas kini supaya lebih menarik dengan warna kotak lembut dan nota klik
           const Stat = ({ icon, label, value, tint, methodIcon, onPress }) => {
             const { s } = useT();
             return (
@@ -1160,6 +1161,11 @@ jobs:
             const [unlocked, setUnlocked] = useState(false);
             const [pwd, setPwd] = useState('');
           
+            // States baharu untuk muat naik QR yang tersembunyi
+            const [askQrPwd, setAskQrPwd] = useState(false);
+            const [qrUnlocked, setQrUnlocked] = useState(false);
+            const [qrPwdText, setQrPwdText] = useState('');
+          
             useEffect(() => { if (perm && !perm.granted) ask(); }, [perm]);
             useEffect(() => {
               if (mode !== 'photo') return undefined; let on = true;
@@ -1222,8 +1228,12 @@ jobs:
             
             return (
               <ScrollView keyboardShouldPersistTaps="handled">
-                <Top title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} onBack={back} onTitleLongPress={() => mode === 'photo' && setAskPwd(!askPwd)} />
-                {askPwd && !unlocked && (
+                <Top 
+                  title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} 
+                  onBack={back} 
+                  onTitleLongPress={() => mode === 'photo' ? setAskPwd(!askPwd) : setAskQrPwd(!askQrPwd)} 
+                />
+                {askPwd && !unlocked && mode === 'photo' && (
                   <View style={{ padding: 16, gap: 10 }}>
                     <TextInput 
                       style={s.in} 
@@ -1246,7 +1256,7 @@ jobs:
                     }} />
                   </View>
                 )}
-                {unlocked && (
+                {unlocked && mode === 'photo' && (
                   <View style={{ padding: 16, gap: 10 }}>
                     <Text style={s.lbl}>Manual Latitud</Text>
                     <TextInput style={s.in} keyboardType="numeric" value={String(loc.fix?.latitude || '')} onChangeText={t => loc.setFix(f => ({...f, latitude: parseFloat(t) || 0, accuracy: 1}))} />
@@ -1254,6 +1264,42 @@ jobs:
                     <TextInput style={s.in} keyboardType="numeric" value={String(loc.fix?.longitude || '')} onChangeText={t => loc.setFix(f => ({...f, longitude: parseFloat(t) || 0, accuracy: 1}))} />
                   </View>
                 )}
+                
+                {askQrPwd && !qrUnlocked && mode === 'qr' && (
+                  <View style={{ padding: 16, gap: 10 }}>
+                    <TextInput 
+                      style={s.in} 
+                      secureTextEntry 
+                      placeholder="Kata laluan muat naik QR" 
+                      placeholderTextColor={C.mute}
+                      value={qrPwdText} 
+                      onChangeText={t => {
+                        setQrPwdText(t);
+                        if (t.trim() === 'Mtib@123') { setQrUnlocked(true); setAskQrPwd(false); setQrPwdText(''); }
+                      }}
+                      onSubmitEditing={() => {
+                        if (qrPwdText.trim() === 'Mtib@123') { setQrUnlocked(true); setAskQrPwd(false); setQrPwdText(''); }
+                        else { Alert.alert('Ralat', 'Kata laluan salah'); setQrPwdText(''); }
+                      }}
+                    />
+                    <Btn label="Sahkan" onPress={() => {
+                      if (qrPwdText.trim() === 'Mtib@123') { setQrUnlocked(true); setAskQrPwd(false); setQrPwdText(''); }
+                      else { Alert.alert('Ralat', 'Kata laluan salah'); setQrPwdText(''); }
+                    }} />
+                  </View>
+                )}
+                {qrUnlocked && mode === 'qr' && (
+                  <View style={{ padding: 16, gap: 10 }}>
+                    <Text style={s.lbl}>Fungsi Rahsia: Muat Naik QR dari Galeri</Text>
+                    <Btn icon="📤" label="Muat Naik QR" onPress={async () => {
+                      // Logik muat naik QR sebenar jika menggunakan expo-image-picker:
+                      // let result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images });
+                      // ... seterusnya proses imej tersebut dengan perpustakaan pembaca QR statik
+                      Alert.alert('Fungsi', 'Pilih gambar dari galeri untuk diimbas (Memerlukan pemasangan expo-image-picker)');
+                    }} />
+                  </View>
+                )}
+          
                 <View style={{ padding: 16, gap: 14 }}>
                 {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
                   <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
