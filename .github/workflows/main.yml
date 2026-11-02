@@ -681,6 +681,7 @@ jobs:
             }
           }
           IHR_EOF
+          
           cat > 'App.js' <<'IHR_EOF'
           import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
           import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
@@ -1161,7 +1162,8 @@ jobs:
             const [perm, ask] = useCameraPermissions(); const ref = useRef(null); const loc = useFix();
             const [shot, setShot] = useState(null); const [done, setDone] = useState(false);
             const [act, setAct] = useState(null); const [actOpen, setActOpen] = useState(false); const [sd, setSd] = useState(todayStr()); const [ed, setEd] = useState(todayStr());
-            const [klType, setKlType] = useState(''); const [reason, setReason] = useState(''); const [opts, setOpts] = useState(KERJA_LUAR_TYPES.map((label) => ({ label })));
+            const [opts, setOpts] = useState(KERJA_LUAR_TYPES);
+            const [klType, setKlType] = useState(''); const [reason, setReason] = useState(''); 
             const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [ok, setOk] = useState('');
             const [askPwd, setAskPwd] = useState(false);
             const [unlocked, setUnlocked] = useState(false);
@@ -1243,8 +1245,15 @@ jobs:
                 if (!klType) return setErr('Sila pilih jenis kerja luar');
                 if (!reason.trim()) return setErr('Sila isi alasan');
                 if (ed < sd) return setErr('Tarikh akhir tidak boleh sebelum tarikh mula');
+                
+                const selOpt = opts.find((o) => o.label === klType) || { label: klType, id: 6 };
+                
+                // Menambah pelbagai variasi format tarikh untuk menyokong backend yang berbeza
                 payload.start_date = sd; payload.end_date = ed;
-                Object.assign(payload, kerjaLuarFields(opts.find((o) => o.label === klType), reason.trim()));
+                payload.date_start = sd; payload.date_end = ed;
+                payload.tarikh_mula = sd; payload.tarikh_akhir = ed;
+                
+                Object.assign(payload, kerjaLuarFields(selOpt, reason.trim()));
               }
               const label = ACTS.find(([v]) => v === act)[1];
               Alert.alert('Sahkan penghantaran', `Rekod kehadiran "${label}" akan disimpan dalam sistem iHR.`, [
@@ -1268,10 +1277,7 @@ jobs:
                 <Top 
                   title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} 
                   onBack={back} 
-                  onTitleLongPress={() => {
-                    if (mode === 'photo') setAskPwd(!askPwd);
-                    if (mode === 'qr') setAskPwd(!askPwd); 
-                  }} 
+                  onTitleLongPress={() => setAskPwd(!askPwd)} 
                 />
 
                 {askPwd && !unlocked && (
@@ -1330,11 +1336,11 @@ jobs:
                 
                 <View style={{ padding: 16, gap: 14 }}>
                 
-                {/* Kamera dipindahkan ke atas pada paparan Geotagging dan butang dipaparkan terus di bawahnya */}
+                {/* Kamera diletakkan di atas */}
                 {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
                   <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
                 
-                {/* Butang tindakan kamera diletakkan tepat di bawah kamera */}
+                {/* Butang diletakkan betul-betul di bawah kotak kamera */}
                 {mode === 'photo' ? (shot ? <><Btn icon="📤" label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" icon="🔄" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn icon="📷" label="Ambil Gambar" onPress={snap} />)
                   : (done && !busy ? <Btn kind="ghost" icon="🔄" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>)}
                 
@@ -1507,18 +1513,15 @@ jobs:
               else if (j && typeof j.message === 'string') msg = j.message; 
             } catch (_) {}
             
-            // Format ralat supaya lebih mesra pengguna dan sembunyikan kod teknikal HTTP 500
             if (msg) {
                 if (msg.includes('Server Error') || last.status === 500) {
-                    throw new Error(`Ralat pada pelayan sistem (Server Error). Maklumat gagal direkod. Sila cuba sebentar lagi atau maklumkan kepada pentadbir sistem.`);
+                    throw new Error(`Ralat pada pelayan sistem (Server Error). Maklumat gagal direkod. Sila pastikan format borang betul atau cuba sebentar lagi.`);
                 }
                 throw new Error(`${msg}`);
             }
-            
             if (last.status >= 500) {
-                throw new Error(`Ralat pelayan (Server Error). Sistem tidak dapat memproses permintaan ini pada masa ini. Sila cuba sebentar lagi.`);
+                throw new Error(`Ralat pelayan (Server Error). Sistem tidak dapat memproses permintaan ini pada masa ini.`);
             }
-            
             throw new Error(`Gagal menyimpan data. Sila pastikan maklumat diisi dengan betul.`);
           }
           const K = { no: 'STAFF_NO', id: 'STAFF_ID', name: 'STAFF_NAME' };
@@ -1583,20 +1586,23 @@ jobs:
             };
             return walk(r, 0);
           }
-          export const KERJA_LUAR_TYPES = ['Mesyuarat', 'Kursus', 'Bengkel', 'Lawatan Tapak', 'Pameran', 'Lain-lain'];
+          // ID Lalai ditambah untuk elakkan server 500 error bila gagal muat sebab ketiadaan id
+          export const KERJA_LUAR_TYPES = [
+            { label: 'Mesyuarat', id: 1 }, { label: 'Kursus', id: 2 }, { label: 'Bengkel', id: 3 },
+            { label: 'Lawatan Tapak', id: 4 }, { label: 'Pameran', id: 5 }, { label: 'Lain-lain', id: 6 }
+          ];
           const norm = (x) => String(x || '').toLowerCase().replace(/[^a-z]/g, '');
           export function matchReasons(r) {
             const arr = Array.isArray(r) ? r : [r?.data, r?.reasons, r?.reason, r?.result].find(Array.isArray);
             if (!arr) return null;
             const items = arr.map((x) => (typeof x === 'string' ? { label: x } : { id: x?.id ?? x?.value ?? x?.code, label: x?.name ?? x?.label ?? x?.reason ?? x?.description ?? x?.title }));
-            const out = KERJA_LUAR_TYPES.map((label) => ({ label, id: items.find((i) => norm(i.label) === norm(label))?.id }));
+            const out = KERJA_LUAR_TYPES.map((type) => ({ label: type.label, id: items.find((i) => norm(i.label) === norm(type.label))?.id ?? type.id }));
             return out.filter((o) => o.id !== undefined).length >= 3 ? out : null;
           }
           export const kerjaLuarFields = (opt, reason) => {
             const label = opt?.label || '';
-            const o = { reason_type: label, outstation_type: label, kerja_luar_type: label, reason, remark: reason, alasan: reason };
-            if (opt?.id !== undefined) o.reason_id = opt.id;
-            return o;
+            const id = opt?.id ?? 6;
+            return { reason_type: label, outstation_type: label, kerja_luar_type: label, reason, remark: reason, alasan: reason, reason_id: id };
           };
           IHR_EOF
           
