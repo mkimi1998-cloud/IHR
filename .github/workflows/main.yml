@@ -619,8 +619,10 @@ jobs:
               "@react-native-community/datetimepicker": "7.7.0",
               "expo": "~51.0.28",
               "expo-application": "~5.9.1",
+              "expo-barcode-scanner": "~13.0.1",
               "expo-camera": "~15.0.16",
               "expo-image-manipulator": "~12.0.5",
+              "expo-image-picker": "~15.0.7",
               "expo-location": "~17.0.1",
               "expo-secure-store": "~13.0.2",
               "expo-status-bar": "~1.12.1",
@@ -659,6 +661,12 @@ jobs:
                   "expo-camera",
                   {
                     "cameraPermission": "Allow iHR to access the camera for QR scanning and attendance photos."
+                  }
+                ],
+                [
+                  "expo-image-picker",
+                  {
+                    "photosPermission": "Allow iHR to access your photos to upload QR codes."
                   }
                 ],
                 [
@@ -1648,4 +1656,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: iHR-apk
-          path: app/android/app/build/outputs/apk/release/*.apk
+          path: app/android/app/build/outputs/iHR/*.apk
