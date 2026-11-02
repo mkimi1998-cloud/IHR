@@ -628,6 +628,9 @@ jobs:
               "expo-system-ui": "~3.0.7",
               "react": "18.2.0",
               "react-native": "0.74.5"
+              "expo-barcode-scanner": "~13.0.1",
+              "expo-image-picker": "~15.0.7",
+
             },
             "devDependencies": { "@babel/core": "^7.24.0" },
             "private": true
@@ -669,6 +672,11 @@ jobs:
                   }
                 ],
                 "expo-secure-store"
+                [
+                "expo-image-picker",
+              {
+                "photosPermission": "Benarkan iHR mengakses galeri untuk memuat naik kod QR."
+                }
               ],
               "scheme": "ihr2"
             }
@@ -676,7 +684,10 @@ jobs:
           IHR_EOF
           cat > 'App.js' <<'IHR_EOF'
           import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-          import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
+          import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, useColorScheme, View, Switch } from 'react-native';
+          import * as ImagePicker from 'expo-image-picker';
+          import { BarCodeScanner } from 'expo-barcode-scanner';
+
           import { StatusBar } from 'expo-status-bar';
           import * as Location from 'expo-location';
           import * as SecureStore from 'expo-secure-store';
@@ -1160,6 +1171,8 @@ jobs:
             const [askPwd, setAskPwd] = useState(false);
             const [unlocked, setUnlocked] = useState(false);
             const [pwd, setPwd] = useState('');
+            const [useLoc, setUseLoc] = useState(true);
+
           
             useEffect(() => { if (perm && !perm.granted) ask(); }, [perm]);
             useEffect(() => {
@@ -1173,14 +1186,38 @@ jobs:
             
             const onQr = async ({ data }) => {
               if (done) return; if (need()) return setErr(need()); setDone(true); setBusy(true); setErr('');
-              try {
-                const r = await call(EP.qr, { ...base, method: 'qr', qr_code: data, latitude: loc.fix?.latitude, longitude: loc.fix?.longitude });
-                await addLocalTag('qr');
-                await saveTagDetails('qr', loc.fix?.latitude, loc.fix?.longitude);
-                setOk(typeof r === 'string' ? r : 'Imbasan QR berjaya.');
-              } catch (e) { setErr(e.message); } finally { setBusy(false); }
-            };
-            
+                try {
+                  const lat = useLoc ? loc.fix?.latitude : undefined;
+                  const lng = useLoc ? loc.fix?.longitude : undefined;
+                  const r = await call(EP.qr, { ...base, method: 'qr', qr_code: data, latitude: lat, longitude: lng });
+                  await addLocalTag('qr');
+                  await saveTagDetails('qr', lat, lng);
+                  setOk(typeof r === 'string' ? r : 'Imbasan QR berjaya.');
+                } catch (e) { setErr(e.message); } finally { setBusy(false); }
+              };
+              
+              const pickQr = async () => {
+                const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images });
+                if (!res.canceled && res.assets[0]) {
+                  setBusy(true); setErr(''); setDone(true);
+                  try {
+                    const scanned = await BarCodeScanner.scanFromURLAsync(res.assets[0].uri);
+                    if (scanned && scanned.length > 0) {
+                      const lat = useLoc ? loc.fix?.latitude : undefined;
+                      const lng = useLoc ? loc.fix?.longitude : undefined;
+                      const r = await call(EP.qr, { ...base, method: 'qr', qr_code: scanned[0].data, latitude: lat, longitude: lng });
+                      await addLocalTag('qr');
+                      await saveTagDetails('qr', lat, lng);
+                      setOk(typeof r === 'string' ? r : 'Muat naik QR berjaya.');
+                    } else {
+                      setErr('Kod QR tidak dikesan dalam gambar.'); setDone(false);
+                    }
+                  } catch (e) {
+                    setErr(e.message || 'Ralat membaca gambar QR.'); setDone(false);
+                  } finally { setBusy(false); }
+                }
+              };
+
             const snap = async () => { 
               const p = await ref.current?.takePictureAsync({ quality: 0.5 }); 
               if (p) {
@@ -1223,7 +1260,7 @@ jobs:
             
             return (
               <ScrollView keyboardShouldPersistTaps="handled">
-                <Top title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} onBack={back} onTitleLongPress={() => mode === 'photo' && setAskPwd(!askPwd)} />
+                <Top title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} onBack={back} onTitleLongPress={() => setAskPwd(!askPwd)} />
                 {askPwd && !unlocked && (
                   <View style={{ padding: 16, gap: 10 }}>
                     <TextInput 
@@ -1246,15 +1283,22 @@ jobs:
                       else { Alert.alert('Ralat', 'Kata laluan salah'); setPwd(''); }
                     }} />
                   </View>
-                )}
                 {unlocked && (
                   <View style={{ padding: 16, gap: 10 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Text style={s.lbl}>Gunakan Lokasi Semasa</Text>
+                      <Switch value={useLoc} onValueChange={setUseLoc} trackColor={{ true: C.primary }} />
+                    </View>
                     <Text style={s.lbl}>Manual Latitud</Text>
                     <TextInput style={s.in} keyboardType="numeric" value={String(loc.fix?.latitude || '')} onChangeText={t => loc.setFix(f => ({...f, latitude: parseFloat(t) || 0, accuracy: 1}))} />
                     <Text style={s.lbl}>Manual Longitud</Text>
                     <TextInput style={s.in} keyboardType="numeric" value={String(loc.fix?.longitude || '')} onChangeText={t => loc.setFix(f => ({...f, longitude: parseFloat(t) || 0, accuracy: 1}))} />
+                    {mode === 'qr' && (
+                      <Btn label="Muat Naik QR dari Galeri" onPress={pickQr} icon="🖼" kind="ghost" />
+                    )}
                   </View>
                 )}
+
                 <View style={{ padding: 16, gap: 14 }}>
                 {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
                   <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
