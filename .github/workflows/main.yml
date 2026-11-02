@@ -1189,37 +1189,64 @@ jobs:
                 setOk(typeof r === 'string' ? r : 'Imbasan QR berjaya.');
               } catch (e) { setErr(e.message); } finally { setBusy(false); }
             };
-
+          
             const pickQrImage = async () => {
               try {
                 let result = await ImagePicker.launchImageLibraryAsync({
                   mediaTypes: ImagePicker.MediaTypeOptions.Images,
                   allowsEditing: false,
-                  quality: 0.8,
+                  quality: 1,
                 });
+                
                 if (!result.canceled && result.assets && result.assets.length > 0) {
                   setBusy(true); setErr(''); setOk('');
                   const asset = result.assets[0];
+                  
+                  // Kecilkan saiz gambar supaya tidak melepasi had server API (1MB)
+                  const resized = await ImageManipulator.manipulateAsync(
+                      asset.uri,
+                      [{ resize: { width: 800 } }],
+                      { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG }
+                  );
+          
                   const formData = new FormData();
                   formData.append('file', {
-                    uri: asset.uri,
+                    uri: Platform.OS === 'android' ? resized.uri : resized.uri.replace('file://', ''),
                     name: 'qr.jpg',
                     type: 'image/jpeg'
                   });
+                  
                   const res = await fetch('https://api.qrserver.com/v1/read-qr-code/', {
                     method: 'POST',
                     body: formData,
+                    headers: {
+                       'Accept': 'application/json'
+                    }
                   });
-                  const json = await res.json();
+                  
+                  if (!res.ok) {
+                     throw new Error(`Server API menolak proses membaca gambar.`);
+                  }
+                  
+                  const textRes = await res.text();
+                  let json;
+                  try {
+                     json = JSON.parse(textRes);
+                  } catch (e) {
+                     throw new Error("Server API tidak memulangkan format JSON yang sah.");
+                  }
+                  
                   const qrData = json[0]?.symbol[0]?.data;
+                  const qrError = json[0]?.symbol[0]?.error;
+                  
                   if (qrData) {
                     onQr({ data: qrData });
                   } else {
-                    setErr("Gambar tidak mengandungi kod QR yang sah atau jelas untuk dibaca.");
+                    setErr(qrError ? `Gagal membaca QR: ${qrError}` : "Gambar tidak mengandungi kod QR yang sah atau jelas untuk dibaca.");
                   }
                 }
               } catch (error) {
-                setErr("Ralat ketika memproses gambar QR.");
+                setErr("Ralat memproses gambar: " + (error.message || "Tidak diketahui."));
               } finally {
                 setBusy(false);
               }
@@ -1248,7 +1275,6 @@ jobs:
                 
                 const selOpt = opts.find((o) => o.label === klType) || { label: klType, id: 6 };
                 
-                // Menambah pelbagai variasi format tarikh untuk menyokong backend yang berbeza
                 payload.start_date = sd; payload.end_date = ed;
                 payload.date_start = sd; payload.date_end = ed;
                 payload.tarikh_mula = sd; payload.tarikh_akhir = ed;
@@ -1279,7 +1305,7 @@ jobs:
                   onBack={back} 
                   onTitleLongPress={() => setAskPwd(!askPwd)} 
                 />
-
+          
                 {askPwd && !unlocked && (
                   <View style={{ padding: 16, gap: 10 }}>
                     <TextInput 
@@ -1336,11 +1362,9 @@ jobs:
                 
                 <View style={{ padding: 16, gap: 14 }}>
                 
-                {/* Kamera diletakkan di atas */}
                 {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
                   <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
                 
-                {/* Butang diletakkan betul-betul di bawah kotak kamera */}
                 {mode === 'photo' ? (shot ? <><Btn icon="📤" label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" icon="🔄" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn icon="📷" label="Ambil Gambar" onPress={snap} />)
                   : (done && !busy ? <Btn kind="ghost" icon="🔄" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>)}
                 
