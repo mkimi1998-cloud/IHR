@@ -673,6 +673,7 @@ jobs:
             }
           }
           IHR_EOF
+          cat > 'App.js' <<'IHR_EOF'
           import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
           import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
           import { StatusBar } from 'expo-status-bar';
