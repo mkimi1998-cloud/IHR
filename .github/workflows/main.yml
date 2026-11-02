@@ -685,9 +685,6 @@ jobs:
           cat > 'App.js' <<'IHR_EOF'
           import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
           import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, useColorScheme, View, Switch } from 'react-native';
-          import * as ImagePicker from 'expo-image-picker';
-          import { BarCodeScanner } from 'expo-barcode-scanner';
-
           import { StatusBar } from 'expo-status-bar';
           import * as Location from 'expo-location';
           import * as SecureStore from 'expo-secure-store';
@@ -695,6 +692,8 @@ jobs:
           import { MaterialIcons } from '@expo/vector-icons';
           import * as ImageManipulator from 'expo-image-manipulator';
           import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+          import * as ImagePicker from 'expo-image-picker';
+          import { BarCodeScanner } from 'expo-barcode-scanner';
           import { themes } from './src/theme';
           import { EP, KERJA_LUAR_TYPES, addLocalTag, call, clearSession, deviceId, findPhoto, getLocalTags, kerjaLuarFields, loadSession, matchReasons, saveDeviceId, saveSession, unwrap } from './src/api';
           
@@ -779,7 +778,7 @@ jobs:
               </View>
             );
           };
-          const Collapse = ({ title, icon, tint, summary, strong, warn, open, onToggle, children }) => {
+          const Collapse = ({ title, icon, summary, strong, warn, open, onToggle, children, tint }) => {
             const { C, s } = useT();
             return (
               <View style={s.card}>
@@ -796,7 +795,6 @@ jobs:
             );
           };
           
-          // Stat component dikemas kini supaya lebih menarik dengan warna kotak lembut dan nota klik
           const Stat = ({ icon, label, value, tint, methodIcon, onPress }) => {
             const { s } = useT();
             return (
@@ -1172,7 +1170,6 @@ jobs:
             const [unlocked, setUnlocked] = useState(false);
             const [pwd, setPwd] = useState('');
             const [useLoc, setUseLoc] = useState(true);
-
           
             useEffect(() => { if (perm && !perm.granted) ask(); }, [perm]);
             useEffect(() => {
@@ -1186,38 +1183,38 @@ jobs:
             
             const onQr = async ({ data }) => {
               if (done) return; if (need()) return setErr(need()); setDone(true); setBusy(true); setErr('');
+              try {
+                const lat = useLoc ? loc.fix?.latitude : undefined;
+                const lng = useLoc ? loc.fix?.longitude : undefined;
+                const r = await call(EP.qr, { ...base, method: 'qr', qr_code: data, latitude: lat, longitude: lng });
+                await addLocalTag('qr');
+                await saveTagDetails('qr', lat, lng);
+                setOk(typeof r === 'string' ? r : 'Imbasan QR berjaya.');
+              } catch (e) { setErr(e.message); } finally { setBusy(false); }
+            };
+            
+            const pickQr = async () => {
+              const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images });
+              if (!res.canceled && res.assets[0]) {
+                setBusy(true); setErr(''); setDone(true);
                 try {
-                  const lat = useLoc ? loc.fix?.latitude : undefined;
-                  const lng = useLoc ? loc.fix?.longitude : undefined;
-                  const r = await call(EP.qr, { ...base, method: 'qr', qr_code: data, latitude: lat, longitude: lng });
-                  await addLocalTag('qr');
-                  await saveTagDetails('qr', lat, lng);
-                  setOk(typeof r === 'string' ? r : 'Imbasan QR berjaya.');
-                } catch (e) { setErr(e.message); } finally { setBusy(false); }
-              };
-              
-              const pickQr = async () => {
-                const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images });
-                if (!res.canceled && res.assets[0]) {
-                  setBusy(true); setErr(''); setDone(true);
-                  try {
-                    const scanned = await BarCodeScanner.scanFromURLAsync(res.assets[0].uri);
-                    if (scanned && scanned.length > 0) {
-                      const lat = useLoc ? loc.fix?.latitude : undefined;
-                      const lng = useLoc ? loc.fix?.longitude : undefined;
-                      const r = await call(EP.qr, { ...base, method: 'qr', qr_code: scanned[0].data, latitude: lat, longitude: lng });
-                      await addLocalTag('qr');
-                      await saveTagDetails('qr', lat, lng);
-                      setOk(typeof r === 'string' ? r : 'Muat naik QR berjaya.');
-                    } else {
-                      setErr('Kod QR tidak dikesan dalam gambar.'); setDone(false);
-                    }
-                  } catch (e) {
-                    setErr(e.message || 'Ralat membaca gambar QR.'); setDone(false);
-                  } finally { setBusy(false); }
-                }
-              };
-
+                  const scanned = await BarCodeScanner.scanFromURLAsync(res.assets[0].uri);
+                  if (scanned && scanned.length > 0) {
+                    const lat = useLoc ? loc.fix?.latitude : undefined;
+                    const lng = useLoc ? loc.fix?.longitude : undefined;
+                    const r = await call(EP.qr, { ...base, method: 'qr', qr_code: scanned[0].data, latitude: lat, longitude: lng });
+                    await addLocalTag('qr');
+                    await saveTagDetails('qr', lat, lng);
+                    setOk(typeof r === 'string' ? r : 'Muat naik QR berjaya.');
+                  } else {
+                    setErr('Kod QR tidak dikesan dalam gambar.'); setDone(false);
+                  }
+                } catch (e) {
+                  setErr(e.message || 'Ralat membaca gambar QR.'); setDone(false);
+                } finally { setBusy(false); }
+              }
+            };
+            
             const snap = async () => { 
               const p = await ref.current?.takePictureAsync({ quality: 0.5 }); 
               if (p) {
@@ -1283,6 +1280,7 @@ jobs:
                       else { Alert.alert('Ralat', 'Kata laluan salah'); setPwd(''); }
                     }} />
                   </View>
+                )}
                 {unlocked && (
                   <View style={{ padding: 16, gap: 10 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1298,7 +1296,6 @@ jobs:
                     )}
                   </View>
                 )}
-
                 <View style={{ padding: 16, gap: 14 }}>
                 {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
                   <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
