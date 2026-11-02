@@ -1356,13 +1356,13 @@ jobs:
           // confirm them against the backend and adjust here only.
           export const BASE_URL = 'https://ihr.mtib.gov.my/';
           export const EP = {
-            register:  { path: 'api/user_registration', method: 'POST', code: 'R' },
-            dashboard: { path: 'api/dashboard',         method: 'POST', code: 'D', flip: true, retry: true },
-            geotag:    { path: 'api/geotagging',        method: 'POST', code: 'G' },
-            qr:        { path: 'api/qr_scanner',        method: 'POST', code: 'Q' },
-            mia:       { path: 'api/mia_report',        method: 'POST', code: 'M' },
-            reason:    { path: 'api/reason',            method: 'POST', code: 'P', flip: true, retry: true },
-            reference: { path: 'api/reference',         method: 'POST', code: 'P', flip: true, retry: true },
+  register:  { path: 'api/user_registration', method: 'POST', code: 'R', retry: true },
+  dashboard: { path: 'api/dashboard',         method: 'POST', code: 'D', flip: true, retry: true },
+  geotag:    { path: 'api/geotagging',        method: 'POST', code: 'G', retry: true },
+  qr:        { path: 'api/qr_scanner',        method: 'POST', code: 'Q', retry: true },
+  mia:       { path: 'api/mia_report',        method: 'POST', code: 'M', retry: true },
+  reason:    { path: 'api/reason',            method: 'POST', code: 'P', flip: true, retry: true },
+  reference: { path: 'api/reference',         method: 'POST', code: 'P', flip: true, retry: true },
           };
           let override = null;
           const realId = () => Application.getAndroidId() || 'unknown';
