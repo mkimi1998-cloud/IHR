@@ -681,7 +681,7 @@ jobs:
             }
           }
           IHR_EOF
-          cat > 'App.js' <<'IHR_EOF'
+                    cat > 'App.js' <<'IHR_EOF'
           import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
           import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
           import { StatusBar } from 'expo-status-bar';
@@ -1185,7 +1185,6 @@ jobs:
             const [askPwd, setAskPwd] = useState(false);
             const [unlocked, setUnlocked] = useState(false);
             const [pwd, setPwd] = useState('');
-            const [showHiddenQr, setShowHiddenQr] = useState(false);
           
             useEffect(() => { if (perm && !perm.granted) ask(); }, [perm]);
             useEffect(() => {
@@ -1223,7 +1222,6 @@ jobs:
                     name: 'qr.jpg',
                     type: 'image/jpeg'
                   });
-                  // Menggunakan API awam percuma untuk mengekstrak data dari gambar QR
                   const res = await fetch('https://api.qrserver.com/v1/read-qr-code/', {
                     method: 'POST',
                     body: formData,
@@ -1288,19 +1286,8 @@ jobs:
                 <Top 
                   title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} 
                   onBack={back} 
-                  onTitleLongPress={() => {
-                    if (mode === 'photo') setAskPwd(!askPwd);
-                    if (mode === 'qr') setShowHiddenQr(!showHiddenQr);
-                  }} 
+                  onTitleLongPress={() => setAskPwd(!askPwd)} 
                 />
-                
-                {mode === 'qr' && showHiddenQr && (
-                  <View style={{ padding: 16, backgroundColor: C.primarySoft, borderBottomWidth: 1, borderColor: C.line, paddingBottom: 20 }}>
-                     <Text style={[s.lbl, {color: C.primary, marginBottom: 12, fontWeight: '700', fontSize: 14}]}>Fungsi Tersembunyi: Muat Naik QR</Text>
-                     <Btn label="Pilih Gambar Kod QR" onPress={pickQrImage} busy={busy} />
-                     <Text style={{fontSize: 11, color: C.mute, marginTop: 10, lineHeight: 16}}>* Gambar akan dibaca menggunakan server untuk mengekstrak data QR, kemudian dihantar ke iHR.</Text>
-                  </View>
-                )}
 
                 {askPwd && !unlocked && (
                   <View style={{ padding: 16, gap: 10 }}>
@@ -1325,7 +1312,7 @@ jobs:
                     }} />
                   </View>
                 )}
-                {unlocked && (
+                {unlocked && mode === 'photo' && (
                   <View style={{ padding: 16, gap: 10 }}>
                     <Text style={s.lbl}>Manual Latitud</Text>
                     <TextInput style={s.in} keyboardType="numeric" value={String(loc.fix?.latitude || '')} onChangeText={t => loc.setFix(f => ({...f, latitude: parseFloat(t) || 0, accuracy: 1}))} />
@@ -1333,6 +1320,14 @@ jobs:
                     <TextInput style={s.in} keyboardType="numeric" value={String(loc.fix?.longitude || '')} onChangeText={t => loc.setFix(f => ({...f, longitude: parseFloat(t) || 0, accuracy: 1}))} />
                   </View>
                 )}
+                {unlocked && mode === 'qr' && (
+                  <View style={{ padding: 16, backgroundColor: C.primarySoft, borderBottomWidth: 1, borderColor: C.line, paddingBottom: 20 }}>
+                     <Text style={[s.lbl, {color: C.primary, marginBottom: 12, fontWeight: '700', fontSize: 14}]}>Fungsi Tersembunyi: Muat Naik QR</Text>
+                     <Btn label="Pilih Gambar Kod QR" onPress={pickQrImage} busy={busy} />
+                     <Text style={{fontSize: 11, color: C.mute, marginTop: 10, lineHeight: 16}}>* Gambar akan dibaca menggunakan server untuk mengekstrak data QR, kemudian dihantar ke iHR.</Text>
+                  </View>
+                )}
+                
                 <View style={{ padding: 16, gap: 14 }}>
                 {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
                   <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
