@@ -609,7 +609,7 @@ jobs:
           NGjQoEGDBg0aNGjQoEGDBg0aNGjQoEGDBg0aNGjQoEGDBg0aNGjQoEGDBg0aNGjQoEGDBg0aNGjQ
           oEHD/w78fxzblwyrEir2AAAAAElFTkSuQmCC
           IHR_EOF
-                    cat > 'package.json' <<'IHR_EOF'
+                              cat > 'package.json' <<'IHR_EOF'
           {
             "name": "ihr",
             "version": "1.0.5",
@@ -621,6 +621,7 @@ jobs:
               "expo-application": "~5.9.1",
               "expo-camera": "~15.0.16",
               "expo-image-manipulator": "~12.0.5",
+              "expo-image-picker": "~15.0.7",
               "expo-location": "~17.0.1",
               "expo-secure-store": "~13.0.2",
               "expo-status-bar": "~1.12.1",
@@ -651,7 +652,8 @@ jobs:
                 "permissions": [
                   "android.permission.CAMERA",
                   "android.permission.ACCESS_COARSE_LOCATION",
-                  "android.permission.ACCESS_FINE_LOCATION"
+                  "android.permission.ACCESS_FINE_LOCATION",
+                  "android.permission.READ_EXTERNAL_STORAGE"
                 ]
               },
               "plugins": [
@@ -667,6 +669,12 @@ jobs:
                     "locationWhenInUsePermission": "Allow iHR to use your location for geotagging attendance."
                   }
                 ],
+                [
+                  "expo-image-picker",
+                  {
+                    "photosPermission": "Allow iHR to access your photos to upload QR codes."
+                  }
+                ],
                 "expo-secure-store"
               ],
               "scheme": "ihr2"
@@ -680,6 +688,7 @@ jobs:
           import * as Location from 'expo-location';
           import * as SecureStore from 'expo-secure-store';
           import { CameraView, useCameraPermissions } from 'expo-camera';
+          import * as ImagePicker from 'expo-image-picker';
           import { MaterialIcons } from '@expo/vector-icons';
           import * as ImageManipulator from 'expo-image-manipulator';
           import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
@@ -784,7 +793,6 @@ jobs:
             );
           };
           
-          // Stat component dikemas kini supaya lebih menarik dengan warna kotak lembut dan nota klik
           const Stat = ({ icon, label, value, tint, methodIcon, onPress }) => {
             const { s } = useT();
             return (
@@ -860,6 +868,25 @@ jobs:
             return (<Pressable onPress={open} style={[s.in, s.sel]}><Text style={{ color: C.ink, fontSize: 16, flex: 1 }}>{toDMY(value)}</Text><Text style={{ fontSize: 16 }}>📅</Text></Pressable>);
           };
           
+          function LandingPage({ onContinue, ready }) {
+            const { C, s } = useT();
+            return (
+              <View style={{ flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                <View style={{ backgroundColor: C.card, padding: 35, borderRadius: 24, width: '100%', maxWidth: 400, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 15, elevation: 4, borderWidth: 1, borderColor: C.line }}>
+                  <Image source={require('./assets/icon.png')} style={{ width: 100, height: 100, marginBottom: 20 }} resizeMode="contain" />
+                  <Text style={{ fontSize: 32, fontWeight: '800', color: C.navy, marginBottom: 8, letterSpacing: 0.5 }}>Sistem iHR</Text>
+                  <Text style={{ fontSize: 14, color: C.mute, textAlign: 'center', marginBottom: 40, lineHeight: 22 }}>Aplikasi rasmi sistem kehadiran (Geo Tagging & QR) untuk Lembaga Perindustrian Kayu Malaysia (MTIB).</Text>
+                  
+                  <View style={{ width: '100%' }}>
+                    <Btn label={ready ? "Teruskan" : "Memuatkan..."} onPress={onContinue} disabled={!ready} />
+                  </View>
+                  
+                  <Text style={{ fontSize: 12, color: C.mute, fontWeight: '600', marginTop: 30 }}>Disediakan Oleh Muhd Ha'akimi</Text>
+                </View>
+              </View>
+            );
+          }
+          
           function Register({ onDone, initialName = '', initialNo = '' }) {
             const { C, s } = useT();
             const [name, setName] = useState(initialName); const [no, setNo] = useState(initialNo);
@@ -903,12 +930,11 @@ jobs:
                 <View style={s.regTopCentered}>
                   <Pressable onLongPress={() => setAdv(!adv)} delayLongPress={1500} style={{ alignItems: 'center' }}>
                     <Image source={require('./assets/icon.png')} style={{ width: 90, height: 90, marginBottom: 12 }} resizeMode="contain" />
-                    <Text style={s.logo}>iHR</Text>
-                    <Text style={s.sub}>Lembaga Perindustrian Kayu Malaysia</Text>
+                    <Text style={s.logo}>Log Masuk</Text>
                   </Pressable>
                 </View>
                 <View style={{ padding: 16, gap: 14 }}>
-                  <Card title="Daftar Pengguna Baru" icon="👤" tint={C.navy}>
+                  <Card title="Daftar / Log Masuk Pengguna" icon="👤" tint={C.navy}>
                     <Text style={s.lbl}>Nama penuh</Text>
                     <TextInput style={s.in} value={name} onChangeText={setName} placeholder="Seperti dalam kad pengenalan" placeholderTextColor={C.mute} />
                     <Text style={s.lbl}>Nombor staff</Text>
@@ -966,7 +992,7 @@ jobs:
             useEffect(() => { load(); }, [load]);
             
             const handleLogout = () => {
-              Alert.alert('Daftar Keluar', 'Adakah anda pasti mahu kembali ke paparan pendaftaran?', [
+              Alert.alert('Log Keluar', 'Adakah anda pasti mahu kembali ke paparan log masuk?', [
                 { text: 'Batal', style: 'cancel' },
                 { text: 'Ya', onPress: async () => { await clearSession(); onLogout(sess); } }
               ]);
@@ -1159,6 +1185,7 @@ jobs:
             const [askPwd, setAskPwd] = useState(false);
             const [unlocked, setUnlocked] = useState(false);
             const [pwd, setPwd] = useState('');
+            const [showHiddenQr, setShowHiddenQr] = useState(false);
           
             useEffect(() => { if (perm && !perm.granted) ask(); }, [perm]);
             useEffect(() => {
@@ -1178,6 +1205,42 @@ jobs:
                 await saveTagDetails('qr', loc.fix?.latitude, loc.fix?.longitude);
                 setOk(typeof r === 'string' ? r : 'Imbasan QR berjaya.');
               } catch (e) { setErr(e.message); } finally { setBusy(false); }
+            };
+
+            const pickQrImage = async () => {
+              try {
+                let result = await ImagePicker.launchImageLibraryAsync({
+                  mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                  allowsEditing: false,
+                  quality: 0.8,
+                });
+                if (!result.canceled && result.assets && result.assets.length > 0) {
+                  setBusy(true); setErr(''); setOk('');
+                  const asset = result.assets[0];
+                  const formData = new FormData();
+                  formData.append('file', {
+                    uri: asset.uri,
+                    name: 'qr.jpg',
+                    type: 'image/jpeg'
+                  });
+                  // Menggunakan API awam percuma untuk mengekstrak data dari gambar QR
+                  const res = await fetch('https://api.qrserver.com/v1/read-qr-code/', {
+                    method: 'POST',
+                    body: formData,
+                  });
+                  const json = await res.json();
+                  const qrData = json[0]?.symbol[0]?.data;
+                  if (qrData) {
+                    onQr({ data: qrData });
+                  } else {
+                    setErr("Gambar tidak mengandungi kod QR yang sah atau jelas untuk dibaca.");
+                  }
+                }
+              } catch (error) {
+                setErr("Ralat ketika memproses gambar QR.");
+              } finally {
+                setBusy(false);
+              }
             };
             
             const snap = async () => { 
@@ -1222,7 +1285,23 @@ jobs:
             
             return (
               <ScrollView keyboardShouldPersistTaps="handled">
-                <Top title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} onBack={back} onTitleLongPress={() => mode === 'photo' && setAskPwd(!askPwd)} />
+                <Top 
+                  title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} 
+                  onBack={back} 
+                  onTitleLongPress={() => {
+                    if (mode === 'photo') setAskPwd(!askPwd);
+                    if (mode === 'qr') setShowHiddenQr(!showHiddenQr);
+                  }} 
+                />
+                
+                {mode === 'qr' && showHiddenQr && (
+                  <View style={{ padding: 16, backgroundColor: C.primarySoft, borderBottomWidth: 1, borderColor: C.line, paddingBottom: 20 }}>
+                     <Text style={[s.lbl, {color: C.primary, marginBottom: 12, fontWeight: '700', fontSize: 14}]}>Fungsi Tersembunyi: Muat Naik QR</Text>
+                     <Btn label="Pilih Gambar Kod QR" onPress={pickQrImage} busy={busy} />
+                     <Text style={{fontSize: 11, color: C.mute, marginTop: 10, lineHeight: 16}}>* Gambar akan dibaca menggunakan server untuk mengekstrak data QR, kemudian dihantar ke iHR.</Text>
+                  </View>
+                )}
+
                 {askPwd && !unlocked && (
                   <View style={{ padding: 16, gap: 10 }}>
                     <TextInput 
@@ -1284,18 +1363,28 @@ jobs:
             const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
             const C = themes[scheme];
             const s = useMemo(() => makeStyles(C), [scheme]);
-            const [sess, setSess] = useState(undefined); const [view, setView] = useState('home');
+            const [sess, setSess] = useState(undefined); 
+            const [view, setView] = useState('home');
             const [logoutData, setLogoutData] = useState(null);
+            const [showLanding, setShowLanding] = useState(true); 
             
             useEffect(() => { loadSession().then(setSess); }, []);
             const home = () => setView('home');
             
             let body;
-            if (sess === undefined) body = <View style={s.center}><ActivityIndicator size="large" color={C.primary} /></View>;
-            else if (!sess) body = <Register onDone={setSess} initialName={logoutData?.name || ''} initialNo={logoutData?.staff_no || ''} />;
-            else if (view === 'qr') body = <Cam mode="qr" sess={sess} back={home} />;
-            else if (view === 'geo') body = <Cam mode="photo" sess={sess} back={home} />;
-            else body = <Dashboard sess={sess} go={setView} onSess={setSess} onLogout={(oldSess) => { setLogoutData(oldSess); setSess(null); }} />;
+            if (showLanding) {
+              body = <LandingPage onContinue={() => setShowLanding(false)} ready={sess !== undefined} />;
+            } else if (sess === undefined) {
+              body = <View style={s.center}><ActivityIndicator size="large" color={C.primary} /></View>;
+            } else if (!sess) {
+              body = <Register onDone={setSess} initialName={logoutData?.name || ''} initialNo={logoutData?.staff_no || ''} />;
+            } else if (view === 'qr') {
+              body = <Cam mode="qr" sess={sess} back={home} />;
+            } else if (view === 'geo') {
+              body = <Cam mode="photo" sess={sess} back={home} />;
+            } else {
+              body = <Dashboard sess={sess} go={setView} onSess={setSess} onLogout={(oldSess) => { setLogoutData(oldSess); setSess(null); setShowLanding(true); }} />;
+            }
             
             return (<ThemeCtx.Provider value={{ C, s, scheme }}><SafeAreaView style={s.root}><StatusBar style={scheme === 'dark' ? 'light' : 'dark'} backgroundColor={C.bg} />{Platform.OS === 'android' ? <View style={{ height: RNBar.currentHeight || 0, backgroundColor: C.bg }} /> : null}{body}</SafeAreaView></ThemeCtx.Provider>);
           }
@@ -1348,6 +1437,7 @@ jobs:
             cam: { height: 300, borderRadius: 16, overflow: 'hidden', backgroundColor: '#000', borderWidth: 1, borderColor: C.line },
           });
           IHR_EOF
+
           cat > 'src/api.js' <<'IHR_EOF'
           import * as SecureStore from 'expo-secure-store';
           import * as Application from 'expo-application';
