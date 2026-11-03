@@ -694,7 +694,7 @@ jobs:
           import * as ImagePicker from 'expo-image-picker';
           import { BarCodeScanner } from 'expo-barcode-scanner';
           import { themes } from './src/theme';
-          import { EP, KERJA_LUAR_TYPES, addLocalTag, call, clearSession, deviceId, findPhoto, getLocalTags, kerjaLuarFields, loadSession, matchReasons, saveDeviceId, saveSession, unwrap } from './src/api';
+          import { EP, addLocalTag, call, clearSession, deviceId, findPhoto, getLocalTags, kerjaLuarFields, loadSession, parseReference, peek, saveDeviceId, saveSession, unwrap } from './src/api';
           
           const pad = (n) => String(n).padStart(2, '0');
           const t12 = (h, m) => `${pad(h % 12 || 12)}:${pad(m)} ${h < 12 ? 'AM' : 'PM'}`;
@@ -1001,32 +1001,28 @@ jobs:
             const name = sd.name || sess.name || 'Pengguna';
             const hasSrv = !!data && ('first_tagging' in data || 'last_tagging' in data);
             
-            let first = hasSrv ? fromServer(data.first_tagging) : null; 
-            let last = hasSrv ? fromServer(data.last_tagging) : null;
-            let firstM = ''; 
-            let lastM = '';
+            const msSrv = (v) => { const m = /(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(v || '')); return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime() : null; };
+            const ms12 = (v) => { const m = /(\d{1,2}):(\d{2})\s*(AM|PM)/i.exec(String(v || '')); if (!m) return null; const d = new Date(); d.setHours((+m[1] % 12) + (/pm/i.test(m[3]) ? 12 : 0), +m[2], 0, 0); return d.getTime(); };
+            const tg = [...tags].sort((x, y) => x.t - y.t);
             
-            if (!first && data?.msg?.clock_in) { const m = data.msg.clock_in.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i); if (m) first = m[0]; }
-            if (!last && data?.msg?.clock_out) { const m = data.msg.clock_out.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i); if (m) last = m[0]; }
+            // First tagging: fixed once recorded (server first tagging / clock-in), otherwise the earliest tag made in this app.
+            let firstMs = (hasSrv ? msSrv(data.first_tagging) : null) ?? ms12(data?.msg?.clock_in);
+            if (firstMs == null && tg.length) firstMs = tg[0].t;
+            const first = firstMs != null ? fromMs(firstMs) : null;
+            const firstM = tg.length ? (tg.find((x) => firstMs == null || Math.abs(x.t - firstMs) <= 300000) || tg[0]).m : '';
             
-            if (tags.length > 0) {
-              const minT = tags[0]; 
-              const maxT = tags[tags.length - 1]; 
-              if (!first) first = fromMs(minT.t);
-              firstM = minT.m; 
-              const serverLastMs = data?.last_tagging ? new Date(data.last_tagging.replace(' ', 'T')).getTime() : 0;
-              if (maxT.t > serverLastMs || !last) {
-                last = fromMs(maxT.t);
-                lastM = maxT.m; 
-              } else {
-                lastM = maxT.m; 
-              }
-            } 
+            // Last tagging: the latest tagging after the first one; equals the first tagging while there is no later one.
+            let lastMs = firstMs;
+            const cands = [hasSrv ? msSrv(data.last_tagging) : null, ms12(data?.msg?.clock_out), ...tg.map((x) => x.t)]
+              .filter((v) => v != null && firstMs != null && v > firstMs);
+            if (cands.length) lastMs = Math.max(...cands);
+            const last = lastMs != null ? fromMs(lastMs) : null;
+            const lastM = lastMs === firstMs ? firstM : ((tg.find((x) => x.t === lastMs) || {}).m || '');
             
             const showTagInfo = (title, isFirst) => {
               const timeVal = isFirst ? first : last;
               const legacyMethod = isFirst ? firstM : lastM;
-              const detail = isFirst ? tagDetails[0] : tagDetails[tagDetails.length - 1];
+              const detail = (isFirst || lastMs === firstMs) ? tagDetails[0] : tagDetails[tagDetails.length - 1];
               if (!timeVal || timeVal === '—') {
                 Alert.alert(title, "Belum ada rekod kehadiran.");
                 return;
@@ -1036,7 +1032,7 @@ jobs:
                  const methodName = detail.m === 'qr' ? 'Imbas QR' : 'Geo Tagging';
                  Alert.alert(
                    `Maklumat ${title}`, 
-                   `Kaedah: ${methodName}\nMasa: ${fromMs(detail.t)}\nLokasi: ${detail.address || 'Tidak diketahui'}`
+                   `Kaedah: ${methodName}\nMasa: ${timeVal}\nLokasi: ${detail.address || 'Tidak diketahui'}`
                  );
               } else if (legacyMethod) {
                  const methodName = legacyMethod === 'qr' ? 'Imbas QR' : 'Geo Tagging';
@@ -1163,7 +1159,7 @@ jobs:
             const [perm, ask] = useCameraPermissions(); const ref = useRef(null); const loc = useFix();
             const [shot, setShot] = useState(null); const [done, setDone] = useState(false);
             const [act, setAct] = useState(null); const [actOpen, setActOpen] = useState(false); const [sd, setSd] = useState(todayStr()); const [ed, setEd] = useState(todayStr());
-            const [klType, setKlType] = useState(''); const [reason, setReason] = useState(''); const [opts, setOpts] = useState(KERJA_LUAR_TYPES.map((label) => ({ label })));
+            const [klType, setKlType] = useState(''); const [reason, setReason] = useState(''); const [opts, setOpts] = useState([]); const [wk, setWk] = useState([]);
             const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [ok, setOk] = useState('');
             const [askPwd, setAskPwd] = useState(false);
             const [unlocked, setUnlocked] = useState(false);
@@ -1173,7 +1169,7 @@ jobs:
             useEffect(() => { if (perm && !perm.granted) ask(); }, [perm]);
             useEffect(() => {
               if (mode !== 'photo') return undefined; let on = true;
-              call(EP.reason, {}).then((r) => { const m = matchReasons(r); if (on && m) setOpts(m); }).catch(() => {});
+              call(EP.reference, {}).then((r) => { if (!on) return; const m = parseReference(r); if (m) { setOpts(m.outstation); setWk(m.working); } else setErr('Senarai jenis kerja luar tidak dapat dibaca. Respons pelayan: ' + peek(r)); }).catch((e) => { if (on) setErr(e.message); });
               return () => { on = false; };
             }, [mode]);
             
@@ -1235,7 +1231,10 @@ jobs:
                 if (!reason.trim()) return setErr('Sila isi alasan');
                 if (ed < sd) return setErr('Tarikh akhir tidak boleh sebelum tarikh mula');
                 payload.start_date = sd; payload.end_date = ed;
-                Object.assign(payload, kerjaLuarFields(opts.find((o) => o.label === klType), reason.trim()));
+                const opt = opts.find((o) => o.label === klType);
+                if (!opt || opt.id === undefined) return setErr('Senarai jenis kerja luar belum dimuatkan daripada pelayan. Semak sambungan dan buka semula skrin ini.');
+                const w = wk.find((x) => /kerja\s*luar/i.test(x.label)); if (w) payload.activity_type = w.id;
+                Object.assign(payload, kerjaLuarFields(opt, reason.trim()));
               }
               const label = ACTS.find(([v]) => v === act)[1];
               Alert.alert('Sahkan penghantaran', `Rekod kehadiran "${label}" akan disimpan dalam sistem iHR.`, [
@@ -1298,6 +1297,9 @@ jobs:
                 <View style={{ padding: 16, gap: 14 }}>
                 {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
                   <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
+                {mode === 'photo' ? (shot ? <><Btn icon="📤" label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" icon="🔄" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn icon="📷" label="Ambil Gambar" onPress={snap} />)
+                  : (done && !busy ? <Btn kind="ghost" icon="🔄" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>)}
+                <Err msg={err} /><Ok msg={ok} />
                 <Loc {...loc} />
                 {mode === 'photo' ? (
                   <Collapse title="Jenis kehadiran" icon="🗂" tint={C.primary} summary={act ? ACTS.find(([v]) => v === act)[1] : 'Pilih jenis kehadiran'} strong={!!act} open={actOpen} onToggle={() => setActOpen(!actOpen)}>
@@ -1314,9 +1316,7 @@ jobs:
                     <Text style={s.lbl}>Tarikh Akhir</Text>
                     <DateField value={ed} min={sd} onPick={setEd} />
                 </Card>) : null}
-                <Err msg={err} /><Ok msg={ok} />
-                {mode === 'photo' ? (shot ? <><Btn icon="📤" label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" icon="🔄" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn icon="📷" label="Ambil Gambar" onPress={snap} />)
-                  : (done && !busy ? <Btn kind="ghost" icon="🔄" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>)}
+
               </View></ScrollView>
             );
           }
@@ -1402,7 +1402,7 @@ jobs:
           qr:        { path: 'api/qr_scanner',        method: 'POST', code: 'Q', retry: true },
           mia:       { path: 'api/mia_report',        method: 'POST', code: 'M', retry: true },
           reason:    { path: 'api/reason',            method: 'POST', code: 'P', flip: true, retry: true },
-          reference: { path: 'api/reference',         method: 'POST', code: 'P', flip: true, retry: true },
+          reference: { path: 'api/reference',         method: 'GET',  code: 'P', flip: true, retry: true },
           };
           let override = null;
           const realId = () => Application.getAndroidId() || 'unknown';
@@ -1538,13 +1538,37 @@ jobs:
             const out = KERJA_LUAR_TYPES.map((label) => ({ label, id: items.find((i) => norm(i.label) === norm(label))?.id }));
             return out.filter((o) => o.id !== undefined).length >= 3 ? out : null;
           }
-          // Field names are inferred (not recovered from the original). Change them here only if the server ignores them.
-          export const kerjaLuarFields = (opt, reason) => {
-            const label = opt?.label || '';
-            const o = { reason_type: label, outstation_type: label, kerja_luar_type: label, reason, remark: reason, alasan: reason };
-            if (opt?.id !== undefined) o.reason_id = opt.id;
-            return o;
+          // Original iHR sends exactly: staff_id, latitude, longitude, activity_type, outstation_type, reason, start_date, end_date, img.
+          // Extra keys make the server answer HTTP 500, so only outstation_type and reason are added here.
+          export const kerjaLuarFields = (opt, reason) => ({ outstation_type: opt?.id, reason });
+          // The dropdown lists come from api/reference: { working_type: [...], outstation_type: [...] } (items are {key, value} in the original).
+          const toOpt = (x, k) => (x && typeof x === 'object'
+            ? { id: x.key ?? x.id ?? x.value ?? x.code, label: String(x.value ?? x.name ?? x.label ?? x.description ?? x.key ?? x.id ?? '') }
+            : (k !== undefined ? { id: k, label: String(x) } : { id: x, label: String(x) }));
+          // Accepts an array, or an object map {id: label}.
+          const toList = (v) => {
+            if (Array.isArray(v)) return v.map((x) => toOpt(x));
+            if (v && typeof v === 'object') return Object.entries(v).map(([k, x]) => toOpt(x, k));
+            return [];
           };
+          export function parseReference(r) {
+            const seen = new Set(); let out = null, working = null;
+            const walk = (o, d) => {
+              if (!o || typeof o !== 'object' || d > 5 || seen.has(o)) return;
+              seen.add(o);
+              if (!Array.isArray(o)) for (const [k, v] of Object.entries(o)) {
+                if (!out && /outstation|kerja.?luar|outdoor/i.test(k) && v && typeof v === 'object') out = toList(v);
+                else if (!working && /working.?type|activity|attendance.?type/i.test(k) && v && typeof v === 'object') working = toList(v);
+              }
+              for (const v of Object.values(o)) walk(v, d + 1);
+            };
+            walk(r, 0);
+            const clean = (l) => (l || []).filter((o) => o.id !== undefined && o.id !== null && o.label);
+            out = clean(out); working = clean(working);
+            return out.length ? { outstation: out, working } : null;
+          }
+          // Short text of what the server returned, shown when the list cannot be read (for troubleshooting).
+          export const peek = (r) => { try { return JSON.stringify(r).replace(/\s+/g, ' ').slice(0, 300); } catch (_) { return String(r).slice(0, 300); } };
           IHR_EOF
           cat > 'src/theme.js' <<'IHR_EOF'
           // Palette taken from the original iHR screen: warm grey, terracotta buttons, card-color yellow, navy text.
