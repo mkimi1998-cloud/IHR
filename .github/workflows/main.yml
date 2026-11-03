@@ -1,5 +1,4 @@
-
-name: Build iHR APK
+ame: Build iHR APK
 on:
   workflow_dispatch:
 jobs:
@@ -617,18 +616,20 @@ jobs:
             "main": "node_modules/expo/AppEntry.js",
             "scripts": { "start": "expo start", "android": "expo run:android" },
             "dependencies": {
-              "@react-native-community/datetimepicker": "7.7.0",
-              "expo": "~51.0.28",
-              "expo-application": "~5.9.1",
-              "expo-camera": "~15.0.16",
-              "expo-image-manipulator": "~12.0.5",
-              "expo-location": "~17.0.1",
-              "expo-secure-store": "~13.0.2",
-              "expo-status-bar": "~1.12.1",
-              "expo-system-ui": "~3.0.7",
-              "react": "18.2.0",
-              "react-native": "0.74.5"
-            },
+            "@react-native-community/datetimepicker": "7.7.0",
+            "expo": "~51.0.28",
+            "expo-application": "~5.9.1",
+            "expo-camera": "~15.0.16",
+            "expo-image-manipulator": "~12.0.5",
+            "expo-location": "~17.0.1",
+            "expo-secure-store": "~13.0.2",
+            "expo-status-bar": "~1.12.1",
+            "expo-system-ui": "~3.0.7",
+            "react": "18.2.0",
+            "react-native": "0.74.5",
+            "expo-barcode-scanner": "~13.0.1",
+            "expo-image-picker": "~15.0.7"
+          },
             "devDependencies": { "@babel/core": "^7.24.0" },
             "private": true
           }
@@ -668,7 +669,13 @@ jobs:
                     "locationWhenInUsePermission": "Allow iHR to use your location for geotagging attendance."
                   }
                 ],
-                "expo-secure-store"
+                "expo-secure-store",
+                [
+                  "expo-image-picker",
+                  {
+                    "photosPermission": "Benarkan iHR mengakses galeri untuk memuat naik kod QR."
+                  }
+                ]
               ],
               "scheme": "ihr2"
             }
@@ -676,7 +683,7 @@ jobs:
           IHR_EOF
           cat > 'App.js' <<'IHR_EOF'
           import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-          import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
+          import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, useColorScheme, View, Switch } from 'react-native';
           import { StatusBar } from 'expo-status-bar';
           import * as Location from 'expo-location';
           import * as SecureStore from 'expo-secure-store';
@@ -684,8 +691,10 @@ jobs:
           import { MaterialIcons } from '@expo/vector-icons';
           import * as ImageManipulator from 'expo-image-manipulator';
           import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+          import * as ImagePicker from 'expo-image-picker';
+          import { BarCodeScanner } from 'expo-barcode-scanner';
           import { themes } from './src/theme';
-          import { EP, addLocalTag, call, clearSession, deviceId, findPhoto, getLocalTags, kerjaLuarFields, loadSession, parseReference, peek, saveDeviceId, saveSession, unwrap } from './src/api';
+          import { EP, KERJA_LUAR_TYPES, addLocalTag, call, clearSession, deviceId, findPhoto, getLocalTags, kerjaLuarFields, loadSession, matchReasons, saveDeviceId, saveSession, unwrap } from './src/api';
           
           const pad = (n) => String(n).padStart(2, '0');
           const t12 = (h, m) => `${pad(h % 12 || 12)}:${pad(m)} ${h < 12 ? 'AM' : 'PM'}`;
@@ -768,7 +777,7 @@ jobs:
               </View>
             );
           };
-          const Collapse = ({ title, icon, tint, summary, strong, warn, open, onToggle, children }) => {
+          const Collapse = ({ title, icon, summary, strong, warn, open, onToggle, children, tint }) => {
             const { C, s } = useT();
             return (
               <View style={s.card}>
@@ -785,7 +794,6 @@ jobs:
             );
           };
           
-          // Stat component dikemas kini supaya lebih menarik dengan warna kotak lembut dan nota klik
           const Stat = ({ icon, label, value, tint, methodIcon, onPress }) => {
             const { s } = useT();
             return (
@@ -993,28 +1001,32 @@ jobs:
             const name = sd.name || sess.name || 'Pengguna';
             const hasSrv = !!data && ('first_tagging' in data || 'last_tagging' in data);
             
-            const msSrv = (v) => { const m = /(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(v || '')); return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime() : null; };
-            const ms12 = (v) => { const m = /(\d{1,2}):(\d{2})\s*(AM|PM)/i.exec(String(v || '')); if (!m) return null; const d = new Date(); d.setHours((+m[1] % 12) + (/pm/i.test(m[3]) ? 12 : 0), +m[2], 0, 0); return d.getTime(); };
-            const tg = [...tags].sort((x, y) => x.t - y.t);
+            let first = hasSrv ? fromServer(data.first_tagging) : null; 
+            let last = hasSrv ? fromServer(data.last_tagging) : null;
+            let firstM = ''; 
+            let lastM = '';
             
-            // First tagging: fixed once recorded (server first tagging / clock-in), otherwise the earliest tag made in this app.
-            let firstMs = (hasSrv ? msSrv(data.first_tagging) : null) ?? ms12(data?.msg?.clock_in);
-            if (firstMs == null && tg.length) firstMs = tg[0].t;
-            const first = firstMs != null ? fromMs(firstMs) : null;
-            const firstM = tg.length ? (tg.find((x) => firstMs == null || Math.abs(x.t - firstMs) <= 300000) || tg[0]).m : '';
+            if (!first && data?.msg?.clock_in) { const m = data.msg.clock_in.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i); if (m) first = m[0]; }
+            if (!last && data?.msg?.clock_out) { const m = data.msg.clock_out.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i); if (m) last = m[0]; }
             
-            // Last tagging: the latest tagging after the first one; equals the first tagging while there is no later one.
-            let lastMs = firstMs;
-            const cands = [hasSrv ? msSrv(data.last_tagging) : null, ms12(data?.msg?.clock_out), ...tg.map((x) => x.t)]
-              .filter((v) => v != null && firstMs != null && v > firstMs);
-            if (cands.length) lastMs = Math.max(...cands);
-            const last = lastMs != null ? fromMs(lastMs) : null;
-            const lastM = lastMs === firstMs ? firstM : ((tg.find((x) => x.t === lastMs) || {}).m || '');
+            if (tags.length > 0) {
+              const minT = tags[0]; 
+              const maxT = tags[tags.length - 1]; 
+              if (!first) first = fromMs(minT.t);
+              firstM = minT.m; 
+              const serverLastMs = data?.last_tagging ? new Date(data.last_tagging.replace(' ', 'T')).getTime() : 0;
+              if (maxT.t > serverLastMs || !last) {
+                last = fromMs(maxT.t);
+                lastM = maxT.m; 
+              } else {
+                lastM = maxT.m; 
+              }
+            } 
             
             const showTagInfo = (title, isFirst) => {
               const timeVal = isFirst ? first : last;
               const legacyMethod = isFirst ? firstM : lastM;
-              const detail = (isFirst || lastMs === firstMs) ? tagDetails[0] : tagDetails[tagDetails.length - 1];
+              const detail = isFirst ? tagDetails[0] : tagDetails[tagDetails.length - 1];
               if (!timeVal || timeVal === '—') {
                 Alert.alert(title, "Belum ada rekod kehadiran.");
                 return;
@@ -1024,7 +1036,7 @@ jobs:
                  const methodName = detail.m === 'qr' ? 'Imbas QR' : 'Geo Tagging';
                  Alert.alert(
                    `Maklumat ${title}`, 
-                   `Kaedah: ${methodName}\nMasa: ${timeVal}\nLokasi: ${detail.address || 'Tidak diketahui'}`
+                   `Kaedah: ${methodName}\nMasa: ${fromMs(detail.t)}\nLokasi: ${detail.address || 'Tidak diketahui'}`
                  );
               } else if (legacyMethod) {
                  const methodName = legacyMethod === 'qr' ? 'Imbas QR' : 'Geo Tagging';
@@ -1107,7 +1119,6 @@ jobs:
                   <View style={{ gap: 10 }}>
                     <Btn icon="📍" label="Geo Tagging" onPress={() => go('geo')} />
                     <Btn icon="📷" label="Imbas QR" onPress={() => go('qr')} />
-                    <Btn kind="ghost" icon="📊" label="Laporan Bulanan" onPress={() => go('report')} />
                   </View>
                 </View>
                 
@@ -1152,16 +1163,17 @@ jobs:
             const [perm, ask] = useCameraPermissions(); const ref = useRef(null); const loc = useFix();
             const [shot, setShot] = useState(null); const [done, setDone] = useState(false);
             const [act, setAct] = useState(null); const [actOpen, setActOpen] = useState(false); const [sd, setSd] = useState(todayStr()); const [ed, setEd] = useState(todayStr());
-            const [klType, setKlType] = useState(''); const [reason, setReason] = useState(''); const [opts, setOpts] = useState([]); const [wk, setWk] = useState([]);
+            const [klType, setKlType] = useState(''); const [reason, setReason] = useState(''); const [opts, setOpts] = useState(KERJA_LUAR_TYPES.map((label) => ({ label })));
             const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [ok, setOk] = useState('');
             const [askPwd, setAskPwd] = useState(false);
             const [unlocked, setUnlocked] = useState(false);
             const [pwd, setPwd] = useState('');
+            const [useLoc, setUseLoc] = useState(true);
           
             useEffect(() => { if (perm && !perm.granted) ask(); }, [perm]);
             useEffect(() => {
               if (mode !== 'photo') return undefined; let on = true;
-              call(EP.reference, {}).then((r) => { if (!on) return; const m = parseReference(r); if (m) { setOpts(m.outstation); setWk(m.working); } else setErr('Senarai jenis kerja luar tidak dapat dibaca. Respons pelayan: ' + peek(r)); }).catch((e) => { if (on) setErr(e.message); });
+              call(EP.reason, {}).then((r) => { const m = matchReasons(r); if (on && m) setOpts(m); }).catch(() => {});
               return () => { on = false; };
             }, [mode]);
             
@@ -1171,11 +1183,35 @@ jobs:
             const onQr = async ({ data }) => {
               if (done) return; if (need()) return setErr(need()); setDone(true); setBusy(true); setErr('');
               try {
-                const r = await call(EP.qr, { ...base, method: 'qr', qr_code: data, latitude: loc.fix?.latitude, longitude: loc.fix?.longitude });
+                const lat = useLoc ? loc.fix?.latitude : undefined;
+                const lng = useLoc ? loc.fix?.longitude : undefined;
+                const r = await call(EP.qr, { ...base, method: 'qr', qr_code: data, latitude: lat, longitude: lng });
                 await addLocalTag('qr');
-                await saveTagDetails('qr', loc.fix?.latitude, loc.fix?.longitude);
+                await saveTagDetails('qr', lat, lng);
                 setOk(typeof r === 'string' ? r : 'Imbasan QR berjaya.');
               } catch (e) { setErr(e.message); } finally { setBusy(false); }
+            };
+            
+            const pickQr = async () => {
+              const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images });
+              if (!res.canceled && res.assets[0]) {
+                setBusy(true); setErr(''); setDone(true);
+                try {
+                  const scanned = await BarCodeScanner.scanFromURLAsync(res.assets[0].uri);
+                  if (scanned && scanned.length > 0) {
+                    const lat = useLoc ? loc.fix?.latitude : undefined;
+                    const lng = useLoc ? loc.fix?.longitude : undefined;
+                    const r = await call(EP.qr, { ...base, method: 'qr', qr_code: scanned[0].data, latitude: lat, longitude: lng });
+                    await addLocalTag('qr');
+                    await saveTagDetails('qr', lat, lng);
+                    setOk(typeof r === 'string' ? r : 'Muat naik QR berjaya.');
+                  } else {
+                    setErr('Kod QR tidak dikesan dalam gambar.'); setDone(false);
+                  }
+                } catch (e) {
+                  setErr(e.message || 'Ralat membaca gambar QR.'); setDone(false);
+                } finally { setBusy(false); }
+              }
             };
             
             const snap = async () => { 
@@ -1199,10 +1235,7 @@ jobs:
                 if (!reason.trim()) return setErr('Sila isi alasan');
                 if (ed < sd) return setErr('Tarikh akhir tidak boleh sebelum tarikh mula');
                 payload.start_date = sd; payload.end_date = ed;
-                const opt = opts.find((o) => o.label === klType);
-                if (!opt || opt.id === undefined) return setErr('Senarai jenis kerja luar belum dimuatkan daripada pelayan. Semak sambungan dan buka semula skrin ini.');
-                const w = wk.find((x) => /kerja\s*luar/i.test(x.label)); if (w) payload.activity_type = w.id;
-                Object.assign(payload, kerjaLuarFields(opt, reason.trim()));
+                Object.assign(payload, kerjaLuarFields(opts.find((o) => o.label === klType), reason.trim()));
               }
               const label = ACTS.find(([v]) => v === act)[1];
               Alert.alert('Sahkan penghantaran', `Rekod kehadiran "${label}" akan disimpan dalam sistem iHR.`, [
@@ -1249,18 +1282,22 @@ jobs:
                 )}
                 {unlocked && (
                   <View style={{ padding: 16, gap: 10 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Text style={s.lbl}>Gunakan Lokasi Semasa</Text>
+                      <Switch value={useLoc} onValueChange={setUseLoc} trackColor={{ true: C.primary }} />
+                    </View>
                     <Text style={s.lbl}>Manual Latitud</Text>
                     <TextInput style={s.in} keyboardType="numeric" value={String(loc.fix?.latitude || '')} onChangeText={t => loc.setFix(f => ({...f, latitude: parseFloat(t) || 0, accuracy: 1}))} />
                     <Text style={s.lbl}>Manual Longitud</Text>
                     <TextInput style={s.in} keyboardType="numeric" value={String(loc.fix?.longitude || '')} onChangeText={t => loc.setFix(f => ({...f, longitude: parseFloat(t) || 0, accuracy: 1}))} />
+                    {mode === 'qr' && (
+                      <Btn label="Muat Naik QR dari Galeri" onPress={pickQr} icon="🖼" kind="ghost" />
+                    )}
                   </View>
                 )}
                 <View style={{ padding: 16, gap: 14 }}>
                 {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
                   <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
-                {mode === 'photo' ? (shot ? <><Btn icon="📤" label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" icon="🔄" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn icon="📷" label="Ambil Gambar" onPress={snap} />)
-                  : (done && !busy ? <Btn kind="ghost" icon="🔄" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>)}
-                <Err msg={err} /><Ok msg={ok} />
                 <Loc {...loc} />
                 {mode === 'photo' ? (
                   <Collapse title="Jenis kehadiran" icon="🗂" tint={C.primary} summary={act ? ACTS.find(([v]) => v === act)[1] : 'Pilih jenis kehadiran'} strong={!!act} open={actOpen} onToggle={() => setActOpen(!actOpen)}>
@@ -1277,85 +1314,13 @@ jobs:
                     <Text style={s.lbl}>Tarikh Akhir</Text>
                     <DateField value={ed} min={sd} onPick={setEd} />
                 </Card>) : null}
-
+                <Err msg={err} /><Ok msg={ok} />
+                {mode === 'photo' ? (shot ? <><Btn icon="📤" label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" icon="🔄" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn icon="📷" label="Ambil Gambar" onPress={snap} />)
+                  : (done && !busy ? <Btn kind="ghost" icon="🔄" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>)}
               </View></ScrollView>
             );
           }
           
-          const MONTHS = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'];
-          const DAYS_MY = { Monday: 'Isnin', Tuesday: 'Selasa', Wednesday: 'Rabu', Thursday: 'Khamis', Friday: 'Jumaat', Saturday: 'Sabtu', Sunday: 'Ahad' };
-          const REC_COLOR = { red: '#E53935', yellow: '#FDC107', green: '#43A047', orange: '#FB8C00', blue: '#1E88E5' };
-          const MethodMark = ({ m }) => (m ? <Text style={{ fontSize: 12 }}> {m === 'qr' ? '▦' : '📍'}</Text> : null);
-
-          function Report({ sess, back }) {
-            const { C, s } = useT();
-            const now = new Date();
-            const [ym, setYm] = useState({ y: now.getFullYear(), m: now.getMonth() + 1 });
-            const [days, setDays] = useState(null); const [sum, setSum] = useState(null);
-            const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
-            const load = useCallback(async () => {
-              setBusy(true); setErr('');
-              try {
-                const r = unwrap(await call(EP.monthly, { staff_id: sess.staff_id, month: ym.m, year: ym.y }));
-                const list = Array.isArray(r) ? r : (r.days || r.records || r.attendance || []);
-                setDays(list); setSum(Array.isArray(r) ? null : (r.summary || null));
-              } catch (e) { setDays(null); setErr(e.message); } finally { setBusy(false); }
-            }, [ym, sess.staff_id]);
-            useEffect(() => { load(); }, [load]);
-            const step = (d) => setYm(({ y, m }) => { const n = m + d; return n < 1 ? { y: y - 1, m: 12 } : n > 12 ? { y: y + 1, m: 1 } : { y, m: n }; });
-            const cell = { color: C.ink, fontSize: 12 };
-            return (
-              <ScrollView>
-                <Top title="Laporan Kehadiran Bulanan" onBack={back} />
-                <View style={{ padding: 16, gap: 12 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Btn kind="ghost" label="‹" onPress={() => step(-1)} />
-                    <Text style={{ color: C.ink, fontSize: 18, fontWeight: '700' }}>{MONTHS[ym.m - 1]} {ym.y}</Text>
-                    <Btn kind="ghost" label="›" onPress={() => step(1)} />
-                  </View>
-                  {busy ? <ActivityIndicator color={C.primaryText} /> : null}
-                  <Err msg={err} />
-                  {sum ? (
-                    <View style={{ backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 14, padding: 12, gap: 4 }}>
-                      {Object.entries(sum).map(([k, v]) => (
-                        <View key={k} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                          <Text style={{ color: C.mute, fontSize: 12 }}>{k.replace(/_/g, ' ')}</Text><Text style={cell}>{String(v)}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  ) : null}
-                  {days ? (
-                    <View style={{ borderWidth: 1, borderColor: C.line, borderRadius: 14, overflow: 'hidden', backgroundColor: C.card }}>
-                      <View style={{ flexDirection: 'row', backgroundColor: C.navy, padding: 8 }}>
-                        {[['Tarikh', 1.1], ['Masuk', 1.2], ['Keluar', 1.2], ['+/- Jam', 1.2]].map(([h, f]) => (<Text key={h} style={{ flex: f, color: '#fff', fontSize: 11, fontWeight: '700' }}>{h}</Text>))}
-                      </View>
-                      {days.map((d, i) => {
-                        const dt = /(\d{4})-(\d{2})-(\d{2})/.exec(String(d.date || ''));
-                        const wd = dt ? new Date(+dt[1], +dt[2] - 1, +dt[3]).getDay() : -1;
-                        const off = d.is_off === true || ((wd === 0 || wd === 6) && !d.clock_in);
-                        const hasData = d.clock_in || d.clock_out;
-                        const mark = REC_COLOR[String(d.color || '').toLowerCase()];
-                        return (
-                          <View key={i} style={{ borderTopWidth: 1, borderTopColor: C.line, borderLeftWidth: 4, borderLeftColor: mark || 'transparent', backgroundColor: off ? C.field : 'transparent', padding: 8, opacity: off ? 0.7 : 1 }}>
-                            <View style={{ flexDirection: 'row' }}>
-                              <View style={{ flex: 1.1 }}><Text style={cell}>{dt ? `${+dt[3]}/${+dt[2]}` : d.date}</Text><Text style={{ color: C.mute, fontSize: 10 }}>{DAYS_MY[d.day] || d.day}</Text></View>
-                              <Text style={[cell, { flex: 1.2 }]}>{d.clock_in || '—'}<MethodMark m={d.clock_in_method} /></Text>
-                              <Text style={[cell, { flex: 1.2 }]}>{d.clock_out || '—'}<MethodMark m={d.clock_out_method} /></Text>
-                              <Text style={[cell, { flex: 1.2 }]}>{d.working_hours || d.diff || ''}</Text>
-                            </View>
-                            {d.notes ? <Text style={{ color: C.primaryText, fontSize: 11, fontWeight: '700', marginTop: 2 }}>{d.notes}</Text> : null}
-                          </View>
-                        );
-                      })}
-                    </View>
-                  ) : null}
-                  {days && days.length === 0 ? <Text style={{ color: C.mute }}>Tiada rekod untuk bulan ini.</Text> : null}
-                  <Pressable onPress={() => Linking.openURL(PORTAL)} hitSlop={8}><Text style={s.link}>🌐 Buka di portal web ›</Text></Pressable>
-                </View>
-              </ScrollView>
-            );
-          }
-
           export default function App() {
             const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
             const C = themes[scheme];
@@ -1371,7 +1336,6 @@ jobs:
             else if (!sess) body = <Register onDone={setSess} initialName={logoutData?.name || ''} initialNo={logoutData?.staff_no || ''} />;
             else if (view === 'qr') body = <Cam mode="qr" sess={sess} back={home} />;
             else if (view === 'geo') body = <Cam mode="photo" sess={sess} back={home} />;
-            else if (view === 'report') body = <Report sess={sess} back={home} />;
             else body = <Dashboard sess={sess} go={setView} onSess={setSess} onLogout={(oldSess) => { setLogoutData(oldSess); setSess(null); }} />;
             
             return (<ThemeCtx.Provider value={{ C, s, scheme }}><SafeAreaView style={s.root}><StatusBar style={scheme === 'dark' ? 'light' : 'dark'} backgroundColor={C.bg} />{Platform.OS === 'android' ? <View style={{ height: RNBar.currentHeight || 0, backgroundColor: C.bg }} /> : null}{body}</SafeAreaView></ThemeCtx.Provider>);
@@ -1432,14 +1396,13 @@ jobs:
           // confirm them against the backend and adjust here only.
           export const BASE_URL = 'https://ihr.mtib.gov.my/';
           export const EP = {
-            register:  { path: 'api/user_registration', method: 'POST', code: 'R' },
-            dashboard: { path: 'api/dashboard',         method: 'POST', code: 'D', flip: true, retry: true },
-            geotag:    { path: 'api/geotagging',        method: 'POST', code: 'G' },
-            qr:        { path: 'api/qr_scanner',        method: 'POST', code: 'Q' },
-            mia:       { path: 'api/mia_report',        method: 'POST', code: 'M' },
-            reason:    { path: 'api/reason',            method: 'POST', code: 'P', flip: true, retry: true },
-            monthly:   { path: 'api/attendance_monthly', method: 'POST', code: 'B' },
-            reference: { path: 'api/reference',         method: 'GET',  code: 'P', flip: true, retry: true },
+          register:  { path: 'api/user_registration', method: 'POST', code: 'R', retry: true },
+          dashboard: { path: 'api/dashboard',         method: 'POST', code: 'D', flip: true, retry: true },
+          geotag:    { path: 'api/geotagging',        method: 'POST', code: 'G', retry: true },
+          qr:        { path: 'api/qr_scanner',        method: 'POST', code: 'Q', retry: true },
+          mia:       { path: 'api/mia_report',        method: 'POST', code: 'M', retry: true },
+          reason:    { path: 'api/reason',            method: 'POST', code: 'P', flip: true, retry: true },
+          reference: { path: 'api/reference',         method: 'POST', code: 'P', flip: true, retry: true },
           };
           let override = null;
           const realId = () => Application.getAndroidId() || 'unknown';
@@ -1575,37 +1538,13 @@ jobs:
             const out = KERJA_LUAR_TYPES.map((label) => ({ label, id: items.find((i) => norm(i.label) === norm(label))?.id }));
             return out.filter((o) => o.id !== undefined).length >= 3 ? out : null;
           }
-          // Original iHR sends exactly: staff_id, latitude, longitude, activity_type, outstation_type, reason, start_date, end_date, img.
-          // Extra keys make the server answer HTTP 500, so only outstation_type and reason are added here.
-          export const kerjaLuarFields = (opt, reason) => ({ outstation_type: opt?.id, reason });
-          // The dropdown lists come from api/reference: { working_type: [...], outstation_type: [...] } (items are {key, value} in the original).
-          const toOpt = (x, k) => (x && typeof x === 'object'
-            ? { id: x.key ?? x.id ?? x.value ?? x.code, label: String(x.value ?? x.name ?? x.label ?? x.description ?? x.key ?? x.id ?? '') }
-            : (k !== undefined ? { id: k, label: String(x) } : { id: x, label: String(x) }));
-          // Accepts an array, or an object map {id: label}.
-          const toList = (v) => {
-            if (Array.isArray(v)) return v.map((x) => toOpt(x));
-            if (v && typeof v === 'object') return Object.entries(v).map(([k, x]) => toOpt(x, k));
-            return [];
+          // Field names are inferred (not recovered from the original). Change them here only if the server ignores them.
+          export const kerjaLuarFields = (opt, reason) => {
+            const label = opt?.label || '';
+            const o = { reason_type: label, outstation_type: label, kerja_luar_type: label, reason, remark: reason, alasan: reason };
+            if (opt?.id !== undefined) o.reason_id = opt.id;
+            return o;
           };
-          export function parseReference(r) {
-            const seen = new Set(); let out = null, working = null;
-            const walk = (o, d) => {
-              if (!o || typeof o !== 'object' || d > 5 || seen.has(o)) return;
-              seen.add(o);
-              if (!Array.isArray(o)) for (const [k, v] of Object.entries(o)) {
-                if (!out && /outstation|kerja.?luar|outdoor/i.test(k) && v && typeof v === 'object') out = toList(v);
-                else if (!working && /working.?type|activity|attendance.?type/i.test(k) && v && typeof v === 'object') working = toList(v);
-              }
-              for (const v of Object.values(o)) walk(v, d + 1);
-            };
-            walk(r, 0);
-            const clean = (l) => (l || []).filter((o) => o.id !== undefined && o.id !== null && o.label);
-            out = clean(out); working = clean(working);
-            return out.length ? { outstation: out, working } : null;
-          }
-          // Short text of what the server returned, shown when the list cannot be read (for troubleshooting).
-          export const peek = (r) => { try { return JSON.stringify(r).replace(/\s+/g, ' ').slice(0, 300); } catch (_) { return String(r).slice(0, 300); } };
           IHR_EOF
           cat > 'src/theme.js' <<'IHR_EOF'
           // Palette taken from the original iHR screen: warm grey, terracotta buttons, card-color yellow, navy text.
