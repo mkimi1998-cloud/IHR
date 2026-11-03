@@ -617,20 +617,18 @@ jobs:
             "main": "node_modules/expo/AppEntry.js",
             "scripts": { "start": "expo start", "android": "expo run:android" },
             "dependencies": {
-            "@react-native-community/datetimepicker": "7.7.0",
-            "expo": "~51.0.28",
-            "expo-application": "~5.9.1",
-            "expo-camera": "~15.0.16",
-            "expo-image-manipulator": "~12.0.5",
-            "expo-location": "~17.0.1",
-            "expo-secure-store": "~13.0.2",
-            "expo-status-bar": "~1.12.1",
-            "expo-system-ui": "~3.0.7",
-            "react": "18.2.0",
-            "react-native": "0.74.5",
-            "expo-barcode-scanner": "~13.0.1",
-            "expo-image-picker": "~15.0.7"
-          },
+              "@react-native-community/datetimepicker": "7.7.0",
+              "expo": "~51.0.28",
+              "expo-application": "~5.9.1",
+              "expo-camera": "~15.0.16",
+              "expo-image-manipulator": "~12.0.5",
+              "expo-location": "~17.0.1",
+              "expo-secure-store": "~13.0.2",
+              "expo-status-bar": "~1.12.1",
+              "expo-system-ui": "~3.0.7",
+              "react": "18.2.0",
+              "react-native": "0.74.5"
+            },
             "devDependencies": { "@babel/core": "^7.24.0" },
             "private": true
           }
@@ -670,13 +668,7 @@ jobs:
                     "locationWhenInUsePermission": "Allow iHR to use your location for geotagging attendance."
                   }
                 ],
-                "expo-secure-store",
-                [
-                  "expo-image-picker",
-                  {
-                    "photosPermission": "Benarkan iHR mengakses galeri untuk memuat naik kod QR."
-                  }
-                ]
+                "expo-secure-store"
               ],
               "scheme": "ihr2"
             }
@@ -684,7 +676,7 @@ jobs:
           IHR_EOF
           cat > 'App.js' <<'IHR_EOF'
           import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-          import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, useColorScheme, View, Switch } from 'react-native';
+          import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
           import { StatusBar } from 'expo-status-bar';
           import * as Location from 'expo-location';
           import * as SecureStore from 'expo-secure-store';
@@ -692,10 +684,8 @@ jobs:
           import { MaterialIcons } from '@expo/vector-icons';
           import * as ImageManipulator from 'expo-image-manipulator';
           import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
-          import * as ImagePicker from 'expo-image-picker';
-          import { BarCodeScanner } from 'expo-barcode-scanner';
           import { themes } from './src/theme';
-          import { EP, KERJA_LUAR_TYPES, addLocalTag, call, clearSession, deviceId, findPhoto, getLocalTags, kerjaLuarFields, loadSession, matchReasons, saveDeviceId, saveSession, unwrap } from './src/api';
+          import { EP, addLocalTag, call, clearSession, deviceId, findPhoto, getLocalTags, kerjaLuarFields, loadSession, parseReference, saveDeviceId, saveSession, unwrap } from './src/api';
           
           const pad = (n) => String(n).padStart(2, '0');
           const t12 = (h, m) => `${pad(h % 12 || 12)}:${pad(m)} ${h < 12 ? 'AM' : 'PM'}`;
@@ -778,7 +768,7 @@ jobs:
               </View>
             );
           };
-          const Collapse = ({ title, icon, summary, strong, warn, open, onToggle, children, tint }) => {
+          const Collapse = ({ title, icon, tint, summary, strong, warn, open, onToggle, children }) => {
             const { C, s } = useT();
             return (
               <View style={s.card}>
@@ -795,6 +785,7 @@ jobs:
             );
           };
           
+          // Stat component dikemas kini supaya lebih menarik dengan warna kotak lembut dan nota klik
           const Stat = ({ icon, label, value, tint, methodIcon, onPress }) => {
             const { s } = useT();
             return (
@@ -1164,17 +1155,16 @@ jobs:
             const [perm, ask] = useCameraPermissions(); const ref = useRef(null); const loc = useFix();
             const [shot, setShot] = useState(null); const [done, setDone] = useState(false);
             const [act, setAct] = useState(null); const [actOpen, setActOpen] = useState(false); const [sd, setSd] = useState(todayStr()); const [ed, setEd] = useState(todayStr());
-            const [klType, setKlType] = useState(''); const [reason, setReason] = useState(''); const [opts, setOpts] = useState(KERJA_LUAR_TYPES.map((label) => ({ label })));
+            const [klType, setKlType] = useState(''); const [reason, setReason] = useState(''); const [opts, setOpts] = useState([]); const [wk, setWk] = useState([]);
             const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [ok, setOk] = useState('');
             const [askPwd, setAskPwd] = useState(false);
             const [unlocked, setUnlocked] = useState(false);
             const [pwd, setPwd] = useState('');
-            const [useLoc, setUseLoc] = useState(true);
           
             useEffect(() => { if (perm && !perm.granted) ask(); }, [perm]);
             useEffect(() => {
               if (mode !== 'photo') return undefined; let on = true;
-              call(EP.reason, {}).then((r) => { const m = matchReasons(r); if (on && m) setOpts(m); }).catch(() => {});
+              call(EP.reference, {}).then((r) => { if (!on) return; const m = parseReference(r); if (m) { setOpts(m.outstation); setWk(m.working); } else setErr('Senarai jenis kerja luar tidak diterima daripada pelayan.'); }).catch((e) => { if (on) setErr(e.message); });
               return () => { on = false; };
             }, [mode]);
             
@@ -1184,35 +1174,11 @@ jobs:
             const onQr = async ({ data }) => {
               if (done) return; if (need()) return setErr(need()); setDone(true); setBusy(true); setErr('');
               try {
-                const lat = useLoc ? loc.fix?.latitude : undefined;
-                const lng = useLoc ? loc.fix?.longitude : undefined;
-                const r = await call(EP.qr, { ...base, method: 'qr', qr_code: data, latitude: lat, longitude: lng });
+                const r = await call(EP.qr, { ...base, method: 'qr', qr_code: data, latitude: loc.fix?.latitude, longitude: loc.fix?.longitude });
                 await addLocalTag('qr');
-                await saveTagDetails('qr', lat, lng);
+                await saveTagDetails('qr', loc.fix?.latitude, loc.fix?.longitude);
                 setOk(typeof r === 'string' ? r : 'Imbasan QR berjaya.');
               } catch (e) { setErr(e.message); } finally { setBusy(false); }
-            };
-            
-            const pickQr = async () => {
-              const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images });
-              if (!res.canceled && res.assets[0]) {
-                setBusy(true); setErr(''); setDone(true);
-                try {
-                  const scanned = await BarCodeScanner.scanFromURLAsync(res.assets[0].uri);
-                  if (scanned && scanned.length > 0) {
-                    const lat = useLoc ? loc.fix?.latitude : undefined;
-                    const lng = useLoc ? loc.fix?.longitude : undefined;
-                    const r = await call(EP.qr, { ...base, method: 'qr', qr_code: scanned[0].data, latitude: lat, longitude: lng });
-                    await addLocalTag('qr');
-                    await saveTagDetails('qr', lat, lng);
-                    setOk(typeof r === 'string' ? r : 'Muat naik QR berjaya.');
-                  } else {
-                    setErr('Kod QR tidak dikesan dalam gambar.'); setDone(false);
-                  }
-                } catch (e) {
-                  setErr(e.message || 'Ralat membaca gambar QR.'); setDone(false);
-                } finally { setBusy(false); }
-              }
             };
             
             const snap = async () => { 
@@ -1236,7 +1202,10 @@ jobs:
                 if (!reason.trim()) return setErr('Sila isi alasan');
                 if (ed < sd) return setErr('Tarikh akhir tidak boleh sebelum tarikh mula');
                 payload.start_date = sd; payload.end_date = ed;
-                Object.assign(payload, kerjaLuarFields(opts.find((o) => o.label === klType), reason.trim()));
+                const opt = opts.find((o) => o.label === klType);
+                if (!opt || opt.id === undefined) return setErr('Senarai jenis kerja luar belum dimuatkan daripada pelayan. Semak sambungan dan buka semula skrin ini.');
+                const w = wk.find((x) => /kerja\s*luar/i.test(x.label)); if (w) payload.activity_type = w.id;
+                Object.assign(payload, kerjaLuarFields(opt, reason.trim()));
               }
               const label = ACTS.find(([v]) => v === act)[1];
               Alert.alert('Sahkan penghantaran', `Rekod kehadiran "${label}" akan disimpan dalam sistem iHR.`, [
@@ -1257,7 +1226,7 @@ jobs:
             
             return (
               <ScrollView keyboardShouldPersistTaps="handled">
-                <Top title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} onBack={back} onTitleLongPress={() => setAskPwd(!askPwd)} />
+                <Top title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} onBack={back} onTitleLongPress={() => mode === 'photo' && setAskPwd(!askPwd)} />
                 {askPwd && !unlocked && (
                   <View style={{ padding: 16, gap: 10 }}>
                     <TextInput 
@@ -1283,17 +1252,10 @@ jobs:
                 )}
                 {unlocked && (
                   <View style={{ padding: 16, gap: 10 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Text style={s.lbl}>Gunakan Lokasi Semasa</Text>
-                      <Switch value={useLoc} onValueChange={setUseLoc} trackColor={{ true: C.primary }} />
-                    </View>
                     <Text style={s.lbl}>Manual Latitud</Text>
                     <TextInput style={s.in} keyboardType="numeric" value={String(loc.fix?.latitude || '')} onChangeText={t => loc.setFix(f => ({...f, latitude: parseFloat(t) || 0, accuracy: 1}))} />
                     <Text style={s.lbl}>Manual Longitud</Text>
                     <TextInput style={s.in} keyboardType="numeric" value={String(loc.fix?.longitude || '')} onChangeText={t => loc.setFix(f => ({...f, longitude: parseFloat(t) || 0, accuracy: 1}))} />
-                    {mode === 'qr' && (
-                      <Btn label="Muat Naik QR dari Galeri" onPress={pickQr} icon="🖼" kind="ghost" />
-                    )}
                   </View>
                 )}
                 <View style={{ padding: 16, gap: 14 }}>
@@ -1397,13 +1359,13 @@ jobs:
           // confirm them against the backend and adjust here only.
           export const BASE_URL = 'https://ihr.mtib.gov.my/';
           export const EP = {
-          register:  { path: 'api/user_registration', method: 'POST', code: 'R', retry: true },
-          dashboard: { path: 'api/dashboard',         method: 'POST', code: 'D', flip: true, retry: true },
-          geotag:    { path: 'api/geotagging',        method: 'POST', code: 'G', retry: true },
-          qr:        { path: 'api/qr_scanner',        method: 'POST', code: 'Q', retry: true },
-          mia:       { path: 'api/mia_report',        method: 'POST', code: 'M', retry: true },
-          reason:    { path: 'api/reason',            method: 'POST', code: 'P', flip: true, retry: true },
-          reference: { path: 'api/reference',         method: 'POST', code: 'P', flip: true, retry: true },
+            register:  { path: 'api/user_registration', method: 'POST', code: 'R' },
+            dashboard: { path: 'api/dashboard',         method: 'POST', code: 'D', flip: true, retry: true },
+            geotag:    { path: 'api/geotagging',        method: 'POST', code: 'G' },
+            qr:        { path: 'api/qr_scanner',        method: 'POST', code: 'Q' },
+            mia:       { path: 'api/mia_report',        method: 'POST', code: 'M' },
+            reason:    { path: 'api/reason',            method: 'POST', code: 'P', flip: true, retry: true },
+            reference: { path: 'api/reference',         method: 'GET',  code: 'P', flip: true, retry: true },
           };
           let override = null;
           const realId = () => Application.getAndroidId() || 'unknown';
@@ -1539,13 +1501,28 @@ jobs:
             const out = KERJA_LUAR_TYPES.map((label) => ({ label, id: items.find((i) => norm(i.label) === norm(label))?.id }));
             return out.filter((o) => o.id !== undefined).length >= 3 ? out : null;
           }
-          // Field names are inferred (not recovered from the original). Change them here only if the server ignores them.
-          export const kerjaLuarFields = (opt, reason) => {
-            const label = opt?.label || '';
-            const o = { reason_type: label, outstation_type: label, kerja_luar_type: label, reason, remark: reason, alasan: reason };
-            if (opt?.id !== undefined) o.reason_id = opt.id;
-            return o;
-          };
+          // Original iHR sends exactly: staff_id, latitude, longitude, activity_type, outstation_type, reason, start_date, end_date, img.
+          // Extra keys make the server answer HTTP 500, so only outstation_type and reason are added here.
+          export const kerjaLuarFields = (opt, reason) => ({ outstation_type: opt?.id, reason });
+          // The dropdown lists come from api/reference: { working_type: [...], outstation_type: [...] } (items are {key, value} in the original).
+          const toOpt = (x) => (x && typeof x === 'object'
+            ? { id: x.key ?? x.id ?? x.value ?? x.code, label: String(x.value ?? x.name ?? x.label ?? x.description ?? x.key ?? x.id ?? '') }
+            : { id: x, label: String(x) });
+          export function parseReference(r) {
+            const seen = new Set();
+            const walk = (o, d) => {
+              if (!o || typeof o !== 'object' || d > 4 || seen.has(o)) return null;
+              seen.add(o);
+              if (Array.isArray(o.outstation_type) || Array.isArray(o.working_type)) return o;
+              for (const v of Object.values(o)) { const f = walk(v, d + 1); if (f) return f; }
+              return null;
+            };
+            const src = walk(r, 0);
+            if (!src) return null;
+            const out = (src.outstation_type || []).map(toOpt).filter((o) => o.id !== undefined && o.label);
+            const working = (src.working_type || []).map(toOpt).filter((o) => o.id !== undefined && o.label);
+            return out.length ? { outstation: out, working } : null;
+          }
           IHR_EOF
           cat > 'src/theme.js' <<'IHR_EOF'
           // Palette taken from the original iHR screen: warm grey, terracotta buttons, card-color yellow, navy text.
