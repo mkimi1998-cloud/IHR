@@ -1,4 +1,3 @@
-
 name: Build iHR APK
 on:
   workflow_dispatch:
@@ -993,32 +992,28 @@ jobs:
             const name = sd.name || sess.name || 'Pengguna';
             const hasSrv = !!data && ('first_tagging' in data || 'last_tagging' in data);
             
-            let first = hasSrv ? fromServer(data.first_tagging) : null; 
-            let last = hasSrv ? fromServer(data.last_tagging) : null;
-            let firstM = ''; 
-            let lastM = '';
+            const msSrv = (v) => { const m = /(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(v || '')); return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime() : null; };
+            const ms12 = (v) => { const m = /(\d{1,2}):(\d{2})\s*(AM|PM)/i.exec(String(v || '')); if (!m) return null; const d = new Date(); d.setHours((+m[1] % 12) + (/pm/i.test(m[3]) ? 12 : 0), +m[2], 0, 0); return d.getTime(); };
+            const tg = [...tags].sort((x, y) => x.t - y.t);
             
-            if (!first && data?.msg?.clock_in) { const m = data.msg.clock_in.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i); if (m) first = m[0]; }
-            if (!last && data?.msg?.clock_out) { const m = data.msg.clock_out.match(/\d{1,2}:\d{2}\s*(?:AM|PM)/i); if (m) last = m[0]; }
+            // First tagging: fixed once recorded (server first tagging / clock-in), otherwise the earliest tag made in this app.
+            let firstMs = (hasSrv ? msSrv(data.first_tagging) : null) ?? ms12(data?.msg?.clock_in);
+            if (firstMs == null && tg.length) firstMs = tg[0].t;
+            const first = firstMs != null ? fromMs(firstMs) : null;
+            const firstM = tg.length ? (tg.find((x) => firstMs == null || Math.abs(x.t - firstMs) <= 300000) || tg[0]).m : '';
             
-            if (tags.length > 0) {
-              const minT = tags[0]; 
-              const maxT = tags[tags.length - 1]; 
-              if (!first) first = fromMs(minT.t);
-              firstM = minT.m; 
-              const serverLastMs = data?.last_tagging ? new Date(data.last_tagging.replace(' ', 'T')).getTime() : 0;
-              if (maxT.t > serverLastMs || !last) {
-                last = fromMs(maxT.t);
-                lastM = maxT.m; 
-              } else {
-                lastM = maxT.m; 
-              }
-            } 
+            // Last tagging: the latest tagging after the first one; equals the first tagging while there is no later one.
+            let lastMs = firstMs;
+            const cands = [hasSrv ? msSrv(data.last_tagging) : null, ms12(data?.msg?.clock_out), ...tg.map((x) => x.t)]
+              .filter((v) => v != null && firstMs != null && v > firstMs);
+            if (cands.length) lastMs = Math.max(...cands);
+            const last = lastMs != null ? fromMs(lastMs) : null;
+            const lastM = lastMs === firstMs ? firstM : ((tg.find((x) => x.t === lastMs) || {}).m || '');
             
             const showTagInfo = (title, isFirst) => {
               const timeVal = isFirst ? first : last;
               const legacyMethod = isFirst ? firstM : lastM;
-              const detail = isFirst ? tagDetails[0] : tagDetails[tagDetails.length - 1];
+              const detail = (isFirst || lastMs === firstMs) ? tagDetails[0] : tagDetails[tagDetails.length - 1];
               if (!timeVal || timeVal === '—') {
                 Alert.alert(title, "Belum ada rekod kehadiran.");
                 return;
@@ -1028,7 +1023,7 @@ jobs:
                  const methodName = detail.m === 'qr' ? 'Imbas QR' : 'Geo Tagging';
                  Alert.alert(
                    `Maklumat ${title}`, 
-                   `Kaedah: ${methodName}\nMasa: ${fromMs(detail.t)}\nLokasi: ${detail.address || 'Tidak diketahui'}`
+                   `Kaedah: ${methodName}\nMasa: ${timeVal}\nLokasi: ${detail.address || 'Tidak diketahui'}`
                  );
               } else if (legacyMethod) {
                  const methodName = legacyMethod === 'qr' ? 'Imbas QR' : 'Geo Tagging';
@@ -1261,6 +1256,9 @@ jobs:
                 <View style={{ padding: 16, gap: 14 }}>
                 {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
                   <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
+                {mode === 'photo' ? (shot ? <><Btn icon="📤" label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" icon="🔄" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn icon="📷" label="Ambil Gambar" onPress={snap} />)
+                  : (done && !busy ? <Btn kind="ghost" icon="🔄" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>)}
+                <Err msg={err} /><Ok msg={ok} />
                 <Loc {...loc} />
                 {mode === 'photo' ? (
                   <Collapse title="Jenis kehadiran" icon="🗂" tint={C.primary} summary={act ? ACTS.find(([v]) => v === act)[1] : 'Pilih jenis kehadiran'} strong={!!act} open={actOpen} onToggle={() => setActOpen(!actOpen)}>
@@ -1277,9 +1275,7 @@ jobs:
                     <Text style={s.lbl}>Tarikh Akhir</Text>
                     <DateField value={ed} min={sd} onPick={setEd} />
                 </Card>) : null}
-                <Err msg={err} /><Ok msg={ok} />
-                {mode === 'photo' ? (shot ? <><Btn icon="📤" label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" icon="🔄" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn icon="📷" label="Ambil Gambar" onPress={snap} />)
-                  : (done && !busy ? <Btn kind="ghost" icon="🔄" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>)}
+
               </View></ScrollView>
             );
           }
