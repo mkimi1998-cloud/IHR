@@ -1,3 +1,4 @@
+
 name: Build iHR APK
 on:
   workflow_dispatch:
@@ -684,7 +685,7 @@ jobs:
           import * as ImageManipulator from 'expo-image-manipulator';
           import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
           import { themes } from './src/theme';
-          import { EP, addLocalTag, call, clearSession, deviceId, findPhoto, getLocalTags, kerjaLuarFields, loadSession, parseReference, saveDeviceId, saveSession, unwrap } from './src/api';
+          import { EP, addLocalTag, call, clearSession, deviceId, findPhoto, getLocalTags, kerjaLuarFields, loadSession, parseReference, peek, saveDeviceId, saveSession, unwrap } from './src/api';
           
           const pad = (n) => String(n).padStart(2, '0');
           const t12 = (h, m) => `${pad(h % 12 || 12)}:${pad(m)} ${h < 12 ? 'AM' : 'PM'}`;
@@ -1106,6 +1107,7 @@ jobs:
                   <View style={{ gap: 10 }}>
                     <Btn icon="📍" label="Geo Tagging" onPress={() => go('geo')} />
                     <Btn icon="📷" label="Imbas QR" onPress={() => go('qr')} />
+                    <Btn kind="ghost" icon="📊" label="Laporan Bulanan" onPress={() => go('report')} />
                   </View>
                 </View>
                 
@@ -1159,7 +1161,7 @@ jobs:
             useEffect(() => { if (perm && !perm.granted) ask(); }, [perm]);
             useEffect(() => {
               if (mode !== 'photo') return undefined; let on = true;
-              call(EP.reference, {}).then((r) => { if (!on) return; const m = parseReference(r); if (m) { setOpts(m.outstation); setWk(m.working); } else setErr('Senarai jenis kerja luar tidak diterima daripada pelayan.'); }).catch((e) => { if (on) setErr(e.message); });
+              call(EP.reference, {}).then((r) => { if (!on) return; const m = parseReference(r); if (m) { setOpts(m.outstation); setWk(m.working); } else setErr('Senarai jenis kerja luar tidak dapat dibaca. Respons pelayan: ' + peek(r)); }).catch((e) => { if (on) setErr(e.message); });
               return () => { on = false; };
             }, [mode]);
             
@@ -1221,7 +1223,7 @@ jobs:
             
             return (
               <ScrollView keyboardShouldPersistTaps="handled">
-                <Top title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} onBack={back} onTitleLongPress={() => mode === 'photo' && setAskPwd(!askPwd)} />
+                <Top title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} onBack={back} onTitleLongPress={() => setAskPwd(!askPwd)} />
                 {askPwd && !unlocked && (
                   <View style={{ padding: 16, gap: 10 }}>
                     <TextInput 
@@ -1280,6 +1282,80 @@ jobs:
             );
           }
           
+          const MONTHS = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'];
+          const DAYS_MY = { Monday: 'Isnin', Tuesday: 'Selasa', Wednesday: 'Rabu', Thursday: 'Khamis', Friday: 'Jumaat', Saturday: 'Sabtu', Sunday: 'Ahad' };
+          const REC_COLOR = { red: '#E53935', yellow: '#FDC107', green: '#43A047', orange: '#FB8C00', blue: '#1E88E5' };
+          const MethodMark = ({ m }) => (m ? <Text style={{ fontSize: 12 }}> {m === 'qr' ? '▦' : '📍'}</Text> : null);
+
+          function Report({ sess, back }) {
+            const { C, s } = useT();
+            const now = new Date();
+            const [ym, setYm] = useState({ y: now.getFullYear(), m: now.getMonth() + 1 });
+            const [days, setDays] = useState(null); const [sum, setSum] = useState(null);
+            const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+            const load = useCallback(async () => {
+              setBusy(true); setErr('');
+              try {
+                const r = unwrap(await call(EP.monthly, { staff_id: sess.staff_id, month: ym.m, year: ym.y }));
+                const list = Array.isArray(r) ? r : (r.days || r.records || r.attendance || []);
+                setDays(list); setSum(Array.isArray(r) ? null : (r.summary || null));
+              } catch (e) { setDays(null); setErr(e.message); } finally { setBusy(false); }
+            }, [ym, sess.staff_id]);
+            useEffect(() => { load(); }, [load]);
+            const step = (d) => setYm(({ y, m }) => { const n = m + d; return n < 1 ? { y: y - 1, m: 12 } : n > 12 ? { y: y + 1, m: 1 } : { y, m: n }; });
+            const cell = { color: C.ink, fontSize: 12 };
+            return (
+              <ScrollView>
+                <Top title="Laporan Kehadiran Bulanan" onBack={back} />
+                <View style={{ padding: 16, gap: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Btn kind="ghost" label="‹" onPress={() => step(-1)} />
+                    <Text style={{ color: C.ink, fontSize: 18, fontWeight: '700' }}>{MONTHS[ym.m - 1]} {ym.y}</Text>
+                    <Btn kind="ghost" label="›" onPress={() => step(1)} />
+                  </View>
+                  {busy ? <ActivityIndicator color={C.primaryText} /> : null}
+                  <Err msg={err} />
+                  {sum ? (
+                    <View style={{ backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 14, padding: 12, gap: 4 }}>
+                      {Object.entries(sum).map(([k, v]) => (
+                        <View key={k} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <Text style={{ color: C.mute, fontSize: 12 }}>{k.replace(/_/g, ' ')}</Text><Text style={cell}>{String(v)}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
+                  {days ? (
+                    <View style={{ borderWidth: 1, borderColor: C.line, borderRadius: 14, overflow: 'hidden', backgroundColor: C.card }}>
+                      <View style={{ flexDirection: 'row', backgroundColor: C.navy, padding: 8 }}>
+                        {[['Tarikh', 1.1], ['Masuk', 1.2], ['Keluar', 1.2], ['+/- Jam', 1.2]].map(([h, f]) => (<Text key={h} style={{ flex: f, color: '#fff', fontSize: 11, fontWeight: '700' }}>{h}</Text>))}
+                      </View>
+                      {days.map((d, i) => {
+                        const dt = /(\d{4})-(\d{2})-(\d{2})/.exec(String(d.date || ''));
+                        const wd = dt ? new Date(+dt[1], +dt[2] - 1, +dt[3]).getDay() : -1;
+                        const off = d.is_off === true || ((wd === 0 || wd === 6) && !d.clock_in);
+                        const hasData = d.clock_in || d.clock_out;
+                        const mark = REC_COLOR[String(d.color || '').toLowerCase()];
+                        return (
+                          <View key={i} style={{ borderTopWidth: 1, borderTopColor: C.line, borderLeftWidth: 4, borderLeftColor: mark || 'transparent', backgroundColor: off ? C.field : 'transparent', padding: 8, opacity: off ? 0.7 : 1 }}>
+                            <View style={{ flexDirection: 'row' }}>
+                              <View style={{ flex: 1.1 }}><Text style={cell}>{dt ? `${+dt[3]}/${+dt[2]}` : d.date}</Text><Text style={{ color: C.mute, fontSize: 10 }}>{DAYS_MY[d.day] || d.day}</Text></View>
+                              <Text style={[cell, { flex: 1.2 }]}>{d.clock_in || '—'}<MethodMark m={d.clock_in_method} /></Text>
+                              <Text style={[cell, { flex: 1.2 }]}>{d.clock_out || '—'}<MethodMark m={d.clock_out_method} /></Text>
+                              <Text style={[cell, { flex: 1.2 }]}>{d.working_hours || d.diff || ''}</Text>
+                            </View>
+                            {d.notes ? <Text style={{ color: C.primaryText, fontSize: 11, fontWeight: '700', marginTop: 2 }}>{d.notes}</Text> : null}
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : null}
+                  {days && days.length === 0 ? <Text style={{ color: C.mute }}>Tiada rekod untuk bulan ini.</Text> : null}
+                  <Pressable onPress={() => Linking.openURL(PORTAL)} hitSlop={8}><Text style={s.link}>🌐 Buka di portal web ›</Text></Pressable>
+                </View>
+              </ScrollView>
+            );
+          }
+
           export default function App() {
             const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
             const C = themes[scheme];
@@ -1295,6 +1371,7 @@ jobs:
             else if (!sess) body = <Register onDone={setSess} initialName={logoutData?.name || ''} initialNo={logoutData?.staff_no || ''} />;
             else if (view === 'qr') body = <Cam mode="qr" sess={sess} back={home} />;
             else if (view === 'geo') body = <Cam mode="photo" sess={sess} back={home} />;
+            else if (view === 'report') body = <Report sess={sess} back={home} />;
             else body = <Dashboard sess={sess} go={setView} onSess={setSess} onLogout={(oldSess) => { setLogoutData(oldSess); setSess(null); }} />;
             
             return (<ThemeCtx.Provider value={{ C, s, scheme }}><SafeAreaView style={s.root}><StatusBar style={scheme === 'dark' ? 'light' : 'dark'} backgroundColor={C.bg} />{Platform.OS === 'android' ? <View style={{ height: RNBar.currentHeight || 0, backgroundColor: C.bg }} /> : null}{body}</SafeAreaView></ThemeCtx.Provider>);
@@ -1361,6 +1438,7 @@ jobs:
             qr:        { path: 'api/qr_scanner',        method: 'POST', code: 'Q' },
             mia:       { path: 'api/mia_report',        method: 'POST', code: 'M' },
             reason:    { path: 'api/reason',            method: 'POST', code: 'P', flip: true, retry: true },
+            monthly:   { path: 'api/attendance_monthly', method: 'POST', code: 'B' },
             reference: { path: 'api/reference',         method: 'GET',  code: 'P', flip: true, retry: true },
           };
           let override = null;
@@ -1501,24 +1579,33 @@ jobs:
           // Extra keys make the server answer HTTP 500, so only outstation_type and reason are added here.
           export const kerjaLuarFields = (opt, reason) => ({ outstation_type: opt?.id, reason });
           // The dropdown lists come from api/reference: { working_type: [...], outstation_type: [...] } (items are {key, value} in the original).
-          const toOpt = (x) => (x && typeof x === 'object'
+          const toOpt = (x, k) => (x && typeof x === 'object'
             ? { id: x.key ?? x.id ?? x.value ?? x.code, label: String(x.value ?? x.name ?? x.label ?? x.description ?? x.key ?? x.id ?? '') }
-            : { id: x, label: String(x) });
+            : (k !== undefined ? { id: k, label: String(x) } : { id: x, label: String(x) }));
+          // Accepts an array, or an object map {id: label}.
+          const toList = (v) => {
+            if (Array.isArray(v)) return v.map((x) => toOpt(x));
+            if (v && typeof v === 'object') return Object.entries(v).map(([k, x]) => toOpt(x, k));
+            return [];
+          };
           export function parseReference(r) {
-            const seen = new Set();
+            const seen = new Set(); let out = null, working = null;
             const walk = (o, d) => {
-              if (!o || typeof o !== 'object' || d > 4 || seen.has(o)) return null;
+              if (!o || typeof o !== 'object' || d > 5 || seen.has(o)) return;
               seen.add(o);
-              if (Array.isArray(o.outstation_type) || Array.isArray(o.working_type)) return o;
-              for (const v of Object.values(o)) { const f = walk(v, d + 1); if (f) return f; }
-              return null;
+              if (!Array.isArray(o)) for (const [k, v] of Object.entries(o)) {
+                if (!out && /outstation|kerja.?luar|outdoor/i.test(k) && v && typeof v === 'object') out = toList(v);
+                else if (!working && /working.?type|activity|attendance.?type/i.test(k) && v && typeof v === 'object') working = toList(v);
+              }
+              for (const v of Object.values(o)) walk(v, d + 1);
             };
-            const src = walk(r, 0);
-            if (!src) return null;
-            const out = (src.outstation_type || []).map(toOpt).filter((o) => o.id !== undefined && o.label);
-            const working = (src.working_type || []).map(toOpt).filter((o) => o.id !== undefined && o.label);
+            walk(r, 0);
+            const clean = (l) => (l || []).filter((o) => o.id !== undefined && o.id !== null && o.label);
+            out = clean(out); working = clean(working);
             return out.length ? { outstation: out, working } : null;
           }
+          // Short text of what the server returned, shown when the list cannot be read (for troubleshooting).
+          export const peek = (r) => { try { return JSON.stringify(r).replace(/\s+/g, ' ').slice(0, 300); } catch (_) { return String(r).slice(0, 300); } };
           IHR_EOF
           cat > 'src/theme.js' <<'IHR_EOF'
           // Palette taken from the original iHR screen: warm grey, terracotta buttons, card-color yellow, navy text.
