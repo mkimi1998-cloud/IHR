@@ -1,4 +1,4 @@
-<pre><code>name: Build iHR APK
+name: Build iHR APK
 on:
   workflow_dispatch:
 jobs:
@@ -1652,4 +1652,3 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-</code></pre>
