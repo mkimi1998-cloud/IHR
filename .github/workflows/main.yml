@@ -628,7 +628,8 @@ jobs:
             "react": "18.2.0",
             "react-native": "0.74.5",
             "expo-barcode-scanner": "~13.0.1",
-            "expo-image-picker": "~15.0.7"
+            "expo-image-picker": "~15.0.7",
+            "react-native-webview": "13.8.6"
           },
             "devDependencies": { "@babel/core": "^7.24.0" },
             "private": true
@@ -692,6 +693,7 @@ jobs:
           import * as ImageManipulator from 'expo-image-manipulator';
           import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
           import * as ImagePicker from 'expo-image-picker';
+          import { WebView } from 'react-native-webview';
           import { BarCodeScanner } from 'expo-barcode-scanner';
           import { themes } from './src/theme';
           import { EP, addLocalTag, call, clearSession, deviceId, findPhoto, getLocalTags, kerjaLuarFields, loadSession, parseReference, peek, saveDeviceId, saveSession, unwrap } from './src/api';
@@ -1566,8 +1568,11 @@ jobs:
 
           const HistoryView = ({ sess, back }) => {
             const { C, s } = useT();
+            const [tab, setTab] = useState('web'); // 'web' | 'local'
             const [tags, setTags] = useState([]);
             const [details, setDetails] = useState([]);
+            const [webLoading, setWebLoading] = useState(true);
+            const webViewRef = useRef(null);
 
             useEffect(() => {
               (async () => {
@@ -1580,50 +1585,134 @@ jobs:
             }, []);
 
             return (
-              <ScrollView keyboardShouldPersistTaps="handled">
-                <Top title="Sejarah Kehadiran" onBack={back} />
-                <View style={{ padding: 16, gap: 14 }}>
-                  <Card title="Portal Rekod Kehadiran Rasmi" icon="🌐" tint={C.navy}>
-                    <Text style={{ color: C.mute, fontSize: 13, lineHeight: 18 }}>
-                      Untuk melihat rekod kehadiran penuh bulanan, waktu fleksi, serta kelulusan kerja luar/BDR, sila buka portal rasmi MTIB.
-                    </Text>
-                    <Btn 
-                      icon="🔗" 
-                      label="Buka Portal Kehadiran MTIB" 
-                      onPress={() => Linking.openURL(PORTAL)} 
-                    />
-                  </Card>
-
-                  <Card title="Log Kehadiran Hari Ini (Peranti)" icon="⏱" tint={C.primary}>
-                    {details.length === 0 ? (
-                      <Text style={{ color: C.mute, fontStyle: 'italic', paddingVertical: 8 }}>
-                        Belum ada imbasan atau geotagging yang dibuat pada peranti hari ini.
+              <View style={{ flex: 1, backgroundColor: C.bg }}>
+                <Top title="Rekod Kehadiran" onBack={back} />
+                
+                {/* Tab Switcher */}
+                <View style={{ flexDirection: 'row', padding: 12, backgroundColor: C.card, borderBottomWidth: 1, borderBottomColor: C.line, gap: 8 }}>
+                  <Pressable
+                    onPress={() => setTab('web')}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 10,
+                      borderRadius: 14,
+                      backgroundColor: tab === 'web' ? C.primary : C.field,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderWidth: 1,
+                      borderColor: tab === 'web' ? C.primary : C.line,
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <MaterialIcons name="cloud-sync" size={18} color={tab === 'web' ? C.onPrimary : C.ink} />
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: tab === 'web' ? C.onPrimary : C.ink }}>
+                        Portal MTIB (Live)
                       </Text>
-                    ) : (
-                      details.map((item, index) => {
-                        const timeStr = new Date(item.t).toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                        const isQr = item.m === 'qr';
-                        return (
-                          <View key={index} style={{ paddingVertical: 10, borderBottomWidth: index === details.length - 1 ? 0 : 1, borderBottomColor: C.line }}>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                <MaterialIcons name={isQr ? "qr-code-2" : "location-on"} size={20} color={C.primary} />
-                                <Text style={{ fontSize: 14, fontWeight: '700', color: C.ink }}>
-                                  {isQr ? 'Imbasan Kod QR' : 'Geotagging Foto'}
-                                </Text>
-                              </View>
-                              <Text style={{ fontSize: 13, fontWeight: '700', color: C.primary }}>{timeStr}</Text>
-                            </View>
-                            <Text style={{ fontSize: 12, color: C.mute, marginTop: 4 }}>
-                              📍 {item.address || (item.lat ? `${item.lat.toFixed(5)}, ${item.lng.toFixed(5)}` : 'Lokasi tidak dikesan')}
-                            </Text>
-                          </View>
-                        );
-                      })
-                    )}
-                  </Card>
+                    </View>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => setTab('local')}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 10,
+                      borderRadius: 14,
+                      backgroundColor: tab === 'local' ? C.primary : C.field,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderWidth: 1,
+                      borderColor: tab === 'local' ? C.primary : C.line,
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <MaterialIcons name="devices" size={18} color={tab === 'local' ? C.onPrimary : C.ink} />
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: tab === 'local' ? C.onPrimary : C.ink }}>
+                        Log Peranti
+                      </Text>
+                    </View>
+                  </Pressable>
                 </View>
-              </ScrollView>
+
+                {tab === 'web' ? (
+                  <View style={{ flex: 1 }}>
+                    {/* Bar Aksi Pantas Pelayan */}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: C.field, borderBottomWidth: 1, borderBottomColor: C.line }}>
+                      <Text style={{ fontSize: 11, color: C.mute, fontWeight: '600' }}>
+                        🌐 ihr.mtib.gov.my
+                      </Text>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <Pressable 
+                          onPress={() => webViewRef.current?.reload()} 
+                          style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: C.card, borderWidth: 1, borderColor: C.line }}
+                        >
+                          <MaterialIcons name="refresh" size={14} color={C.primary} />
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: C.primary, marginLeft: 4 }}>Segar Semula</Text>
+                        </Pressable>
+                        <Pressable 
+                          onPress={() => Linking.openURL(PORTAL)} 
+                          style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: C.card, borderWidth: 1, borderColor: C.line }}
+                        >
+                          <MaterialIcons name="open-in-browser" size={14} color={C.primary} />
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: C.primary, marginLeft: 4 }}>Pelayar</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+
+                    {/* Tetingkap Langsung Portal MTIB */}
+                    <WebView
+                      ref={webViewRef}
+                      source={{ uri: PORTAL }}
+                      style={{ flex: 1 }}
+                      onLoadStart={() => setWebLoading(true)}
+                      onLoadEnd={() => setWebLoading(false)}
+                      startInLoadingState={true}
+                      renderLoading={() => (
+                        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg }}>
+                          <ActivityIndicator size="large" color={C.primary} />
+                          <Text style={{ marginTop: 12, color: C.mute, fontSize: 13, fontWeight: '600' }}>
+                            Menyegerakkan data kehadiran daripada pelayan MTIB…
+                          </Text>
+                        </View>
+                      )}
+                      javaScriptEnabled={true}
+                      domStorageEnabled={true}
+                      sharedCookiesEnabled={true}
+                      thirdPartyCookiesEnabled={true}
+                    />
+                  </View>
+                ) : (
+                  <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 14 }}>
+                    <Card title="Log Kehadiran Hari Ini (Peranti)" icon="⏱" tint={C.primary}>
+                      {details.length === 0 ? (
+                        <Text style={{ color: C.mute, fontStyle: 'italic', paddingVertical: 8 }}>
+                          Belum ada imbasan atau geotagging yang dibuat pada peranti hari ini.
+                        </Text>
+                      ) : (
+                        details.map((item, index) => {
+                          const timeStr = new Date(item.t).toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                          const isQr = item.m === 'qr';
+                          return (
+                            <View key={index} style={{ paddingVertical: 10, borderBottomWidth: index === details.length - 1 ? 0 : 1, borderBottomColor: C.line }}>
+                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                  <MaterialIcons name={isQr ? "qr-code-2" : "location-on"} size={20} color={C.primary} />
+                                  <Text style={{ fontSize: 14, fontWeight: '700', color: C.ink }}>
+                                    {isQr ? 'Imbasan Kod QR' : 'Geotagging Foto'}
+                                  </Text>
+                                </View>
+                                <Text style={{ fontSize: 13, fontWeight: '700', color: C.primary }}>{timeStr}</Text>
+                              </View>
+                              <Text style={{ fontSize: 12, color: C.mute, marginTop: 4 }}>
+                                📍 {item.address || (item.lat ? `${item.lat.toFixed(5)}, ${item.lng.toFixed(5)}` : 'Lokasi tidak dikesan')}
+                              </Text>
+                            </View>
+                          );
+                        })
+                      )}
+                    </Card>
+                  </ScrollView>
+                )}
+              </View>
             );
           };
 
