@@ -645,13 +645,13 @@ jobs:
             "expo": {
               "name": "iHR",
               "slug": "iHr",
-              "version": "1.0.6",
+              "version": "1.0.7",
               "orientation": "portrait",
               "userInterfaceStyle": "automatic",
               "icon": "./assets/icon.png",
               "android": {
                 "package": "my.gov.mtib.ihr.v2",
-                "versionCode": 7,
+                "versionCode": 8,
               "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#FFFFFF" },
                 "permissions": [
                   "android.permission.CAMERA",
@@ -684,22 +684,10 @@ jobs:
             }
           }
           IHR_EOF
+          cat > 'App.js' <<'IHR_EOF'
           import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-          import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, useColorScheme, View, Switch, Modal } from 'react-native';
-          import { StatusBar } from 'expo-status-bar';
-          import * as Location from 'expo-location';
-          import * as SecureStore from 'expo-secure-store';
-          import { CameraView, useCameraPermissions } from 'expo-camera';
-          import { MaterialIcons } from '@expo/vector-icons';
-          import * as ImageManipulator from 'expo-image-manipulator';
-          import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
-          import * as ImagePicker from 'expo-image-picker';
-          import { WebView } from 'react-native-webview';
-          import { BarCodeScanner } from 'expo-barcode-scanner';
-          import { themes } from './src/theme';
-          import { EP, addLocalTag, call, clearSession, deviceId, findPhoto, getLocalTags, kerjaLuarFields, loadSession, parseReference, peek, saveDeviceId, saveSession, unwrap } from './src/api';
 
-          const CURRENT_VERSION = '1.0.6';
+          const CURRENT_VERSION = '1.0.7';
           const GITHUB_REPO = 'mkimi1998-cloud/IHR';
 
           const I18N = {
@@ -709,58 +697,40 @@ jobs:
               history: 'Sejarah',
               profile: 'Profil',
               summary7Days: 'Ringkasan 7 hari',
-              onTimeBadge: 'TEPAT',
-              lateBadge: 'LEWAT',
-              noneBadge: 'TIADA',
-              onTimeLabel: 'Tepat masa',
-              lateLabel: 'Lewat',
-              noneLabel: 'Tiada rekod',
+              onTime: 'Tepat masa',
+              late: 'Lewat',
+              noRecord: 'Tiada rekod',
               today: 'Hari ini',
               firstTagging: 'First Tagging',
               lastTagging: 'Last Tagging',
               clickForInfo: 'Klik untuk info',
-              tagInfoTitle: 'Maklumat',
-              noRecordYet: 'Belum ada rekod kehadiran.',
-              methodLabel: 'Kaedah',
-              timeLabel: 'Masa',
-              locationLabel: 'Lokasi',
-              locNotDetected: 'Lokasi tidak dikesan',
-              locSyncedServer: 'Rekod ini disegerakkan daripada pelayan web. Maklumat lokasi peranti tidak tersedia.',
-              locLegacyNote: '*Lokasi terperinci tidak ditemui untuk sesi ini.*',
-              logoutTitle: 'Daftar Keluar',
-              logoutConfirm: 'Adakah anda pasti mahu kembali ke paparan pendaftaran?',
-              yes: 'Ya',
               portalMtibLive: 'Portal MTIB (Live)',
               deviceLog: 'Log Peranti',
               refresh: 'Segar Semula',
               browser: 'Pelayar',
               closeSchedule: 'Tutup Jadual',
               close: 'Tutup',
-              cancel: 'Batal',
-              confirm: 'Sahkan',
-              submit: 'Hantar',
-              error: 'Ralat',
               syncingServer: 'Menyegerakkan data kehadiran daripada pelayan MTIB…',
               syncedNotice: 'rekod diselaraskan',
               schedule7Days: 'Jadual Kehadiran 7 Hari',
               scheduleSubtitle: 'Rekod mingguan diselaraskan dengan pelayan rasmi',
               workHoursTotal: 'Jumlah Jam Bekerja',
-              hoursSuffix: 'Jam',
               inTime: 'Masuk',
               outTime: 'Keluar',
+              clickBarTip: '* Klik mana-mana bar hari untuk paparan jadual moden',
               staffInfo: 'Maklumat Staf',
               fullName: 'Nama Penuh',
               staffNo: 'No. Staf',
               serverId: 'ID Staf Pelayan',
-              portalLink: 'Portal MTIB',
-              portalSub: 'ihr.mtib.gov.my',
-              langTitle: 'Bahasa / Language',
-              checkUpdate: 'Kemas Kini',
-              updateSub: 'Semak versi terkini',
+              portalLink: 'Portal & Pautan',
+              openPortal: 'Buka Portal iHR MTIB',
+              langTitle: 'Pilihan Bahasa / Language',
+              checkUpdate: 'Semak Kemas Kini Aplikasi',
               upToDate: 'Aplikasi anda adalah versi terkini (v' + CURRENT_VERSION + ')',
               newVersionAvailable: 'Versi Baharu Tersedia!',
               updatePrompt: 'Versi baharu sedia untuk dimuat turun. Adakah anda ingin mengemas kini sekarang?',
               updateNow: 'Kemaskini Sekarang',
+              cancel: 'Batal',
               online: 'Dalam talian',
               checking: 'Menyemak…',
               offline: 'Luar talian',
@@ -770,63 +740,7 @@ jobs:
               night: 'Selamat Malam',
               portalSyncNotice: '✓ Diselaraskan dengan Portal Pelayan MTIB',
               portalOpenNotice: '* Buka tab Sejarah untuk selaraskan rekod rasmi portal',
-              reload: 'Muat Semula',
-              noClockInToday: 'Belum ada rekod waktu masuk hari ini.',
-              noCamAccess: 'Tiada akses kamera.',
-              allowCam: 'Benarkan kamera',
-              adminPwdPlaceholder: 'Kata laluan admin',
-              wrongPwd: 'Kata laluan salah',
-              useCurrentLoc: 'Gunakan Lokasi Semasa',
-              manualLat: 'Manual Latitud',
-              manualLng: 'Manual Longitud',
-              uploadQrGallery: 'Muat Naik QR dari Galeri',
-              takePhoto: 'Ambil Gambar',
-              retake: 'Ambil semula',
-              sendPhoto: 'Hantar gambar',
-              rescan: 'Imbas semula',
-              sending: 'Menghantar…',
-              pointQr: 'Halakan kamera ke kod QR.',
-              attTypeTitle: 'Jenis kehadiran',
-              selectAttType: 'Pilih jenis kehadiran',
-              normalAtt: 'Kehadiran Biasa',
-              bdrAtt: 'BDR',
-              outstationAtt: 'Kerja Luar',
-              outstationDetails: 'Butiran Kerja Luar',
-              outstationType: 'Jenis Kerja Luar',
-              selectOutstationType: 'Pilih Jenis Kerja Luar',
-              reason: 'Alasan',
-              reasonPlaceholder: 'Nyatakan alasan',
-              startDate: 'Tarikh Mula',
-              endDate: 'Tarikh Akhir',
-              confirmSendTitle: 'Sahkan penghantaran',
-              confirmSendMsg: (lbl) => `Rekod kehadiran "${lbl}" akan disimpan dalam sistem iHR.`,
-              errNeedStaffId: 'ID staff belum dimuatkan. Kembali ke Dashboard dan tunggu data dimuat.',
-              errSelectAttType: 'Sila pilih jenis kehadiran',
-              errUploadPhoto: 'Sila muat naik gambar',
-              errNoLoc: 'Tiada akses lokasi',
-              errSelectOutstation: 'Sila pilih jenis kerja luar',
-              errFillReason: 'Sila isi alasan',
-              errDateOrder: 'Tarikh akhir tidak boleh sebelum tarikh mula',
-              errOutstationList: 'Senarai jenis kerja luar belum dimuatkan daripada pelayan.',
-              okQrScan: 'Imbasan QR berjaya.',
-              okQrUpload: 'Muat naik QR berjaya.',
-              errQrNotFound: 'Kod QR tidak dikesan dalam gambar.',
-              errQrRead: 'Ralat membaca gambar QR.',
-              okGeotag: 'Geotagging berjaya dihantar.',
-              currentLocTitle: 'Lokasi semasa',
-              detectingLoc: 'Mengesan lokasi…',
-              noLocAccess: 'Tiada akses lokasi',
-              latitude: 'Latitud',
-              longitude: 'Longitud',
-              accuracy: 'Ketepatan',
-              detectAgain: 'Kesan semula',
-              historyTitle: 'Rekod Kehadiran',
-              deviceLogTitle: 'Log Kehadiran Hari Ini (Peranti)',
-              noDeviceLog: 'Belum ada imbasan atau geotagging yang dibuat pada peranti hari ini.',
-              qrScanMethod: 'Imbasan Kod QR',
-              geoTagMethod: 'Geotagging Foto',
-              taskOutdoor: 'Tugasan',
-              noHours: 'Tiada masa',
+              reload: 'Muat Semula'
             },
             en: {
               scanQr: 'Scan QR',
@@ -834,58 +748,40 @@ jobs:
               history: 'History',
               profile: 'Profile',
               summary7Days: '7-Day Summary',
-              onTimeBadge: 'ON-TIME',
-              lateBadge: 'LATE',
-              noneBadge: 'NONE',
-              onTimeLabel: 'On-time',
-              lateLabel: 'Late',
-              noneLabel: 'No record',
+              onTime: 'On-time',
+              late: 'Late',
+              noRecord: 'No record',
               today: 'Today',
               firstTagging: 'First Tagging',
               lastTagging: 'Last Tagging',
               clickForInfo: 'Click for info',
-              tagInfoTitle: 'Information',
-              noRecordYet: 'No attendance record yet.',
-              methodLabel: 'Method',
-              timeLabel: 'Time',
-              locationLabel: 'Location',
-              locNotDetected: 'Location not detected',
-              locSyncedServer: 'This record is synced from the web portal. Device location info is unavailable.',
-              locLegacyNote: '*Detailed location not found for this session.*',
-              logoutTitle: 'Sign Out',
-              logoutConfirm: 'Are you sure you want to return to the registration screen?',
-              yes: 'Yes',
               portalMtibLive: 'MTIB Portal (Live)',
               deviceLog: 'Device Log',
               refresh: 'Refresh',
               browser: 'Browser',
               closeSchedule: 'Close Schedule',
               close: 'Close',
-              cancel: 'Cancel',
-              confirm: 'Confirm',
-              submit: 'Submit',
-              error: 'Error',
               syncingServer: 'Syncing attendance records from MTIB server…',
               syncedNotice: 'records synced',
               schedule7Days: '7-Day Attendance Schedule',
               scheduleSubtitle: 'Weekly records synced with official server',
               workHoursTotal: 'Total Working Hours',
-              hoursSuffix: 'Hours',
               inTime: 'Clock In',
               outTime: 'Clock Out',
+              clickBarTip: '* Tap any day bar for detailed modern schedule',
               staffInfo: 'Staff Information',
               fullName: 'Full Name',
               staffNo: 'Staff No.',
               serverId: 'Server Staff ID',
-              portalLink: 'MTIB Portal',
-              portalSub: 'ihr.mtib.gov.my',
-              langTitle: 'Language / Bahasa',
-              checkUpdate: 'Update',
-              updateSub: 'Check latest version',
+              portalLink: 'Portal & Links',
+              openPortal: 'Open MTIB iHR Portal',
+              langTitle: 'Language Selection / Bahasa',
+              checkUpdate: 'Check for App Updates',
               upToDate: 'Your app is up to date (v' + CURRENT_VERSION + ')',
               newVersionAvailable: 'New Version Available!',
               updatePrompt: 'A new version is available for download. Would you like to update now?',
               updateNow: 'Update Now',
+              cancel: 'Cancel',
               online: 'Online',
               checking: 'Checking…',
               offline: 'Offline',
@@ -895,63 +791,7 @@ jobs:
               night: 'Good Night',
               portalSyncNotice: '✓ Synced with MTIB Server Portal',
               portalOpenNotice: '* Open History tab to sync official records',
-              reload: 'Reload',
-              noClockInToday: 'No clock-in record for today yet.',
-              noCamAccess: 'No camera access.',
-              allowCam: 'Allow Camera',
-              adminPwdPlaceholder: 'Admin password',
-              wrongPwd: 'Wrong password',
-              useCurrentLoc: 'Use Current Location',
-              manualLat: 'Manual Latitude',
-              manualLng: 'Manual Longitude',
-              uploadQrGallery: 'Upload QR from Gallery',
-              takePhoto: 'Take Photo',
-              retake: 'Retake',
-              sendPhoto: 'Submit Photo',
-              rescan: 'Scan Again',
-              sending: 'Sending…',
-              pointQr: 'Point camera at the QR code.',
-              attTypeTitle: 'Attendance type',
-              selectAttType: 'Select attendance type',
-              normalAtt: 'Normal Attendance',
-              bdrAtt: 'Work From Home (BDR)',
-              outstationAtt: 'Outstation / Outdoor',
-              outstationDetails: 'Outstation Details',
-              outstationType: 'Outstation Type',
-              selectOutstationType: 'Select Outstation Type',
-              reason: 'Reason',
-              reasonPlaceholder: 'State reason',
-              startDate: 'Start Date',
-              endDate: 'End Date',
-              confirmSendTitle: 'Confirm Submission',
-              confirmSendMsg: (lbl) => `Attendance record "${lbl}" will be saved in the iHR system.`,
-              errNeedStaffId: 'Staff ID not yet loaded. Return to Dashboard and wait for data.',
-              errSelectAttType: 'Please select attendance type',
-              errUploadPhoto: 'Please capture/upload photo',
-              errNoLoc: 'No location access',
-              errSelectOutstation: 'Please select outstation type',
-              errFillReason: 'Please provide a reason',
-              errDateOrder: 'End date cannot be earlier than start date',
-              errOutstationList: 'Outstation types list not loaded from server.',
-              okQrScan: 'QR scan successful.',
-              okQrUpload: 'QR upload successful.',
-              errQrNotFound: 'QR code not detected in image.',
-              errQrRead: 'Error reading QR image.',
-              okGeotag: 'Geotagging successfully submitted.',
-              currentLocTitle: 'Current Location',
-              detectingLoc: 'Detecting location…',
-              noLocAccess: 'No location access',
-              latitude: 'Latitude',
-              longitude: 'Longitude',
-              accuracy: 'Accuracy',
-              detectAgain: 'Detect Again',
-              historyTitle: 'Attendance Records',
-              deviceLogTitle: "Today's Device Attendance Log",
-              noDeviceLog: 'No scans or geotags made on this device today.',
-              qrScanMethod: 'QR Code Scan',
-              geoTagMethod: 'Photo Geotagging',
-              taskOutdoor: 'Outdoor',
-              noHours: 'No hours',
+              reload: 'Reload'
             }
           };
 
@@ -976,7 +816,7 @@ jobs:
 
                 Alert.alert(
                   t.newVersionAvailable,
-                  `${t.updatePrompt}\n\nVersi: v${latestVersion}\nSemasa: v${CURRENT_VERSION}`,
+                  `${t.updatePrompt}\n\nVersi Terkini: v${latestVersion}\nVersi Semasa: v${CURRENT_VERSION}\n${release.name || ''}`,
                   [
                     { text: t.cancel, style: 'cancel' },
                     { text: t.updateNow, onPress: () => Linking.openURL(downloadUrl) }
@@ -989,7 +829,20 @@ jobs:
               if (manual) Alert.alert('iHR', t.upToDate);
             }
           };
-
+          import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, useColorScheme, View, Switch, Modal } from 'react-native';
+          import { StatusBar } from 'expo-status-bar';
+          import * as Location from 'expo-location';
+          import * as SecureStore from 'expo-secure-store';
+          import { CameraView, useCameraPermissions } from 'expo-camera';
+          import { MaterialIcons } from '@expo/vector-icons';
+          import * as ImageManipulator from 'expo-image-manipulator';
+          import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+          import * as ImagePicker from 'expo-image-picker';
+          import { WebView } from 'react-native-webview';
+          import { BarCodeScanner } from 'expo-barcode-scanner';
+          import { themes } from './src/theme';
+          import { EP, addLocalTag, call, clearSession, deviceId, findPhoto, getLocalTags, kerjaLuarFields, loadSession, parseReference, peek, saveDeviceId, saveSession, unwrap } from './src/api';
+          
           const pad = (n) => String(n).padStart(2, '0');
           const t12 = (h, m) => `${pad(h % 12 || 12)}:${pad(m)} ${h < 12 ? 'AM' : 'PM'}`;
           const fromServer = (v) => { const m = /(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/.exec(String(v || '')); return m ? t12(+m[2], +m[3]) : null; };
@@ -998,6 +851,7 @@ jobs:
           const parseYMD = (v) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v || '').trim()); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(); };
           const toYMD = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
           const toDMY = (v) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v || '').trim()); return m ? `${m[3]}/${m[2]}/${m[1]}` : String(v || ''); };
+          const ACTS = [[1, 'Kehadiran Biasa'], [2, 'BDR'], [3, 'Kerja Luar']];
           const PORTAL = 'https://ihr.mtib.gov.my/user/leave_attendance/attendance_record';
           const wrapName = (n, max = 26) => {
             const out = []; let cur = '';
@@ -1065,7 +919,7 @@ jobs:
             return (
               <View style={[s.row, last && { borderBottomWidth: 0 }]}>
                 {icon ? <Ico g={icon} tint={tint} size={28} /> : null}
-                {stack ? (<View style={{ flex: 1 }}><Text style={s.rowK}>{k}</Text><Text style={[s.rowV, { textAlign: 'left', marginTop: 3, fontWeight: '700' }]} selectable={selectable}>{v}</Text></View>)
+                {stack ? (<View style={{ flex: 1 }}><Text style={s.rowK}>{k}</Text><Text style={[s.rowV, { textAlign: 'left', marginTop: 2 }]} selectable={selectable}>{v}</Text></View>)
                   : (<><Text style={s.rowK}>{k}</Text><Text style={s.rowV} selectable={selectable}>{v}</Text></>)}
               </View>
             );
@@ -1089,7 +943,6 @@ jobs:
           
           const Stat = ({ icon, label, value, tint, methodIcon, onPress }) => {
             const { s } = useT();
-            const { t } = useLang();
             return (
               <Pressable onPress={onPress} style={({ pressed }) => [
                 s.stat, 
@@ -1114,7 +967,7 @@ jobs:
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 14, gap: 4 }}>
                   <MaterialIcons name="touch-app" size={14} color={tint} style={{ opacity: 0.8 }} />
-                  <Text style={{ fontSize: 10, color: tint, fontWeight: '700', opacity: 0.8 }}>{t.clickForInfo}</Text>
+                  <Text style={{ fontSize: 10, color: tint, fontWeight: '700', opacity: 0.8 }}>Klik untuk info</Text>
                 </View>
               </Pressable>
             );
@@ -1232,7 +1085,6 @@ jobs:
           
           function Dashboard({ sess, go, onSess, onLogout }) {
             const { C, s } = useT();
-            const { t, lang } = useLang();
             const [data, setData] = useState(null); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
             const [online, setOnline] = useState(null); const [at, setAt] = useState(''); const [tags, setTags] = useState([]);
             const [photo, setPhoto] = useState(null); const [badPhoto, setBadPhoto] = useState(false);
@@ -1244,13 +1096,13 @@ jobs:
               return () => clearInterval(timer);
             }, []);
             const h = now.getHours();
-            const greeting = h < 12 ? t.morning : h < 15 ? t.afternoon : h < 19 ? t.evening : t.night;
+            const greeting = h < 12 ? 'Selamat Pagi' : h < 15 ? 'Selamat Tengah Hari' : h < 19 ? 'Selamat Petang' : 'Selamat Malam';
             
             const load = useCallback(async () => {
               setBusy(true); setErr('');
               try {
                 const r = await call(EP.dashboard, { staff_no: sess.staff_no, staff_id: sess.staff_id });
-                setData(r); setOnline(true); setAt(new Date().toLocaleTimeString(lang === 'en' ? 'en-US' : 'ms-MY', { hour: '2-digit', minute: '2-digit' }));
+                setData(r); setOnline(true); setAt(new Date().toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' }));
                 
                 setTags(await getLocalTags());
                 const d = new Date();
@@ -1265,14 +1117,14 @@ jobs:
                 setOnline(false);
                 setErr(e.message.includes('HTTP 500') ? e.message + '\n\nPeranti ini belum dikaitkan dengan akaun di pelayan. ID peranti: ' + deviceId() : e.message);
               } finally { setBusy(false); }
-            }, [sess, lang, t]);
+            }, [sess]);
             
             useEffect(() => { load(); }, [load]);
             
             const handleLogout = () => {
-              Alert.alert(t.logoutTitle, t.logoutConfirm, [
-                { text: t.cancel, style: 'cancel' },
-                { text: t.yes, onPress: async () => { await clearSession(); onLogout(sess); } }
+              Alert.alert('Daftar Keluar', 'Adakah anda pasti mahu kembali ke paparan pendaftaran?', [
+                { text: 'Batal', style: 'cancel' },
+                { text: 'Ya', onPress: async () => { await clearSession(); onLogout(sess); } }
               ]);
             };
             
@@ -1280,13 +1132,13 @@ jobs:
               if (m === 'qr') return (
                 <>
                   <MaterialIcons name="qr-code-2" size={18} color={C.ink} style={{ opacity: 0.7 }} />
-                  <Text style={{ color: C.mute, fontSize: 12, marginLeft: 6, fontWeight: '600' }}>{t.scanQr}</Text>
+                  <Text style={{ color: C.mute, fontSize: 12, marginLeft: 6, fontWeight: '600' }}>Imbas QR</Text>
                 </>
               );
               if (m === 'geo') return (
                 <>
                   <MaterialIcons name="map" size={18} color={C.ink} style={{ opacity: 0.7 }} />
-                  <Text style={{ color: C.mute, fontSize: 12, marginLeft: 6, fontWeight: '600' }}>{t.geoTag}</Text>
+                  <Text style={{ color: C.mute, fontSize: 12, marginLeft: 6, fontWeight: '600' }}>Geo Tagging</Text>
                 </>
               );
               return null;
@@ -1296,15 +1148,17 @@ jobs:
             const name = sd.name || sess.name || 'Pengguna';
             const hasSrv = !!data && ('first_tagging' in data || 'last_tagging' in data);
             
-            const msSrv = (v) => { const m = /(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/.exec(String(v || '')); return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime() : null; };
+            const msSrv = (v) => { const m = /(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(v || '')); return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime() : null; };
             const ms12 = (v) => { const m = /(\d{1,2}):(\d{2})\s*(AM|PM)/i.exec(String(v || '')); if (!m) return null; const d = new Date(); d.setHours((+m[1] % 12) + (/pm/i.test(m[3]) ? 12 : 0), +m[2], 0, 0); return d.getTime(); };
             const tg = [...tags].sort((x, y) => x.t - y.t);
             
+            // First tagging: fixed once recorded (server first tagging / clock-in), otherwise the earliest tag made in this app.
             let firstMs = (hasSrv ? msSrv(data.first_tagging) : null) ?? ms12(data?.msg?.clock_in);
             if (firstMs == null && tg.length) firstMs = tg[0].t;
             const first = firstMs != null ? fromMs(firstMs) : null;
             const firstM = tg.length ? (tg.find((x) => firstMs == null || Math.abs(x.t - firstMs) <= 300000) || tg[0]).m : '';
             
+            // Last tagging: the latest tagging after the first one; equals the first tagging while there is no later one.
             let lastMs = firstMs;
             const cands = [hasSrv ? msSrv(data.last_tagging) : null, ms12(data?.msg?.clock_out), ...tg.map((x) => x.t)]
               .filter((v) => v != null && firstMs != null && v > firstMs);
@@ -1312,32 +1166,31 @@ jobs:
             const last = lastMs != null ? fromMs(lastMs) : null;
             const lastM = lastMs === firstMs ? firstM : ((tg.find((x) => x.t === lastMs) || {}).m || '');
             
-            const showTagInfo = (titleKey, isFirst) => {
+            const showTagInfo = (title, isFirst) => {
               const timeVal = isFirst ? first : last;
               const legacyMethod = isFirst ? firstM : lastM;
               const detail = (isFirst || lastMs === firstMs) ? tagDetails[0] : tagDetails[tagDetails.length - 1];
-              const titleLabel = isFirst ? t.firstTagging : t.lastTagging;
               if (!timeVal || timeVal === '—') {
-                Alert.alert(titleLabel, t.noRecordYet);
+                Alert.alert(title, "Belum ada rekod kehadiran.");
                 return;
               }
               
               if (detail) {
-                 const methodName = detail.m === 'qr' ? t.scanQr : t.geoTag;
+                 const methodName = detail.m === 'qr' ? 'Imbas QR' : 'Geo Tagging';
                  Alert.alert(
-                   `${t.tagInfoTitle} ${titleLabel}`, 
-                   `${t.methodLabel}: ${methodName}\n${t.timeLabel}: ${timeVal}\n${t.locationLabel}: ${detail.address || t.locNotDetected}`
+                   `Maklumat ${title}`, 
+                   `Kaedah: ${methodName}\nMasa: ${timeVal}\nLokasi: ${detail.address || 'Tidak diketahui'}`
                  );
               } else if (legacyMethod) {
-                 const methodName = legacyMethod === 'qr' ? t.scanQr : t.geoTag;
+                 const methodName = legacyMethod === 'qr' ? 'Imbas QR' : 'Geo Tagging';
                  Alert.alert(
-                   `${t.tagInfoTitle} ${titleLabel}`, 
-                   `${t.methodLabel}: ${methodName}\n${t.timeLabel}: ${timeVal}\n\n${t.locLegacyNote}`
+                   `Maklumat ${title}`, 
+                   `Kaedah: ${methodName}\nMasa: ${timeVal}\n\n*Lokasi terperinci tidak ditemui untuk sesi ini (Hanya terpakai untuk rekod baharu selepas kemas kini).*`
                  );
               } else {
                  Alert.alert(
-                   `${t.tagInfoTitle} ${titleLabel}`, 
-                   `${t.timeLabel}: ${timeVal}\n\n${t.locSyncedServer}`
+                   `Maklumat ${title}`, 
+                   `Masa: ${timeVal}\n\nRekod ini disegerakkan daripada pelayan web. Maklumat lokasi peranti tidak tersedia.`
                  );
               }
             };
@@ -1356,13 +1209,13 @@ jobs:
                   <View style={{ alignItems: 'flex-end' }}>
                     <Pressable onPress={handleLogout} style={s.status}>
                       <View style={[s.dot, { backgroundColor: online == null ? C.mute : online ? C.ok : C.bad }]} />
-                      <Text style={s.statusT}>{online == null ? t.checking : online ? `${t.online} ${at}` : t.offline}</Text>
+                      <Text style={s.statusT}>{online == null ? 'Menyemak…' : online ? `Dalam talian ${at}` : 'Luar talian'}</Text>
                     </Pressable>
                     <Pressable onPress={load} disabled={busy} hitSlop={10} style={{ paddingHorizontal: 10, paddingVertical: 6, marginTop: 8, flexDirection: 'row', alignItems: 'center', backgroundColor: C.field, borderRadius: 14, borderWidth: 1, borderColor: C.line }}>
                       {busy ? <ActivityIndicator size="small" color={C.primaryText} /> : (
                         <>
                           <MaterialIcons name="sync" size={16} color={C.primaryText} />
-                          <Text style={{ fontSize: 12, color: C.primaryText, fontWeight: '700', marginLeft: 4 }}>{t.reload}</Text>
+                          <Text style={{ fontSize: 12, color: C.primaryText, fontWeight: '700', marginLeft: 4 }}>Muat Semula</Text>
                         </>
                       )}
                     </Pressable>
@@ -1379,9 +1232,9 @@ jobs:
                     {wrapName(name).map((l, i) => <Text key={i} style={s.pName} numberOfLines={1}>{l}</Text>)}
                   </View>
                   <View style={s.chips}>
-                    <View style={s.chip}><Text style={s.chipT}>{t.staffNo} {sd.staff_no ?? sess.staff_no}</Text></View>
+                    <View style={s.chip}><Text style={s.chipT}>No. staff {sd.staff_no ?? sess.staff_no}</Text></View>
                   </View>
-                  {data ? <View style={s.pill}><Text style={s.pillT}>{data.msg?.clock_in || t.noClockInToday}</Text></View> : null}
+                  {data ? <View style={s.pill}><Text style={s.pillT}>{data.msg?.clock_in || 'Belum ada rekod waktu masuk hari ini.'}</Text></View> : null}
                 </View>
                 
                 <View style={{ paddingHorizontal: 16, gap: 14 }}>
@@ -1390,13 +1243,13 @@ jobs:
                       {now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                     </Text>
                     <Text style={{ fontSize: 14, color: C.primary, fontWeight: '700', marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                      {now.toLocaleDateString(lang === 'en' ? 'en-US' : 'ms-MY', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                      {now.toLocaleDateString('ms-MY', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                     </Text>
                   </View>
 
                   <View style={s.statRow}>
-                    <Stat icon="📍" label={t.firstTagging} value={first || '—'} tint={C.primary} methodIcon={firstM ? getMethodIcon(firstM) : null} onPress={() => showTagInfo('first', true)} />
-                    <Stat icon="📌" label={t.lastTagging} value={last || '—'} tint={C.navy} methodIcon={lastM ? getMethodIcon(lastM) : null} onPress={() => showTagInfo('last', false)} />
+                    <Stat icon="📍" label="First Tagging" value={first || '—'} tint={C.primary} methodIcon={firstM ? getMethodIcon(firstM) : null} onPress={() => showTagInfo('First Tagging', true)} />
+                    <Stat icon="📌" label="Last Tagging" value={last || '—'} tint={C.navy} methodIcon={lastM ? getMethodIcon(lastM) : null} onPress={() => showTagInfo('Last Tagging', false)} />
                   </View>
 
                   <QuickActionBar go={go} />
@@ -1429,29 +1282,28 @@ jobs:
           
           const Loc = ({ fix, err, get }) => {
             const { C } = useT(); const [open, setOpen] = useState(false);
-            const { t } = useLang();
-            const summary = fix ? `${fix.latitude.toFixed(5)}, ${fix.longitude.toFixed(5)} · ± ${Math.round(fix.accuracy || 0)} m` : (err || t.detectingLoc);
+            const summary = fix ? `${fix.latitude.toFixed(5)}, ${fix.longitude.toFixed(5)} · ± ${Math.round(fix.accuracy || 0)} m` : (err || 'Mengesan lokasi…');
             return (
-              <Collapse title={t.currentLocTitle} icon="🛰" tint={C.navy} summary={summary} warn={!fix && !!err} open={open} onToggle={() => setOpen(!open)}>
+              <Collapse title="Lokasi semasa" icon="🛰" tint={C.navy} summary={summary} warn={!fix && !!err} open={open} onToggle={() => setOpen(!open)}>
                 {fix ? <>
-                  <Row icon="🧭" k={t.latitude} v={fix.latitude.toFixed(6)} tint={C.navy} />
-                  <Row icon="🧭" k={t.longitude} v={fix.longitude.toFixed(6)} tint={C.navy} />
-                  <Row icon="🎯" k={t.accuracy} v={`± ${Math.round(fix.accuracy || 0)} m`} tint={C.primary} last /></>
-                  : <Text style={{ color: C.mute }}>{err || t.detectingLoc}</Text>}
+                  <Row icon="🧭" k="Latitud" v={fix.latitude.toFixed(6)} tint={C.navy} />
+                  <Row icon="🧭" k="Longitud" v={fix.longitude.toFixed(6)} tint={C.navy} />
+                  <Row icon="🎯" k="Ketepatan" v={`± ${Math.round(fix.accuracy || 0)} m`} tint={C.primary} last /></>
+                  : <Text style={{ color: C.mute }}>{err || 'Mengesan lokasi…'}</Text>}
                 <Err msg={fix ? '' : err} />
-                <Btn kind="ghost" icon="🔄" label={t.detectAgain} onPress={get} />
+                <Btn kind="ghost" icon="🔄" label="Kesan semula" onPress={get} />
               </Collapse>
             );
           };
+          
 
           const QuickActionBar = ({ go }) => {
             const { C } = useT();
-            const { t } = useLang();
             const items = [
-              { id: 'qr', label: t.scanQr, icon: 'qr-code-2' },
-              { id: 'geo', label: t.geoTag, icon: 'location-on' },
-              { id: 'history', label: t.history, icon: 'access-time' },
-              { id: 'profile', label: t.profile, icon: 'person-outline' },
+              { id: 'qr', label: 'Imbas QR', icon: 'qr-code-2' },
+              { id: 'geo', label: 'Geo Tagging', icon: 'location-on' },
+              { id: 'history', label: 'Sejarah', icon: 'access-time' },
+              { id: 'profile', label: 'Profil', icon: 'person-outline' },
             ];
             return (
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4, marginVertical: 6 }}>
@@ -1489,7 +1341,6 @@ jobs:
 
           const WeeklySummaryCard = ({ tags = [], todayFirst = null, todayLast = null }) => {
             const { C, s } = useT();
-            const { t, lang } = useLang();
             const [selectedDay, setSelectedDay] = useState(null);
             const [showAllModal, setShowAllModal] = useState(false);
             const [serverRows, setServerRows] = useState([]);
@@ -1511,14 +1362,17 @@ jobs:
               return () => clearInterval(timer);
             }, []);
 
-            const dayNames = lang === 'en' ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : ['Ahd', 'Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab'];
-            const fullDayNames = lang === 'en' ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] : ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
+            // Pengiraan 7 hari semasa (Ahd - Sab)
+            const dayNames = ['Ahd', 'Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab'];
+            const fullDayNames = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
             const today = new Date();
-            const currentDayOfWeek = today.getDay();
+            const currentDayOfWeek = today.getDay(); // 0: Ahd, 1: Isn ... 6: Sab
             
+            // Kira tarikh hari Ahad minggu ini
             const sunday = new Date(today);
             sunday.setDate(today.getDate() - currentDayOfWeek);
             
+            // Bentuk data untuk 7 hari (Ahd - Sab)
             const weekDays = [];
             let tepatCount = 0;
             let lewatCount = 0;
@@ -1533,12 +1387,13 @@ jobs:
               const dateFormatted = `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
               
               let hours = 0;
-              let status = 'tiada';
+              let status = 'tiada'; // 'tepat' | 'lewat' | 'tiada'
               let inTime = '—';
               let outTime = '—';
               let notes = '';
               let hasServerMatch = false;
 
+              // Cari padanan tarikh di dalam rekod jadual pelayan (serverRows)
               if (serverRows.length > 0) {
                 const matched = serverRows.find(r => {
                   const parts = String(r.date || '').split(/[-/]/);
@@ -1578,7 +1433,7 @@ jobs:
                       hours = isToday ? 8.0 : 8.0;
                     }
                   } else if (notes && /outdoor|kerja luar|cuti|mesyuarat/i.test(notes)) {
-                    inTime = t.taskOutdoor;
+                    inTime = 'Tugasan';
                     outTime = notes;
                     hours = 8.0;
                     status = 'tepat';
@@ -1589,6 +1444,7 @@ jobs:
                 }
               }
 
+              // Jika tiada padanan pelayan (belum sync portal), guna data hari ini atau fallback
               if (!hasServerMatch) {
                 if (isToday) {
                   if (todayFirst) {
@@ -1664,17 +1520,17 @@ jobs:
               }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                   <Pressable onPress={() => setShowAllModal(true)} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={{ fontSize: 18, fontWeight: '800', color: C.ink }}>{t.summary7Days}</Text>
+                    <Text style={{ fontSize: 18, fontWeight: '800', color: C.ink }}>Ringkasan 7 hari</Text>
                     <MaterialIcons name="grid-view" size={17} color={C.primary} />
                   </Pressable>
                   <Pressable onPress={() => setShowAllModal(true)} style={{ backgroundColor: '#E8F5E9', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
                     <Text style={{ color: '#2E7D4F', fontWeight: '800', fontSize: 12 }}>
-                      {`${tepatCount} ${t.onTimeBadge}`}
+                      {`${tepatCount} TEPAT`}
                     </Text>
                   </Pressable>
                 </View>
 
-                {/* Carta Bar Mingguan */}
+                {/* Carta Bar Mingguan - Diselaraskan dengan jadual pelayan */}
                 <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 130, paddingTop: 16 }}>
                   {weekDays.map((item, idx) => {
                     const barHeight = item.hours > 0 ? Math.max((item.hours / maxH) * 85, 20) : 8;
@@ -1709,21 +1565,21 @@ jobs:
                 <Pressable onPress={() => setShowAllModal(true)} style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' }}>
                   <View style={{ alignItems: 'center' }}>
                     <Text style={{ fontSize: 22, fontWeight: '800', color: '#2E7D4F' }}>{tepatCount}</Text>
-                    <Text style={{ fontSize: 12, color: C.mute, marginTop: 3, fontWeight: '600' }}>{t.onTimeLabel}</Text>
+                    <Text style={{ fontSize: 12, color: C.mute, marginTop: 3, fontWeight: '600' }}>Tepat masa</Text>
                   </View>
                   <View style={{ alignItems: 'center' }}>
                     <Text style={{ fontSize: 22, fontWeight: '800', color: '#D97706' }}>{lewatCount}</Text>
-                    <Text style={{ fontSize: 12, color: C.mute, marginTop: 3, fontWeight: '600' }}>{t.lateLabel}</Text>
+                    <Text style={{ fontSize: 12, color: C.mute, marginTop: 3, fontWeight: '600' }}>Lewat</Text>
                   </View>
                   <View style={{ alignItems: 'center' }}>
                     <Text style={{ fontSize: 22, fontWeight: '800', color: C.mute }}>{tiadaCount}</Text>
-                    <Text style={{ fontSize: 12, color: C.mute, marginTop: 3, fontWeight: '600' }}>{t.noneLabel}</Text>
+                    <Text style={{ fontSize: 12, color: C.mute, marginTop: 3, fontWeight: '600' }}>Tiada rekod</Text>
                   </View>
                 </Pressable>
 
                 <View style={{ alignItems: 'center', marginTop: 10 }}>
                   <Text style={{ fontSize: 10, color: C.mute, fontStyle: 'italic' }}>
-                    {serverRows.length > 0 ? t.syncedServerNotice : t.openHistoryNotice}
+                    {serverRows.length > 0 ? '✓ Diselaraskan dengan Portal Pelayan MTIB' : '* Buka tab Sejarah untuk selaraskan rekod rasmi portal'}
                   </Text>
                 </View>
 
@@ -1743,6 +1599,7 @@ jobs:
                       shadowRadius: 16,
                       elevation: 8,
                     }}>
+                      {/* Header Pop-up */}
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: C.line, paddingBottom: 14 }}>
                         <View>
                           <Text style={{ fontSize: 20, fontWeight: '800', color: C.ink }}>{selectedDay?.fullDay}</Text>
@@ -1761,12 +1618,14 @@ jobs:
                             fontWeight: '800',
                             color: selectedDay?.status === 'tepat' ? '#2E7D4F' : selectedDay?.status === 'lewat' ? '#D97706' : C.mute
                           }}>
-                            {selectedDay?.status === 'tepat' ? t.onTimeLabel : selectedDay?.status === 'lewat' ? t.lateLabel : t.noneLabel}
+                            {selectedDay?.status === 'tepat' ? 'Tepat Masa' : selectedDay?.status === 'lewat' ? 'Lewat' : 'Tiada Rekod'}
                           </Text>
                         </View>
                       </View>
 
+                      {/* Kotak Grid Waktu Masuk & Keluar */}
                       <View style={{ flexDirection: 'row', gap: 12, marginVertical: 18 }}>
+                        {/* Kotak Masuk */}
                         <View style={{
                           flex: 1,
                           backgroundColor: C.field,
@@ -1778,11 +1637,12 @@ jobs:
                         }}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                             <MaterialIcons name="login" size={16} color="#2E7D4F" />
-                            <Text style={{ fontSize: 11, fontWeight: '700', color: C.mute, textTransform: 'uppercase' }}>{t.inTime}</Text>
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: C.mute, textTransform: 'uppercase' }}>Masuk</Text>
                           </View>
                           <Text style={{ fontSize: 17, fontWeight: '800', color: C.ink }}>{selectedDay?.inTime}</Text>
                         </View>
 
+                        {/* Kotak Keluar */}
                         <View style={{
                           flex: 1,
                           backgroundColor: C.field,
@@ -1794,12 +1654,13 @@ jobs:
                         }}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                             <MaterialIcons name="logout" size={16} color="#C4513A" />
-                            <Text style={{ fontSize: 11, fontWeight: '700', color: C.mute, textTransform: 'uppercase' }}>{t.outTime}</Text>
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: C.mute, textTransform: 'uppercase' }}>Keluar</Text>
                           </View>
                           <Text style={{ fontSize: 17, fontWeight: '800', color: C.ink }}>{selectedDay?.outTime}</Text>
                         </View>
                       </View>
 
+                      {/* Kotak Jumlah Jam / Catatan */}
                       <View style={{
                         backgroundColor: C.primarySoft || '#F8E5E1',
                         borderRadius: 16,
@@ -1814,15 +1675,16 @@ jobs:
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                           <MaterialIcons name="schedule" size={20} color={C.primary} />
                           <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink }}>
-                            {selectedDay?.notes ? selectedDay.notes : t.workHoursTotal}
+                            {selectedDay?.notes ? selectedDay.notes : 'Jumlah Jam Bekerja'}
                           </Text>
                         </View>
                         <Text style={{ fontSize: 15, fontWeight: '800', color: C.primary }}>
-                          {selectedDay?.hours > 0 ? `${selectedDay.hours} ${t.hoursSuffix}` : '—'}
+                          {selectedDay?.hours > 0 ? `${selectedDay.hours} Jam` : '—'}
                         </Text>
                       </View>
 
-                      <Btn label={t.close} onPress={() => setSelectedDay(null)} />
+                      {/* Butang Tutup */}
+                      <Btn label="Tutup" onPress={() => setSelectedDay(null)} />
                     </View>
                   </View>
                 </Modal>
@@ -1845,8 +1707,8 @@ jobs:
                     }}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                         <View>
-                          <Text style={{ fontSize: 20, fontWeight: '800', color: C.ink }}>{t.schedule7Days}</Text>
-                          <Text style={{ fontSize: 12, color: C.mute, marginTop: 2 }}>{t.scheduleSubtitle}</Text>
+                          <Text style={{ fontSize: 20, fontWeight: '800', color: C.ink }}>Jadual Kehadiran 7 Hari</Text>
+                          <Text style={{ fontSize: 12, color: C.mute, marginTop: 2 }}>Rekod mingguan diselaraskan dengan pelayan rasmi</Text>
                         </View>
                         <Pressable onPress={() => setShowAllModal(false)} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: C.field, alignItems: 'center', justifyContent: 'center' }}>
                           <Text style={{ fontSize: 16, color: C.mute, fontWeight: '800' }}>✕</Text>
@@ -1879,7 +1741,7 @@ jobs:
                                   {w.inTime} - {w.outTime}
                                 </Text>
                                 <Text style={{ fontSize: 10, color: C.mute, marginTop: 1 }}>
-                                  {w.hours > 0 ? `${w.hours} ${t.hoursSuffix.toLowerCase()}` : (w.notes || t.noHours)}
+                                  {w.hours > 0 ? `${w.hours} jam` : (w.notes || 'Tiada masa')}
                                 </Text>
                               </View>
 
@@ -1897,7 +1759,7 @@ jobs:
                                   fontWeight: '800',
                                   color: isTepat ? '#2E7D4F' : isLewat ? '#D97706' : C.mute
                                 }}>
-                                  {isTepat ? t.onTimeBadge : isLewat ? t.lateBadge : t.noneBadge}
+                                  {isTepat ? 'TEPAT' : isLewat ? 'LEWAT' : 'TIADA'}
                                 </Text>
                               </View>
                             </View>
@@ -1906,7 +1768,7 @@ jobs:
                       </ScrollView>
 
                       <View style={{ marginTop: 10 }}>
-                        <Btn label={t.closeSchedule} onPress={() => setShowAllModal(false)} />
+                        <Btn label="Tutup Jadual" onPress={() => setShowAllModal(false)} />
                       </View>
                     </View>
                   </View>
@@ -1917,8 +1779,7 @@ jobs:
 
           const HistoryView = ({ sess, back }) => {
             const { C, s } = useT();
-            const { t } = useLang();
-            const [tab, setTab] = useState('web');
+            const [tab, setTab] = useState('web'); // 'web' | 'local'
             const [tags, setTags] = useState([]);
             const [details, setDetails] = useState([]);
             const [webLoading, setWebLoading] = useState(true);
@@ -1994,7 +1855,7 @@ jobs:
 
             return (
               <View style={{ flex: 1, backgroundColor: C.bg }}>
-                <Top title={t.historyTitle} onBack={back} />
+                <Top title="Rekod Kehadiran" onBack={back} />
                 
                 {/* Tab Switcher */}
                 <View style={{ flexDirection: 'row', padding: 12, backgroundColor: C.card, borderBottomWidth: 1, borderBottomColor: C.line, gap: 8 }}>
@@ -2014,7 +1875,7 @@ jobs:
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <MaterialIcons name="cloud-sync" size={18} color={tab === 'web' ? C.onPrimary : C.ink} />
                       <Text style={{ fontSize: 13, fontWeight: '700', color: tab === 'web' ? C.onPrimary : C.ink }}>
-                        {t.tabPortalLive}
+                        Portal MTIB (Live)
                       </Text>
                     </View>
                   </Pressable>
@@ -2035,7 +1896,7 @@ jobs:
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <MaterialIcons name="devices" size={18} color={tab === 'local' ? C.onPrimary : C.ink} />
                       <Text style={{ fontSize: 13, fontWeight: '700', color: tab === 'local' ? C.onPrimary : C.ink }}>
-                        {t.tabDeviceLog}
+                        Log Peranti
                       </Text>
                     </View>
                   </Pressable>
@@ -2043,9 +1904,10 @@ jobs:
 
                 {tab === 'web' ? (
                   <View style={{ flex: 1 }}>
+                    {/* Bar Aksi Pantas Pelayan */}
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: C.field, borderBottomWidth: 1, borderBottomColor: C.line }}>
                       <Text style={{ fontSize: 11, color: syncCount > 0 ? '#2E7D4F' : C.mute, fontWeight: '700' }}>
-                        {syncCount > 0 ? `✓ ${syncCount} ${t.syncedNotice}` : '🌐 ihr.mtib.gov.my'}
+                        {syncCount > 0 ? `✓ ${syncCount} rekod diselaraskan` : '🌐 ihr.mtib.gov.my'}
                       </Text>
                       <View style={{ flexDirection: 'row', gap: 8 }}>
                         <Pressable 
@@ -2053,18 +1915,19 @@ jobs:
                           style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: C.card, borderWidth: 1, borderColor: C.line }}
                         >
                           <MaterialIcons name="refresh" size={14} color={C.primary} />
-                          <Text style={{ fontSize: 11, fontWeight: '700', color: C.primary, marginLeft: 4 }}>{t.refresh}</Text>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: C.primary, marginLeft: 4 }}>Segar Semula</Text>
                         </Pressable>
                         <Pressable 
                           onPress={() => Linking.openURL(PORTAL)} 
                           style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: C.card, borderWidth: 1, borderColor: C.line }}
                         >
                           <MaterialIcons name="open-in-browser" size={14} color={C.primary} />
-                          <Text style={{ fontSize: 11, fontWeight: '700', color: C.primary, marginLeft: 4 }}>{t.browser}</Text>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: C.primary, marginLeft: 4 }}>Pelayar</Text>
                         </Pressable>
                       </View>
                     </View>
 
+                    {/* Tetingkap Langsung Portal MTIB dengan Auto-Scrape */}
                     <WebView
                       ref={webViewRef}
                       source={{ uri: PORTAL }}
@@ -2081,7 +1944,7 @@ jobs:
                         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg }}>
                           <ActivityIndicator size="large" color={C.primary} />
                           <Text style={{ marginTop: 12, color: C.mute, fontSize: 13, fontWeight: '600' }}>
-                            {t.syncingPortalMsg}
+                            Menyegerakkan rekod kehadiran portal ke aplikasi…
                           </Text>
                         </View>
                       )}
@@ -2093,10 +1956,10 @@ jobs:
                   </View>
                 ) : (
                   <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 14 }}>
-                    <Card title={t.deviceLogTitle} icon="⏱" tint={C.primary}>
+                    <Card title="Log Kehadiran Hari Ini (Peranti)" icon="⏱" tint={C.primary}>
                       {details.length === 0 ? (
                         <Text style={{ color: C.mute, fontStyle: 'italic', paddingVertical: 8 }}>
-                          {t.noDeviceLog}
+                          Belum ada imbasan atau geotagging yang dibuat pada peranti hari ini.
                         </Text>
                       ) : (
                         details.map((item, index) => {
@@ -2108,13 +1971,13 @@ jobs:
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                                   <MaterialIcons name={isQr ? "qr-code-2" : "location-on"} size={20} color={C.primary} />
                                   <Text style={{ fontSize: 14, fontWeight: '700', color: C.ink }}>
-                                    {isQr ? t.qrScanMethod : t.geoTagMethod}
+                                    {isQr ? 'Imbasan Kod QR' : 'Geotagging Foto'}
                                   </Text>
                                 </View>
                                 <Text style={{ fontSize: 13, fontWeight: '700', color: C.primary }}>{timeStr}</Text>
                               </View>
                               <Text style={{ fontSize: 12, color: C.mute, marginTop: 4 }}>
-                                📍 {item.address || (item.lat ? `${item.lat.toFixed(5)}, ${item.lng.toFixed(5)}` : t.locNotDetected)}
+                                📍 {item.address || (item.lat ? `${item.lat.toFixed(5)}, ${item.lng.toFixed(5)}` : 'Lokasi tidak dikesan')}
                               </Text>
                             </View>
                           );
@@ -2137,141 +2000,70 @@ jobs:
               <ScrollView keyboardShouldPersistTaps="handled">
                 <Top title={t.profile} onBack={back} />
                 <View style={{ padding: 16, gap: 14 }}>
-                  {/* Maklumat Staf */}
                   <Card title={t.staffInfo} icon="👤" tint={C.navy}>
                     <Row icon="📛" k={t.fullName} v={name} tint={C.primary} stack={true} />
                     <Row icon="🔢" k={t.staffNo} v={sd.staff_no || sess.staff_no} tint={C.navy} last={!sd.staff_id} />
                     {sd.staff_id ? <Row icon="🆔" k={t.serverId} v={String(sd.staff_id)} tint={C.primary} last /> : null}
                   </Card>
 
-                  {/* Modern Language Toggle Card */}
-                  <View style={{
-                    flexDirection: 'row',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    backgroundColor: C.card,
-                    borderRadius: 18,
-                    paddingHorizontal: 16,
-                    paddingVertical: 12,
-                    borderWidth: 1,
-                    borderColor: C.line,
-                    shadowColor: '#000',
-                    shadowOpacity: 0.03,
-                    shadowRadius: 4,
-                    elevation: 1,
-                  }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                      <Ico g="🌐" tint={C.primary} size={28} />
-                      <Text style={{ fontSize: 14, fontWeight: '700', color: C.ink }}>{t.langTitle}</Text>
-                    </View>
-                    
-                    {/* Sleek Modern Pill Toggle */}
-                    <View style={{
-                      flexDirection: 'row',
-                      backgroundColor: C.field,
-                      borderRadius: 20,
-                      padding: 3,
-                      borderWidth: 1,
-                      borderColor: C.line
-                    }}>
+                  <Card title={t.langTitle} icon="translate" tint={C.primary}>
+                    <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
                       <Pressable
                         onPress={() => setLang('ms')}
                         style={{
-                          paddingHorizontal: 16,
-                          paddingVertical: 6,
-                          borderRadius: 16,
-                          backgroundColor: lang === 'ms' ? C.primary : 'transparent',
+                          flex: 1,
+                          paddingVertical: 12,
+                          borderRadius: 14,
+                          backgroundColor: lang === 'ms' ? C.primary : C.field,
+                          alignItems: 'center',
+                          borderWidth: 1,
+                          borderColor: lang === 'ms' ? C.primary : C.line
                         }}
                       >
-                        <Text style={{
-                          fontSize: 12,
-                          fontWeight: '800',
-                          color: lang === 'ms' ? C.onPrimary : C.mute
-                        }}>
-                          BM
+                        <Text style={{ fontWeight: '800', color: lang === 'ms' ? C.onPrimary : C.ink, fontSize: 13 }}>
+                          Bahasa Melayu
                         </Text>
                       </Pressable>
 
                       <Pressable
                         onPress={() => setLang('en')}
                         style={{
-                          paddingHorizontal: 16,
-                          paddingVertical: 6,
-                          borderRadius: 16,
-                          backgroundColor: lang === 'en' ? C.primary : 'transparent',
+                          flex: 1,
+                          paddingVertical: 12,
+                          borderRadius: 14,
+                          backgroundColor: lang === 'en' ? C.primary : C.field,
+                          alignItems: 'center',
+                          borderWidth: 1,
+                          borderColor: lang === 'en' ? C.primary : C.line
                         }}
                       >
-                        <Text style={{
-                          fontSize: 12,
-                          fontWeight: '800',
-                          color: lang === 'en' ? C.onPrimary : C.mute
-                        }}>
-                          EN
+                        <Text style={{ fontWeight: '800', color: lang === 'en' ? C.onPrimary : C.ink, fontSize: 13 }}>
+                          English
                         </Text>
                       </Pressable>
                     </View>
-                  </View>
+                  </Card>
 
-                  {/* Modern Compact 2-Tile Row: Kemas Kini & Portal */}
-                  <View style={{ flexDirection: 'row', gap: 12 }}>
-                    {/* Compact Update Tile */}
-                    <Pressable 
-                      onPress={() => checkForAppUpdate(t, true)}
-                      style={({ pressed }) => [{
-                        flex: 1,
-                        backgroundColor: C.card,
-                        borderRadius: 18,
-                        padding: 14,
-                        borderWidth: 1,
-                        borderColor: C.line,
-                        justifyContent: 'space-between',
-                        minHeight: 96,
-                        elevation: 1,
-                        shadowColor: '#000',
-                        shadowOpacity: 0.04,
-                        shadowRadius: 4,
-                      }, pressed && { opacity: 0.75 }]}
-                    >
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Ico g="🔄" tint={C.navy} size={26} />
-                        <View style={{ backgroundColor: C.field, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, borderWidth: 1, borderColor: C.line }}>
-                          <Text style={{ fontSize: 10, fontWeight: '700', color: C.mute }}>v{CURRENT_VERSION}</Text>
-                        </View>
-                      </View>
-                      <View style={{ marginTop: 8 }}>
-                        <Text style={{ fontSize: 13, fontWeight: '800', color: C.ink }}>{t.checkUpdate}</Text>
-                        <Text style={{ fontSize: 10, color: C.mute, marginTop: 2 }}>{t.updateSub}</Text>
-                      </View>
-                    </Pressable>
+                  <Card title="Kemas Kini Aplikasi / App Updates" icon="system-update" tint={C.navy}>
+                    <Text style={{ color: C.mute, fontSize: 12, marginBottom: 4 }}>
+                      Versi Semasa / Current: v{CURRENT_VERSION}
+                    </Text>
+                    <Btn 
+                      icon="🔄" 
+                      label={t.checkUpdate} 
+                      onPress={() => checkForAppUpdate(t, true)} 
+                      kind="ghost"
+                    />
+                  </Card>
 
-                    {/* Compact Portal Tile */}
-                    <Pressable 
-                      onPress={() => Linking.openURL('https://ihr.mtib.gov.my')}
-                      style={({ pressed }) => [{
-                        flex: 1,
-                        backgroundColor: C.card,
-                        borderRadius: 18,
-                        padding: 14,
-                        borderWidth: 1,
-                        borderColor: C.line,
-                        justifyContent: 'space-between',
-                        minHeight: 96,
-                        elevation: 1,
-                        shadowColor: '#000',
-                        shadowOpacity: 0.04,
-                        shadowRadius: 4,
-                      }, pressed && { opacity: 0.75 }]}
-                    >
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Ico g="🌐" tint={C.primary} size={26} />
-                        <MaterialIcons name="open-in-new" size={16} color={C.mute} />
-                      </View>
-                      <View style={{ marginTop: 8 }}>
-                        <Text style={{ fontSize: 13, fontWeight: '800', color: C.ink }}>{t.portalLink}</Text>
-                        <Text style={{ fontSize: 10, color: C.mute, marginTop: 2 }}>{t.portalSub}</Text>
-                      </View>
-                    </Pressable>
-                  </View>
+                  <Card title={t.portalLink} icon="🔗" tint={C.primary}>
+                    <Btn 
+                      icon="🌐" 
+                      label={t.openPortal} 
+                      onPress={() => Linking.openURL('https://ihr.mtib.gov.my')} 
+                      kind="ghost"
+                    />
+                  </Card>
                 </View>
               </ScrollView>
             );
@@ -2279,7 +2071,6 @@ jobs:
 
           function Cam({ mode, sess, back }) {
             const { C, s } = useT();
-            const { t } = useLang();
             const [perm, ask] = useCameraPermissions(); const ref = useRef(null); const loc = useFix();
             const [shot, setShot] = useState(null); const [done, setDone] = useState(false);
             const [act, setAct] = useState(null); const [actOpen, setActOpen] = useState(false); const [sd, setSd] = useState(todayStr()); const [ed, setEd] = useState(todayStr());
@@ -2289,22 +2080,16 @@ jobs:
             const [unlocked, setUnlocked] = useState(false);
             const [pwd, setPwd] = useState('');
             const [useLoc, setUseLoc] = useState(true);
-
-            const ACTS = useMemo(() => [
-              [1, t.normalAtt],
-              [2, t.bdrAtt],
-              [3, t.outstationAtt]
-            ], [t]);
           
             useEffect(() => { if (perm && !perm.granted) ask(); }, [perm]);
             useEffect(() => {
               if (mode !== 'photo') return undefined; let on = true;
-              call(EP.reference, {}).then((r) => { if (!on) return; const m = parseReference(r); if (m) { setOpts(m.outstation); setWk(m.working); } else setErr(t.errOutstationList); }).catch((e) => { if (on) setErr(e.message); });
+              call(EP.reference, {}).then((r) => { if (!on) return; const m = parseReference(r); if (m) { setOpts(m.outstation); setWk(m.working); } else setErr('Senarai jenis kerja luar tidak dapat dibaca. Respons pelayan: ' + peek(r)); }).catch((e) => { if (on) setErr(e.message); });
               return () => { on = false; };
-            }, [mode, t]);
+            }, [mode]);
             
             const base = { staff_id: sess.staff_id };
-            const need = () => (sess.staff_id ? '' : t.errNeedStaffId);
+            const need = () => (sess.staff_id ? '' : 'ID staff belum dimuatkan. Kembali ke Dashboard dan tunggu data dimuat.');
             
             const onQr = async ({ data }) => {
               if (done) return; if (need()) return setErr(need()); setDone(true); setBusy(true); setErr('');
@@ -2314,7 +2099,7 @@ jobs:
                 const r = await call(EP.qr, { ...base, method: 'qr', qr_code: data, latitude: lat, longitude: lng });
                 await addLocalTag('qr');
                 await saveTagDetails('qr', lat, lng);
-                setOk(typeof r === 'string' ? r : t.okQrScan);
+                setOk(typeof r === 'string' ? r : 'Imbasan QR berjaya.');
               } catch (e) { setErr(e.message); } finally { setBusy(false); }
             };
             
@@ -2330,12 +2115,12 @@ jobs:
                     const r = await call(EP.qr, { ...base, method: 'qr', qr_code: scanned[0].data, latitude: lat, longitude: lng });
                     await addLocalTag('qr');
                     await saveTagDetails('qr', lat, lng);
-                    setOk(typeof r === 'string' ? r : t.okQrUpload);
+                    setOk(typeof r === 'string' ? r : 'Muat naik QR berjaya.');
                   } else {
-                    setErr(t.errQrNotFound); setDone(false);
+                    setErr('Kod QR tidak dikesan dalam gambar.'); setDone(false);
                   }
                 } catch (e) {
-                  setErr(e.message || t.errQrRead); setDone(false);
+                  setErr(e.message || 'Ralat membaca gambar QR.'); setDone(false);
                 } finally { setBusy(false); }
               }
             };
@@ -2353,97 +2138,97 @@ jobs:
             };
             
             const sendPhoto = () => {
-              if (need()) return setErr(need()); if (!act) { setActOpen(true); return setErr(t.errSelectAttType); }
-              if (!shot) return setErr(t.errUploadPhoto); if (!loc.fix) return setErr(t.errNoLoc);
+              if (need()) return setErr(need()); if (!act) { setActOpen(true); return setErr('Sila pilih jenis kehadiran'); }
+              if (!shot) return setErr('Sila muat naik gambar'); if (!loc.fix) return setErr('Tiada akses lokasi');
               const payload = { ...base, activity_type: act, latitude: loc.fix.latitude, longitude: loc.fix.longitude, img: shot.base64 };
               if (act === 3) {
-                if (!klType) return setErr(t.errSelectOutstation);
-                if (!reason.trim()) return setErr(t.errFillReason);
-                if (ed < sd) return setErr(t.errDateOrder);
+                if (!klType) return setErr('Sila pilih jenis kerja luar');
+                if (!reason.trim()) return setErr('Sila isi alasan');
+                if (ed < sd) return setErr('Tarikh akhir tidak boleh sebelum tarikh mula');
                 payload.start_date = sd; payload.end_date = ed;
                 const opt = opts.find((o) => o.label === klType);
-                if (!opt || opt.id === undefined) return setErr(t.errOutstationList);
+                if (!opt || opt.id === undefined) return setErr('Senarai jenis kerja luar belum dimuatkan daripada pelayan. Semak sambungan dan buka semula skrin ini.');
                 const w = wk.find((x) => /kerja\s*luar/i.test(x.label)); if (w) payload.activity_type = w.id;
                 Object.assign(payload, kerjaLuarFields(opt, reason.trim()));
               }
               const label = ACTS.find(([v]) => v === act)[1];
-              Alert.alert(t.confirmSendTitle, t.confirmSendMsg(label), [
-                { text: t.cancel, style: 'cancel' },
-                { text: t.submit, onPress: async () => {
+              Alert.alert('Sahkan penghantaran', `Rekod kehadiran "${label}" akan disimpan dalam sistem iHR.`, [
+                { text: 'Batal', style: 'cancel' },
+                { text: 'Hantar', onPress: async () => {
                   setBusy(true); setErr('');
                   try { 
                     const r = await call(EP.geotag, payload); 
                     await addLocalTag('geo'); 
                     await saveTagDetails('geo', loc.fix.latitude, loc.fix.longitude);
-                    setOk(typeof r === 'string' ? r : t.okGeotag); 
+                    setOk(typeof r === 'string' ? r : 'Geotagging berjaya dihantar.'); 
                   } catch (e) { setErr(e.message); } finally { setBusy(false); }
                 } },
               ]);
             };
             
-            if (!perm?.granted) return (<View style={{ flex: 1 }}><Top title={t.scanQr} onBack={back} /><View style={{ padding: 16, gap: 12 }}><Text style={{ color: C.ink }}>{t.noCamAccess}</Text><Btn label={t.allowCam} onPress={ask} /></View></View>);
+            if (!perm?.granted) return (<View style={{ flex: 1 }}><Top title="Kamera" onBack={back} /><View style={{ padding: 16, gap: 12 }}><Text style={{ color: C.ink }}>Tiada akses kamera.</Text><Btn label="Benarkan kamera" onPress={ask} /></View></View>);
             
             return (
               <ScrollView keyboardShouldPersistTaps="handled">
-                <Top title={mode === 'qr' ? t.scanQr : t.geoTag} onBack={back} onTitleLongPress={() => setAskPwd(!askPwd)} />
+                <Top title={mode === 'qr' ? 'Imbas QR' : 'Geotagging'} onBack={back} onTitleLongPress={() => setAskPwd(!askPwd)} />
                 {askPwd && !unlocked && (
                   <View style={{ padding: 16, gap: 10 }}>
                     <TextInput 
                       style={s.in} 
                       secureTextEntry 
-                      placeholder={t.adminPwdPlaceholder} 
+                      placeholder="Kata laluan admin" 
                       placeholderTextColor={C.mute}
                       value={pwd} 
-                      onChangeText={tVal => {
-                        setPwd(tVal);
-                        if (tVal.trim() === 'Mtib@123') { setUnlocked(true); setAskPwd(false); setPwd(''); }
+                      onChangeText={t => {
+                        setPwd(t);
+                        if (t.trim() === 'Mtib@123') { setUnlocked(true); setAskPwd(false); setPwd(''); }
                       }}
                       onSubmitEditing={() => {
                         if (pwd.trim() === 'Mtib@123') { setUnlocked(true); setAskPwd(false); setPwd(''); }
-                        else { Alert.alert(t.error, t.wrongPwd); setPwd(''); }
+                        else { Alert.alert('Ralat', 'Kata laluan salah'); setPwd(''); }
                       }}
                     />
-                    <Btn label={t.confirm} onPress={() => {
+                    <Btn label="Sahkan" onPress={() => {
                       if (pwd.trim() === 'Mtib@123') { setUnlocked(true); setAskPwd(false); setPwd(''); }
-                      else { Alert.alert(t.error, t.wrongPwd); setPwd(''); }
+                      else { Alert.alert('Ralat', 'Kata laluan salah'); setPwd(''); }
                     }} />
                   </View>
                 )}
                 {unlocked && (
                   <View style={{ padding: 16, gap: 10 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Text style={s.lbl}>{t.useCurrentLoc}</Text>
+                      <Text style={s.lbl}>Gunakan Lokasi Semasa</Text>
                       <Switch value={useLoc} onValueChange={setUseLoc} trackColor={{ true: C.primary }} />
                     </View>
-                    <Text style={s.lbl}>{t.manualLat}</Text>
-                    <TextInput style={s.in} keyboardType="numeric" value={String(loc.fix?.latitude || '')} onChangeText={tVal => loc.setFix(f => ({...f, latitude: parseFloat(tVal) || 0, accuracy: 1}))} />
-                    <Text style={s.lbl}>{t.manualLng}</Text>
-                    <TextInput style={s.in} keyboardType="numeric" value={String(loc.fix?.longitude || '')} onChangeText={tVal => loc.setFix(f => ({...f, longitude: parseFloat(tVal) || 0, accuracy: 1}))} />
+                    <Text style={s.lbl}>Manual Latitud</Text>
+                    <TextInput style={s.in} keyboardType="numeric" value={String(loc.fix?.latitude || '')} onChangeText={t => loc.setFix(f => ({...f, latitude: parseFloat(t) || 0, accuracy: 1}))} />
+                    <Text style={s.lbl}>Manual Longitud</Text>
+                    <TextInput style={s.in} keyboardType="numeric" value={String(loc.fix?.longitude || '')} onChangeText={t => loc.setFix(f => ({...f, longitude: parseFloat(t) || 0, accuracy: 1}))} />
                     {mode === 'qr' && (
-                      <Btn label={t.uploadQrGallery} onPress={pickQr} icon="🖼" kind="ghost" />
+                      <Btn label="Muat Naik QR dari Galeri" onPress={pickQr} icon="🖼" kind="ghost" />
                     )}
                   </View>
                 )}
                 <View style={{ padding: 16, gap: 14 }}>
                 {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
                   <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
-                {mode === 'photo' ? (shot ? <><Btn icon="📤" label={t.sendPhoto} onPress={sendPhoto} busy={busy} /><Btn kind="ghost" icon="🔄" label={t.retake} onPress={() => { setShot(null); setOk(''); }} /></> : <Btn icon="📷" label={t.takePhoto} onPress={snap} />)
-                  : (done && !busy ? <Btn kind="ghost" icon="🔄" label={t.rescan} onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? t.sending : t.pointQr}</Text>)}
+                {mode === 'photo' ? (shot ? <><Btn icon="📤" label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" icon="🔄" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn icon="📷" label="Ambil Gambar" onPress={snap} />)
+                  : (done && !busy ? <Btn kind="ghost" icon="🔄" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>)}
                 <Err msg={err} /><Ok msg={ok} />
                 <Loc {...loc} />
                 {mode === 'photo' ? (
-                  <Collapse title={t.attTypeTitle} icon="🗂" tint={C.primary} summary={act ? ACTS.find(([v]) => v === act)[1] : t.selectAttType} strong={!!act} open={actOpen} onToggle={() => setActOpen(!actOpen)}>
+                  <Collapse title="Jenis kehadiran" icon="🗂" tint={C.primary} summary={act ? ACTS.find(([v]) => v === act)[1] : 'Pilih jenis kehadiran'} strong={!!act} open={actOpen} onToggle={() => setActOpen(!actOpen)}>
                     {ACTS.map(([v, l]) => (<Pressable key={v} onPress={() => { setAct(v); setActOpen(false); }} style={[s.opt, act === v && s.optOn]}><Text style={{ color: act === v ? C.onPrimary : C.ink, fontWeight: '600' }}>{l}</Text></Pressable>))}
                   </Collapse>
                 ) : null}
-                {mode === 'photo' && act === 3 ? (<Card title={t.outstationDetails} icon="🧳" tint={C.primary}>
-                    <Text style={s.lbl}>{t.outstationType}</Text>
-                    <Select value={klType} placeholder={t.selectOutstationType} options={opts.map((o) => o.label)} onPick={setKlType} />
-                    <Text style={s.lbl}>{t.reason}</Text>
-                    <TextInput style={[s.in, { minHeight: 48 }]} value={reason} onChangeText={setReason} placeholder={t.reasonPlaceholder} placeholderTextColor={C.mute} multiline />
-                    <Text style={s.lbl}>{t.startDate}</Text>
+                {mode === 'photo' && act === 3 ? (<Card title="Butiran Kerja Luar" icon="🧳" tint={C.primary}>
+                    <Text style={s.lbl}>Jenis Kerja Luar</Text>
+                    <Select value={klType} placeholder="Pilih Jenis Kerja Luar" options={opts.map((o) => o.label)} onPick={setKlType} />
+                    <Text style={s.lbl}>Alasan</Text>
+                    <TextInput style={[s.in, { minHeight: 48 }]} value={reason} onChangeText={setReason} placeholder="Nyatakan alasan" placeholderTextColor={C.mute} multiline />
+                    <Text style={s.lbl}>Tarikh Mula</Text>
                     <DateField value={sd} min={todayStr()} onPick={(v) => { setSd(v); if (ed < v) setEd(v); }} />
-                    <Text style={s.lbl}>{t.endDate}</Text>
+                    <Text style={s.lbl}>Tarikh Akhir</Text>
                     <DateField value={ed} min={sd} onPick={setEd} />
                 </Card>) : null}
 
@@ -2479,9 +2264,9 @@ jobs:
 
             let body;
             const doLogout = () => {
-              Alert.alert(t.logoutTitle, t.logoutConfirm, [
-                { text: t.cancel, style: 'cancel' },
-                { text: t.yes, onPress: async () => { await clearSession(); setLogoutData(sess); setSess(null); setView('home'); } }
+              Alert.alert('Daftar Keluar', 'Adakah anda pasti mahu kembali ke paparan pendaftaran?', [
+                { text: 'Batal', style: 'cancel' },
+                { text: 'Ya', onPress: async () => { await clearSession(); setLogoutData(sess); setSess(null); setView('home'); } }
               ]);
             };
 
@@ -2505,6 +2290,54 @@ jobs:
               </LangCtx.Provider>
             );
           }
+          
+          const makeStyles = (C) => StyleSheet.create({
+            root: { flex: 1, backgroundColor: C.bg }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+            logo: { color: C.ink, fontSize: 38, fontWeight: '800', letterSpacing: 0.5, textAlign: 'center' }, sub: { color: C.mute, marginTop: 2, textAlign: 'center' },
+            regTop: { flexDirection: 'row', alignItems: 'flex-start', padding: 20, paddingTop: 16 },
+            regTopCentered: { alignItems: 'center', padding: 20, paddingTop: 30 },
+            gear: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center' },
+            gearOn: { borderColor: C.primary, backgroundColor: C.primarySoft }, gearT: { fontSize: 20 },
+            dashTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 10 },
+            status: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
+            statusT: { color: C.ink, fontSize: 12, fontWeight: '600' }, dot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
+            profile: { alignItems: 'center', paddingHorizontal: 20, paddingVertical: 18, gap: 12 },
+            ring: { width: 150, height: 150, borderRadius: 75, borderWidth: 11, alignItems: 'center', justifyContent: 'center' },
+            ringIn: { width: 112, height: 112, borderRadius: 56, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+            ringImg: { width: '100%', height: '100%' },
+            sel: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+            selList: { borderWidth: 1, borderColor: C.line, borderRadius: 12, backgroundColor: C.field, overflow: 'hidden' },
+            selItem: { paddingVertical: 13, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.line },
+            ringT: { color: C.primaryText, fontSize: 48, fontWeight: '800' },
+            pNameBox: { alignItems: 'center' },
+            pName: { color: C.ink, fontSize: 20, fontWeight: '700', textAlign: 'center' },
+            chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
+            chip: { backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 5 }, chipT: { color: C.ink, fontSize: 12, fontWeight: '600' },
+            pill: { backgroundColor: C.pill, borderRadius: 22, paddingHorizontal: 18, paddingVertical: 10, alignSelf: 'stretch' },
+            pillT: { color: C.navy, textAlign: 'center', fontWeight: '500' },
+            top: { backgroundColor: C.card, padding: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: C.line },
+            topT: { color: C.ink, fontSize: 24, fontWeight: '800' }, back: { color: C.primaryText, fontWeight: '600' },
+            card: { backgroundColor: C.card, borderRadius: 16, padding: 14, gap: 10, borderWidth: 1, borderColor: C.line },
+            cardH: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingBottom: 2 }, cardT: { fontSize: 16, fontWeight: '700', color: C.ink },
+            row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: C.line },
+            rowK: { color: C.mute, flexShrink: 0 }, rowV: { color: C.ink, fontWeight: '600', flex: 1, textAlign: 'right' }, rowV2: { color: C.ink, fontWeight: '700', marginTop: 2 },
+            statRow: { flexDirection: 'row', gap: 10 },
+            stat: { flex: 1, borderWidth: 1, borderColor: C.line, borderRadius: 14, padding: 12, backgroundColor: C.field },
+            statH: { flexDirection: 'row', alignItems: 'center', gap: 8 }, statL: { color: C.mute, fontSize: 12, fontWeight: '600', flexShrink: 1 },
+            statV: { color: C.ink, fontSize: 22, fontWeight: '800', marginTop: 10 },
+            note: { color: C.mute, fontSize: 12 },
+            link: { color: C.primaryText, fontWeight: '700', paddingTop: 4 },
+            swatchRow: { flexDirection: 'row', alignItems: 'center', gap: 14 }, swatch: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: C.line },
+            lbl: { color: C.mute, fontSize: 13 }, in: { borderWidth: 1, borderColor: C.line, borderRadius: 12, padding: 12, fontSize: 16, backgroundColor: C.field, color: C.ink },
+            btn: { backgroundColor: C.primary, borderRadius: 28, paddingVertical: 15, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
+            btnGhost: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: C.primaryText },
+            btnIn: { flexDirection: 'row', alignItems: 'center', gap: 8 }, btnIc: { fontSize: 16 }, btnTx: { color: C.onPrimary, fontWeight: '700', fontSize: 16 },
+            err: { backgroundColor: C.badBg, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: C.badLine },
+            okBox: { backgroundColor: C.okBg, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: C.okLine },
+            hint: { color: C.mute, textAlign: 'center' },
+            opt: { padding: 13, borderRadius: 12, borderWidth: 1, borderColor: C.line, backgroundColor: C.field }, optOn: { backgroundColor: C.primary, borderColor: C.primary },
+            cam: { height: 300, borderRadius: 16, overflow: 'hidden', backgroundColor: '#000', borderWidth: 1, borderColor: C.line },
+          });
           IHR_EOF
           cat > 'src/api.js' <<'IHR_EOF'
           import * as SecureStore from 'expo-secure-store';
@@ -2762,8 +2595,8 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         with:
           files: app/android/app/build/outputs/apk/release/*.apk
-          tag_name: ${{ github.ref_name || 'v1.0.6' }}
-          name: iHR Release ${{ github.ref_name || 'v1.0.6' }}
+          tag_name: ${{ github.ref_name || 'v1.0.7' }}
+          name: iHR Release ${{ github.ref_name || 'v1.0.7' }}
           draft: false
           prerelease: false
         env:
