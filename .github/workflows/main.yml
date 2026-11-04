@@ -1,4 +1,4 @@
-name: Build iHR APK
+yname: Build iHR APK
 on:
   workflow_dispatch:
 jobs:
