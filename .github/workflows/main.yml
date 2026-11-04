@@ -1198,7 +1198,25 @@ jobs:
             const { C, s } = useT();
             const [selectedDay, setSelectedDay] = useState(null);
             const [showAllModal, setShowAllModal] = useState(false);
+            const [serverRows, setServerRows] = useState([]);
             
+            useEffect(() => {
+              const fetchServerData = async () => {
+                try {
+                  const stored = await SecureStore.getItemAsync('SYNCED_SERVER_ATTENDANCE');
+                  if (stored) {
+                    const parsed = JSON.parse(stored);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                      setServerRows(parsed);
+                    }
+                  }
+                } catch (_) {}
+              };
+              fetchServerData();
+              const timer = setInterval(fetchServerData, 3000);
+              return () => clearInterval(timer);
+            }, []);
+
             // Pengiraan 7 hari semasa (Ahd - Sab)
             const dayNames = ['Ahd', 'Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab'];
             const fullDayNames = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
@@ -1227,56 +1245,101 @@ jobs:
               let status = 'tiada'; // 'tepat' | 'lewat' | 'tiada'
               let inTime = '—';
               let outTime = '—';
-              
-              if (isToday) {
-                if (todayFirst) {
-                  inTime = todayFirst;
-                  outTime = todayLast || todayFirst;
-                  status = 'tepat';
-                  hours = 8.0;
-                  
-                  // Waktu Bekerja Fleksibel (WBF) MTIB: selepas 9:00 AM dikira lewat
-                  const m = /(\d{1,2}):(\d{2})\s*(AM|PM)/i.exec(String(todayFirst));
-                  if (m) {
-                    const hr = (+m[1] % 12) + (/pm/i.test(m[3]) ? 12 : 0);
-                    const mn = +m[2];
-                    if (hr > 9 || (hr === 9 && mn > 0)) {
-                      status = 'lewat';
-                    }
+              let notes = '';
+              let hasServerMatch = false;
+
+              // Cari padanan tarikh di dalam rekod jadual pelayan (serverRows)
+              if (serverRows.length > 0) {
+                const matched = serverRows.find(r => {
+                  const parts = String(r.date || '').split(/[-/]/);
+                  if (parts.length === 3) {
+                    return +parts[0] === d.getDate() && +parts[1] === (d.getMonth() + 1) && +parts[2] === d.getFullYear();
                   }
-                  if (todayLast && todayLast !== todayFirst) {
-                    const mOut = /(\d{1,2}):(\d{2})\s*(AM|PM)/i.exec(String(todayLast));
-                    if (m && mOut) {
-                      const hIn = (+m[1] % 12) + (/pm/i.test(m[3]) ? 12 : 0) + (+m[2] / 60);
-                      const hOut = (+mOut[1] % 12) + (/pm/i.test(mOut[3]) ? 12 : 0) + (+mOut[2] / 60);
-                      if (hOut > hIn) {
-                        hours = parseFloat((hOut - hIn).toFixed(1));
+                  return false;
+                });
+
+                if (matched) {
+                  hasServerMatch = true;
+                  inTime = matched.clockIn ? matched.clockIn : (isToday && todayFirst ? todayFirst : '—');
+                  outTime = matched.clockOut ? matched.clockOut : (isToday && todayLast ? todayLast : '—');
+                  notes = matched.notes || '';
+
+                  if (inTime !== '—') {
+                    const mIn = /(\d{1,2}):(\d{2})\s*(AM|PM)?/i.exec(inTime);
+                    let hrIn = 0, mnIn = 0;
+                    if (mIn) {
+                      hrIn = (+mIn[1] % 12) + (/pm/i.test(mIn[3] || '') ? 12 : 0);
+                      mnIn = +mIn[2];
+                    }
+                    const isLate = hrIn > 9 || (hrIn === 9 && mnIn > 0);
+                    status = isLate ? 'lewat' : 'tepat';
+
+                    if (outTime !== '—') {
+                      const mOut = /(\d{1,2}):(\d{2})\s*(AM|PM)?/i.exec(outTime);
+                      if (mIn && mOut) {
+                        const hrOut = (+mOut[1] % 12) + (/pm/i.test(mOut[3] || '') ? 12 : 0);
+                        const mnOut = +mOut[2];
+                        const diffMins = (hrOut * 60 + mnOut) - (hrIn * 60 + mnIn);
+                        hours = diffMins > 0 ? parseFloat((diffMins / 60).toFixed(1)) : 8.0;
                       } else {
                         hours = 8.5;
                       }
                     } else {
-                      hours = 8.5;
+                      hours = isToday ? 8.0 : 8.0;
                     }
+                  } else if (notes && /outdoor|kerja luar|cuti|mesyuarat/i.test(notes)) {
+                    inTime = 'Tugasan';
+                    outTime = notes;
+                    hours = 8.0;
+                    status = 'tepat';
+                  } else {
+                    status = 'tiada';
+                    hours = 0;
                   }
-                } else {
+                }
+              }
+
+              // Jika tiada padanan pelayan (belum sync portal), guna data hari ini atau fallback
+              if (!hasServerMatch) {
+                if (isToday) {
+                  if (todayFirst) {
+                    inTime = todayFirst;
+                    outTime = todayLast || todayFirst;
+                    status = 'tepat';
+                    hours = 8.0;
+                    
+                    const m = /(\d{1,2}):(\d{2})\s*(AM|PM)/i.exec(String(todayFirst));
+                    if (m) {
+                      const hr = (+m[1] % 12) + (/pm/i.test(m[3]) ? 12 : 0);
+                      const mn = +m[2];
+                      if (hr > 9 || (hr === 9 && mn > 0)) {
+                        status = 'lewat';
+                      }
+                    }
+                    if (todayLast && todayLast !== todayFirst) {
+                      const mOut = /(\d{1,2}):(\d{2})\s*(AM|PM)/i.exec(String(todayLast));
+                      if (m && mOut) {
+                        const hIn = (+m[1] % 12) + (/pm/i.test(m[3]) ? 12 : 0) + (+m[2] / 60);
+                        const hOut = (+mOut[1] % 12) + (/pm/i.test(mOut[3]) ? 12 : 0) + (+mOut[2] / 60);
+                        if (hOut > hIn) {
+                          hours = parseFloat((hOut - hIn).toFixed(1));
+                        } else {
+                          hours = 8.5;
+                        }
+                      } else {
+                        hours = 8.5;
+                      }
+                    }
+                  } else {
+                    status = 'tiada';
+                  }
+                } else if (isPast && !isWeekend) {
                   status = 'tiada';
+                  hours = 0;
+                } else if (isWeekend) {
+                  status = 'tiada';
+                  hours = 0;
                 }
-              } else if (isPast && !isWeekend) {
-                const seed = (d.getDate() + d.getMonth() * 31) % 5;
-                if (seed === 0) {
-                  status = 'lewat';
-                  hours = 7.5;
-                  inTime = '09:15 AM';
-                  outTime = '05:15 PM';
-                } else {
-                  status = 'tepat';
-                  hours = [8.5, 9.0, 8.2, 8.8, 8.5][seed % 5];
-                  inTime = ['08:15 AM', '08:05 AM', '08:20 AM', '07:55 AM', '08:10 AM'][seed % 5];
-                  outTime = ['05:45 PM', '06:05 PM', '05:32 PM', '05:43 PM', '05:40 PM'][seed % 5];
-                }
-              } else if (isWeekend) {
-                status = 'tiada';
-                hours = 0;
               }
 
               if (status === 'tepat') tepatCount++;
@@ -1291,6 +1354,7 @@ jobs:
                 status: status,
                 inTime: inTime,
                 outTime: outTime,
+                notes: notes,
                 isToday: isToday,
               });
             }
@@ -1321,7 +1385,7 @@ jobs:
                   </Pressable>
                 </View>
 
-                {/* Carta Bar Mingguan - Setiap bar boleh diklik untuk pop-up moden */}
+                {/* Carta Bar Mingguan - Diselaraskan dengan jadual pelayan */}
                 <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 130, paddingTop: 16 }}>
                   {weekDays.map((item, idx) => {
                     const barHeight = item.hours > 0 ? Math.max((item.hours / maxH) * 85, 20) : 8;
@@ -1370,7 +1434,7 @@ jobs:
 
                 <View style={{ alignItems: 'center', marginTop: 10 }}>
                   <Text style={{ fontSize: 10, color: C.mute, fontStyle: 'italic' }}>
-                    * Klik mana-mana bar hari untuk paparan jadual moden
+                    {serverRows.length > 0 ? '✓ Diselaraskan dengan Portal Pelayan MTIB' : '* Buka tab Sejarah untuk selaraskan rekod rasmi portal'}
                   </Text>
                 </View>
 
@@ -1430,7 +1494,7 @@ jobs:
                             <MaterialIcons name="login" size={16} color="#2E7D4F" />
                             <Text style={{ fontSize: 11, fontWeight: '700', color: C.mute, textTransform: 'uppercase' }}>Masuk</Text>
                           </View>
-                          <Text style={{ fontSize: 18, fontWeight: '800', color: C.ink }}>{selectedDay?.inTime}</Text>
+                          <Text style={{ fontSize: 17, fontWeight: '800', color: C.ink }}>{selectedDay?.inTime}</Text>
                         </View>
 
                         {/* Kotak Keluar */}
@@ -1447,11 +1511,11 @@ jobs:
                             <MaterialIcons name="logout" size={16} color="#C4513A" />
                             <Text style={{ fontSize: 11, fontWeight: '700', color: C.mute, textTransform: 'uppercase' }}>Keluar</Text>
                           </View>
-                          <Text style={{ fontSize: 18, fontWeight: '800', color: C.ink }}>{selectedDay?.outTime}</Text>
+                          <Text style={{ fontSize: 17, fontWeight: '800', color: C.ink }}>{selectedDay?.outTime}</Text>
                         </View>
                       </View>
 
-                      {/* Kotak Jumlah Jam */}
+                      {/* Kotak Jumlah Jam / Catatan */}
                       <View style={{
                         backgroundColor: C.primarySoft || '#F8E5E1',
                         borderRadius: 16,
@@ -1465,7 +1529,9 @@ jobs:
                       }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                           <MaterialIcons name="schedule" size={20} color={C.primary} />
-                          <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink }}>Jumlah Masa Bekerja</Text>
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink }}>
+                            {selectedDay?.notes ? selectedDay.notes : 'Jumlah Jam Bekerja'}
+                          </Text>
                         </View>
                         <Text style={{ fontSize: 15, fontWeight: '800', color: C.primary }}>
                           {selectedDay?.hours > 0 ? `${selectedDay.hours} Jam` : '—'}
@@ -1497,7 +1563,7 @@ jobs:
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                         <View>
                           <Text style={{ fontSize: 20, fontWeight: '800', color: C.ink }}>Jadual Kehadiran 7 Hari</Text>
-                          <Text style={{ fontSize: 12, color: C.mute, marginTop: 2 }}>Rekod mingguan diselaraskan dengan pelayan</Text>
+                          <Text style={{ fontSize: 12, color: C.mute, marginTop: 2 }}>Rekod mingguan diselaraskan dengan pelayan rasmi</Text>
                         </View>
                         <Pressable onPress={() => setShowAllModal(false)} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: C.field, alignItems: 'center', justifyContent: 'center' }}>
                           <Text style={{ fontSize: 16, color: C.mute, fontWeight: '800' }}>✕</Text>
@@ -1530,7 +1596,7 @@ jobs:
                                   {w.inTime} - {w.outTime}
                                 </Text>
                                 <Text style={{ fontSize: 10, color: C.mute, marginTop: 1 }}>
-                                  {w.hours > 0 ? `${w.hours} jam` : 'Tiada masa'}
+                                  {w.hours > 0 ? `${w.hours} jam` : (w.notes || 'Tiada masa')}
                                 </Text>
                               </View>
 
@@ -1572,6 +1638,7 @@ jobs:
             const [tags, setTags] = useState([]);
             const [details, setDetails] = useState([]);
             const [webLoading, setWebLoading] = useState(true);
+            const [syncCount, setSyncCount] = useState(0);
             const webViewRef = useRef(null);
 
             useEffect(() => {
@@ -1581,8 +1648,65 @@ jobs:
                 const detailKey = `TAG_DETAILS_${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
                 const dt = await SecureStore.getItemAsync(detailKey);
                 if (dt) setDetails(JSON.parse(dt));
+                const syn = await SecureStore.getItemAsync('SYNCED_SERVER_ATTENDANCE');
+                if (syn) {
+                  const p = JSON.parse(syn);
+                  if (Array.isArray(p)) setSyncCount(p.length);
+                }
               })();
             }, []);
+
+            const onWebMessage = async (event) => {
+              try {
+                const msg = JSON.parse(event.nativeEvent.data);
+                if (msg.type === 'ATTENDANCE_TABLE' && Array.isArray(msg.data) && msg.data.length > 0) {
+                  await SecureStore.setItemAsync('SYNCED_SERVER_ATTENDANCE', JSON.stringify(msg.data));
+                  setSyncCount(msg.data.length);
+                }
+              } catch (_) {}
+            };
+
+            const scraperScript = `
+              (function() {
+                function scrape() {
+                  try {
+                    var rows = document.querySelectorAll('table tr');
+                    var results = [];
+                    for (var i = 0; i < rows.length; i++) {
+                      var cells = rows[i].querySelectorAll('td');
+                      if (cells.length >= 4) {
+                        var dateText = cells[0].innerText.trim();
+                        var dayText = cells[1].innerText.trim();
+                        var inText = cells[2].innerText.trim();
+                        var outText = cells[3].innerText.trim();
+                        var diffText = cells.length > 4 ? cells[4].innerText.trim() : '';
+                        var notesText = cells.length > 5 ? cells[5].innerText.trim() : '';
+                        
+                        if (/\\d+[-/\\.]\\d+[-/\\.]\\d+/.test(dateText)) {
+                          var inMatch = /(\\d{1,2}:\\d{2}\\s*(?:AM|PM)?)/i.exec(inText);
+                          var outMatch = /(\\d{1,2}:\\d{2}\\s*(?:AM|PM)?)/i.exec(outText);
+                          results.push({
+                            date: dateText,
+                            day: dayText,
+                            clockIn: inMatch ? inMatch[1] : '',
+                            clockOut: outMatch ? outMatch[1] : '',
+                            diff: diffText,
+                            notes: notesText
+                          });
+                        }
+                      }
+                    }
+                    if (results.length > 0 && window.ReactNativeWebView) {
+                      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ATTENDANCE_TABLE', data: results }));
+                    }
+                  } catch (e) {}
+                }
+                scrape();
+                setTimeout(scrape, 1500);
+                setTimeout(scrape, 3500);
+              })();
+              true;
+            `;
 
             return (
               <View style={{ flex: 1, backgroundColor: C.bg }}>
@@ -1637,8 +1761,8 @@ jobs:
                   <View style={{ flex: 1 }}>
                     {/* Bar Aksi Pantas Pelayan */}
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: C.field, borderBottomWidth: 1, borderBottomColor: C.line }}>
-                      <Text style={{ fontSize: 11, color: C.mute, fontWeight: '600' }}>
-                        🌐 ihr.mtib.gov.my
+                      <Text style={{ fontSize: 11, color: syncCount > 0 ? '#2E7D4F' : C.mute, fontWeight: '700' }}>
+                        {syncCount > 0 ? `✓ ${syncCount} rekod diselaraskan` : '🌐 ihr.mtib.gov.my'}
                       </Text>
                       <View style={{ flexDirection: 'row', gap: 8 }}>
                         <Pressable 
@@ -1658,19 +1782,24 @@ jobs:
                       </View>
                     </View>
 
-                    {/* Tetingkap Langsung Portal MTIB */}
+                    {/* Tetingkap Langsung Portal MTIB dengan Auto-Scrape */}
                     <WebView
                       ref={webViewRef}
                       source={{ uri: PORTAL }}
                       style={{ flex: 1 }}
+                      injectedJavaScript={scraperScript}
+                      onMessage={onWebMessage}
                       onLoadStart={() => setWebLoading(true)}
-                      onLoadEnd={() => setWebLoading(false)}
+                      onLoadEnd={() => {
+                        setWebLoading(false);
+                        webViewRef.current?.injectJavaScript(scraperScript);
+                      }}
                       startInLoadingState={true}
                       renderLoading={() => (
                         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg }}>
                           <ActivityIndicator size="large" color={C.primary} />
                           <Text style={{ marginTop: 12, color: C.mute, fontSize: 13, fontWeight: '600' }}>
-                            Menyegerakkan data kehadiran daripada pelayan MTIB…
+                            Menyegerakkan rekod kehadiran portal ke aplikasi…
                           </Text>
                         </View>
                       )}
