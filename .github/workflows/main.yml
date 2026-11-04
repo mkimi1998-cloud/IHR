@@ -683,7 +683,7 @@ jobs:
           IHR_EOF
           cat > 'App.js' <<'IHR_EOF'
           import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-          import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, useColorScheme, View, Switch } from 'react-native';
+          import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, useColorScheme, View, Switch, Modal } from 'react-native';
           import { StatusBar } from 'expo-status-bar';
           import * as Location from 'expo-location';
           import * as SecureStore from 'expo-secure-store';
@@ -1193,7 +1193,9 @@ jobs:
           };
 
           const WeeklySummaryCard = ({ tags = [], todayFirst = null, todayLast = null }) => {
-            const { C } = useT();
+            const { C, s } = useT();
+            const [selectedDay, setSelectedDay] = useState(null);
+            const [showAllModal, setShowAllModal] = useState(false);
             
             // Pengiraan 7 hari semasa (Ahd - Sab)
             const dayNames = ['Ahd', 'Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab'];
@@ -1241,7 +1243,6 @@ jobs:
                     }
                   }
                   if (todayLast && todayLast !== todayFirst) {
-                    // Kira jam anggaran jika ada kedua-dua tagging
                     const mOut = /(\d{1,2}):(\d{2})\s*(AM|PM)/i.exec(String(todayLast));
                     if (m && mOut) {
                       const hIn = (+m[1] % 12) + (/pm/i.test(m[3]) ? 12 : 0) + (+m[2] / 60);
@@ -1259,7 +1260,6 @@ jobs:
                   status = 'tiada';
                 }
               } else if (isPast && !isWeekend) {
-                // Hari bekerja sebelum hari ini
                 const seed = (d.getDate() + d.getMonth() * 31) % 5;
                 if (seed === 0) {
                   status = 'lewat';
@@ -1295,33 +1295,6 @@ jobs:
 
             const maxH = Math.max(...weekDays.map(w => w.hours), 9.0);
 
-            const showDayDetail = (item) => {
-              const statusText = item.status === 'tepat' ? 'Tepat Masa ✅' : item.status === 'lewat' ? 'Lewat ⚠️' : 'Tiada Rekod ⚪';
-              if (item.status === 'tiada') {
-                Alert.alert(
-                  `Rekod ${item.fullDay} (${item.dateStr})`,
-                  `Status: ${statusText}\n\nTiada rekod masa kehadiran direkodkan bagi tarikh ini.`
-                );
-              } else {
-                Alert.alert(
-                  `Rekod Kehadiran ${item.fullDay}`,
-                  `Tarikh: ${item.dateStr}\nStatus: ${statusText}\n\n🕒 Masuk (Clock-in): ${item.inTime}\n🕔 Keluar (Clock-out): ${item.outTime}\n⏳ Jumlah Masa: ${item.hours} jam\n\n*Diselaraskan dengan data kehadiran pelayan/app.`
-                );
-              }
-            };
-
-            const showFullWeeklySchedule = () => {
-              const rows = weekDays.map(w => {
-                const s = w.status === 'tepat' ? '✅' : w.status === 'lewat' ? '⚠️' : '⚪';
-                return `${w.dayLabel} (${w.dateStr}): ${w.inTime} - ${w.outTime} [${s}]`;
-              }).join('\n');
-
-              Alert.alert(
-                'Jadual Kehadiran 7 Hari',
-                `${rows}\n\nPetunjuk:\n✅ Tepat Masa (${tepatCount})\n⚠️ Lewat (${lewatCount})\n⚪ Tiada Rekod (${tiadaCount})`
-              );
-            };
-
             return (
               <View style={{
                 backgroundColor: C.card,
@@ -1335,18 +1308,18 @@ jobs:
                 shadowRadius: 8,
               }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <Pressable onPress={showFullWeeklySchedule} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Pressable onPress={() => setShowAllModal(true)} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Text style={{ fontSize: 18, fontWeight: '800', color: C.ink }}>Ringkasan 7 hari</Text>
-                    <MaterialIcons name="info-outline" size={16} color={C.mute} />
+                    <MaterialIcons name="grid-view" size={17} color={C.primary} />
                   </Pressable>
-                  <Pressable onPress={showFullWeeklySchedule} style={{ backgroundColor: '#E8F5E9', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+                  <Pressable onPress={() => setShowAllModal(true)} style={{ backgroundColor: '#E8F5E9', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
                     <Text style={{ color: '#2E7D4F', fontWeight: '800', fontSize: 12 }}>
                       {`${tepatCount} TEPAT`}
                     </Text>
                   </Pressable>
                 </View>
 
-                {/* Carta Bar Mingguan - Setiap bar boleh diklik */}
+                {/* Carta Bar Mingguan - Setiap bar boleh diklik untuk pop-up moden */}
                 <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 130, paddingTop: 16 }}>
                   {weekDays.map((item, idx) => {
                     const barHeight = item.hours > 0 ? Math.max((item.hours / maxH) * 85, 20) : 8;
@@ -1355,7 +1328,7 @@ jobs:
                     return (
                       <Pressable 
                         key={idx} 
-                        onPress={() => showDayDetail(item)}
+                        onPress={() => setSelectedDay(item)}
                         style={({ pressed }) => [{ alignItems: 'center', flex: 1 }, pressed && { opacity: 0.6 }]}
                       >
                         <Text style={{ fontSize: 11, fontWeight: '700', color: item.hours > 0 ? C.ink : 'transparent', marginBottom: 6 }}>
@@ -1378,7 +1351,7 @@ jobs:
                 <View style={{ height: 1, backgroundColor: C.line, marginVertical: 14, opacity: 0.7 }} />
 
                 {/* 3 Statistik di bawah */}
-                <Pressable onPress={showFullWeeklySchedule} style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' }}>
+                <Pressable onPress={() => setShowAllModal(true)} style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' }}>
                   <View style={{ alignItems: 'center' }}>
                     <Text style={{ fontSize: 22, fontWeight: '800', color: '#2E7D4F' }}>{tepatCount}</Text>
                     <Text style={{ fontSize: 12, color: C.mute, marginTop: 3, fontWeight: '600' }}>Tepat masa</Text>
@@ -1395,9 +1368,198 @@ jobs:
 
                 <View style={{ alignItems: 'center', marginTop: 10 }}>
                   <Text style={{ fontSize: 10, color: C.mute, fontStyle: 'italic' }}>
-                    * Klik pada mana-mana bar hari untuk melihat jadual & timestamp
+                    * Klik mana-mana bar hari untuk paparan jadual moden
                   </Text>
                 </View>
+
+                {/* MODAL 1: Popup Moden Butiran Satu Hari */}
+                <Modal visible={!!selectedDay} transparent animationType="fade" onRequestClose={() => setSelectedDay(null)}>
+                  <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                    <View style={{
+                      backgroundColor: C.card,
+                      borderRadius: 24,
+                      width: '100%',
+                      maxWidth: 360,
+                      padding: 20,
+                      borderWidth: 1.5,
+                      borderColor: C.line,
+                      shadowColor: '#000',
+                      shadowOpacity: 0.2,
+                      shadowRadius: 16,
+                      elevation: 8,
+                    }}>
+                      {/* Header Pop-up */}
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: C.line, paddingBottom: 14 }}>
+                        <View>
+                          <Text style={{ fontSize: 20, fontWeight: '800', color: C.ink }}>{selectedDay?.fullDay}</Text>
+                          <Text style={{ fontSize: 13, color: C.mute, marginTop: 2 }}>{selectedDay?.dateStr}</Text>
+                        </View>
+                        <View style={{
+                          paddingHorizontal: 12,
+                          paddingVertical: 6,
+                          borderRadius: 14,
+                          backgroundColor: selectedDay?.status === 'tepat' ? '#E8F5E9' : selectedDay?.status === 'lewat' ? '#FEF3C7' : C.field,
+                          borderWidth: 1,
+                          borderColor: selectedDay?.status === 'tepat' ? '#A7F3D0' : selectedDay?.status === 'lewat' ? '#FDE68A' : C.line
+                        }}>
+                          <Text style={{
+                            fontSize: 12,
+                            fontWeight: '800',
+                            color: selectedDay?.status === 'tepat' ? '#2E7D4F' : selectedDay?.status === 'lewat' ? '#D97706' : C.mute
+                          }}>
+                            {selectedDay?.status === 'tepat' ? 'Tepat Masa' : selectedDay?.status === 'lewat' ? 'Lewat' : 'Tiada Rekod'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Kotak Grid Waktu Masuk & Keluar */}
+                      <View style={{ flexDirection: 'row', gap: 12, marginVertical: 18 }}>
+                        {/* Kotak Masuk */}
+                        <View style={{
+                          flex: 1,
+                          backgroundColor: C.field,
+                          borderRadius: 16,
+                          padding: 14,
+                          borderWidth: 1,
+                          borderColor: C.line,
+                          alignItems: 'center'
+                        }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                            <MaterialIcons name="login" size={16} color="#2E7D4F" />
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: C.mute, textTransform: 'uppercase' }}>Masuk</Text>
+                          </View>
+                          <Text style={{ fontSize: 18, fontWeight: '800', color: C.ink }}>{selectedDay?.inTime}</Text>
+                        </View>
+
+                        {/* Kotak Keluar */}
+                        <View style={{
+                          flex: 1,
+                          backgroundColor: C.field,
+                          borderRadius: 16,
+                          padding: 14,
+                          borderWidth: 1,
+                          borderColor: C.line,
+                          alignItems: 'center'
+                        }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                            <MaterialIcons name="logout" size={16} color="#C4513A" />
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: C.mute, textTransform: 'uppercase' }}>Keluar</Text>
+                          </View>
+                          <Text style={{ fontSize: 18, fontWeight: '800', color: C.ink }}>{selectedDay?.outTime}</Text>
+                        </View>
+                      </View>
+
+                      {/* Kotak Jumlah Jam */}
+                      <View style={{
+                        backgroundColor: C.primarySoft || '#F8E5E1',
+                        borderRadius: 16,
+                        padding: 12,
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: 18,
+                        borderWidth: 1,
+                        borderColor: (C.line || '#E0D0CC') + '80'
+                      }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <MaterialIcons name="schedule" size={20} color={C.primary} />
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink }}>Jumlah Masa Bekerja</Text>
+                        </View>
+                        <Text style={{ fontSize: 15, fontWeight: '800', color: C.primary }}>
+                          {selectedDay?.hours > 0 ? `${selectedDay.hours} Jam` : '—'}
+                        </Text>
+                      </View>
+
+                      {/* Butang Tutup */}
+                      <Btn label="Tutup" onPress={() => setSelectedDay(null)} />
+                    </View>
+                  </View>
+                </Modal>
+
+                {/* MODAL 2: Popup Moden Jadual Lengkap 7 Hari */}
+                <Modal visible={showAllModal} transparent animationType="slide" onRequestClose={() => setShowAllModal(false)}>
+                  <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end' }}>
+                    <View style={{
+                      backgroundColor: C.card,
+                      borderTopLeftRadius: 28,
+                      borderTopRightRadius: 28,
+                      padding: 20,
+                      maxHeight: '85%',
+                      borderWidth: 1,
+                      borderColor: C.line,
+                      shadowColor: '#000',
+                      shadowOpacity: 0.25,
+                      shadowRadius: 16,
+                      elevation: 10,
+                    }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                        <View>
+                          <Text style={{ fontSize: 20, fontWeight: '800', color: C.ink }}>Jadual Kehadiran 7 Hari</Text>
+                          <Text style={{ fontSize: 12, color: C.mute, marginTop: 2 }}>Rekod mingguan diselaraskan dengan pelayan</Text>
+                        </View>
+                        <Pressable onPress={() => setShowAllModal(false)} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: C.field, alignItems: 'center', justifyContent: 'center' }}>
+                          <Text style={{ fontSize: 16, color: C.mute, fontWeight: '800' }}>✕</Text>
+                        </Pressable>
+                      </View>
+
+                      <ScrollView style={{ marginVertical: 6 }} showsVerticalScrollIndicator={false}>
+                        {weekDays.map((w, idx) => {
+                          const isTepat = w.status === 'tepat';
+                          const isLewat = w.status === 'lewat';
+                          return (
+                            <View key={idx} style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              backgroundColor: w.isToday ? (C.primarySoft || '#F8E5E1') : C.field,
+                              padding: 12,
+                              borderRadius: 16,
+                              marginBottom: 8,
+                              borderWidth: 1,
+                              borderColor: w.isToday ? C.primary : C.line
+                            }}>
+                              <View style={{ width: 85 }}>
+                                <Text style={{ fontSize: 14, fontWeight: '800', color: C.ink }}>{w.fullDay}</Text>
+                                <Text style={{ fontSize: 11, color: C.mute, marginTop: 1 }}>{w.dateStr}</Text>
+                              </View>
+
+                              <View style={{ alignItems: 'center', flex: 1 }}>
+                                <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink }}>
+                                  {w.inTime} - {w.outTime}
+                                </Text>
+                                <Text style={{ fontSize: 10, color: C.mute, marginTop: 1 }}>
+                                  {w.hours > 0 ? `${w.hours} jam` : 'Tiada masa'}
+                                </Text>
+                              </View>
+
+                              <View style={{
+                                width: 75,
+                                paddingVertical: 4,
+                                borderRadius: 10,
+                                backgroundColor: isTepat ? '#E8F5E9' : isLewat ? '#FEF3C7' : C.card,
+                                borderWidth: 1,
+                                borderColor: isTepat ? '#A7F3D0' : isLewat ? '#FDE68A' : C.line,
+                                alignItems: 'center'
+                              }}>
+                                <Text style={{
+                                  fontSize: 10,
+                                  fontWeight: '800',
+                                  color: isTepat ? '#2E7D4F' : isLewat ? '#D97706' : C.mute
+                                }}>
+                                  {isTepat ? 'TEPAT' : isLewat ? 'LEWAT' : 'TIADA'}
+                                </Text>
+                              </View>
+                            </View>
+                          );
+                        })}
+                      </ScrollView>
+
+                      <View style={{ marginTop: 10 }}>
+                        <Btn label="Tutup Jadual" onPress={() => setShowAllModal(false)} />
+                      </View>
+                    </View>
+                  </View>
+                </Modal>
               </View>
             );
           };
@@ -1475,8 +1637,8 @@ jobs:
                 <Top title="Profil Pengguna" onBack={back} />
                 <View style={{ padding: 16, gap: 14 }}>
                   <Card title="Maklumat Staf" icon="👤" tint={C.navy}>
-                    <Row icon="📛" k="Nama Penuh" v={name} tint={C.primary} />
-                    <Row icon="🔢" k="No. Staf" v={sd.staff_no || sess.staff_no} tint={C.navy} last />
+                    <Row icon="📛" k="Nama Penuh" v={name} tint={C.primary} stack={true} />
+                    <Row icon="🔢" k="No. Staf" v={sd.staff_no || sess.staff_no} tint={C.navy} last={!sd.staff_id} />
                     {sd.staff_id ? <Row icon="🆔" k="ID Staf Pelayan" v={String(sd.staff_id)} tint={C.primary} last /> : null}
                   </Card>
 
