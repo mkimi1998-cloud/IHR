@@ -612,7 +612,7 @@ jobs:
                     cat > 'package.json' <<'IHR_EOF'
           {
             "name": "ihr",
-            "version": "1.0.5",
+            "version": "1.0.6",
             "main": "node_modules/expo/AppEntry.js",
             "scripts": { "start": "expo start", "android": "expo run:android" },
             "dependencies": {
@@ -643,13 +643,13 @@ jobs:
             "expo": {
               "name": "iHR",
               "slug": "iHr",
-              "version": "1.0.5",
+              "version": "1.0.6",
               "orientation": "portrait",
               "userInterfaceStyle": "automatic",
               "icon": "./assets/icon.png",
               "android": {
                 "package": "my.gov.mtib.ihr.v2",
-                "versionCode": 6,
+                "versionCode": 7,
               "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#FFFFFF" },
                 "permissions": [
                   "android.permission.CAMERA",
@@ -684,7 +684,7 @@ jobs:
           IHR_EOF
           cat > 'App.js' <<'IHR_EOF'
           import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-          import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, useColorScheme, View, Switch, Modal } from 'react-native';
+          import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, useColorScheme, View, Switch } from 'react-native';
           import { StatusBar } from 'expo-status-bar';
           import * as Location from 'expo-location';
           import * as SecureStore from 'expo-secure-store';
@@ -693,7 +693,6 @@ jobs:
           import * as ImageManipulator from 'expo-image-manipulator';
           import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
           import * as ImagePicker from 'expo-image-picker';
-          import { WebView } from 'react-native-webview';
           import { BarCodeScanner } from 'expo-barcode-scanner';
           import { themes } from './src/theme';
           import { EP, addLocalTag, call, clearSession, deviceId, findPhoto, getLocalTags, kerjaLuarFields, loadSession, parseReference, peek, saveDeviceId, saveSession, unwrap } from './src/api';
@@ -1101,18 +1100,23 @@ jobs:
                       {now.toLocaleDateString('ms-MY', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                     </Text>
                   </View>
-
-                  <View style={s.statRow}>
-                    <Stat icon="📍" label="First Tagging" value={first || '—'} tint={C.primary} methodIcon={firstM ? getMethodIcon(firstM) : null} onPress={() => showTagInfo('First Tagging', true)} />
-                    <Stat icon="📌" label="Last Tagging" value={last || '—'} tint={C.navy} methodIcon={lastM ? getMethodIcon(lastM) : null} onPress={() => showTagInfo('Last Tagging', false)} />
-                  </View>
-
-                  <QuickActionBar go={go} />
-
-                  <WeeklySummaryCard tags={tags} todayFirst={first} todayLast={last} />
                   
                   <Err msg={err} />
                   {busy && !data ? <ActivityIndicator color={C.primaryText} /> : null}
+                  {data ? (
+                    <Card title="Hari ini" icon="🗓" tint={C.navy}>
+                      <View style={s.statRow}>
+                        <Stat icon="📍" label="First Tagging" value={first || '—'} tint={C.primary} methodIcon={firstM ? getMethodIcon(firstM) : null} onPress={() => showTagInfo('First Tagging', true)} />
+                        <Stat icon="📌" label="Last Tagging" value={last || '—'} tint={C.navy} methodIcon={lastM ? getMethodIcon(lastM) : null} onPress={() => showTagInfo('Last Tagging', false)} />
+                      </View>
+                      {!hasSrv ? <Text style={s.note}>Masa tagging direkod daripada app ini sahaja.</Text> : null}
+                      <Pressable onPress={() => Linking.openURL(PORTAL)} hitSlop={8}><Text style={s.link}>🌐 Lihat rekod kehadiran penuh di portal web ›</Text></Pressable>
+                    </Card>
+                  ) : null}
+                  <View style={{ gap: 10 }}>
+                    <Btn icon="📍" label="Geo Tagging" onPress={() => go('geo')} />
+                    <Btn icon="📷" label="Imbas QR" onPress={() => go('qr')} />
+                  </View>
                 </View>
                 
                 <View style={{ marginTop: 32, marginBottom: 10, alignItems: 'center' }}>
@@ -1151,728 +1155,6 @@ jobs:
             );
           };
           
-
-          const QuickActionBar = ({ go }) => {
-            const { C } = useT();
-            const items = [
-              { id: 'qr', label: 'Imbas QR', icon: 'qr-code-2' },
-              { id: 'geo', label: 'Geo Tagging', icon: 'location-on' },
-              { id: 'history', label: 'Sejarah', icon: 'access-time' },
-              { id: 'profile', label: 'Profil', icon: 'person-outline' },
-            ];
-            return (
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4, marginVertical: 6 }}>
-                {items.map((item) => (
-                  <Pressable
-                    key={item.id}
-                    onPress={() => go(item.id)}
-                    style={({ pressed }) => [{ alignItems: 'center', flex: 1 }, pressed && { opacity: 0.7 }]}
-                  >
-                    <View style={{
-                      width: 62,
-                      height: 62,
-                      borderRadius: 20,
-                      backgroundColor: C.primarySoft || '#F8E5E1',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderWidth: 1,
-                      borderColor: (C.line || '#E0D0CC') + '80',
-                      marginBottom: 8,
-                      shadowColor: '#000',
-                      shadowOpacity: 0.04,
-                      shadowRadius: 4,
-                      elevation: 1,
-                    }}>
-                      <MaterialIcons name={item.icon} size={28} color={C.primary} />
-                    </View>
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: C.ink, textAlign: 'center' }}>
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            );
-          };
-
-          const WeeklySummaryCard = ({ tags = [], todayFirst = null, todayLast = null }) => {
-            const { C, s } = useT();
-            const [selectedDay, setSelectedDay] = useState(null);
-            const [showAllModal, setShowAllModal] = useState(false);
-            const [serverRows, setServerRows] = useState([]);
-            
-            useEffect(() => {
-              const fetchServerData = async () => {
-                try {
-                  const stored = await SecureStore.getItemAsync('SYNCED_SERVER_ATTENDANCE');
-                  if (stored) {
-                    const parsed = JSON.parse(stored);
-                    if (Array.isArray(parsed) && parsed.length > 0) {
-                      setServerRows(parsed);
-                    }
-                  }
-                } catch (_) {}
-              };
-              fetchServerData();
-              const timer = setInterval(fetchServerData, 3000);
-              return () => clearInterval(timer);
-            }, []);
-
-            // Pengiraan 7 hari semasa (Ahd - Sab)
-            const dayNames = ['Ahd', 'Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab'];
-            const fullDayNames = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
-            const today = new Date();
-            const currentDayOfWeek = today.getDay(); // 0: Ahd, 1: Isn ... 6: Sab
-            
-            // Kira tarikh hari Ahad minggu ini
-            const sunday = new Date(today);
-            sunday.setDate(today.getDate() - currentDayOfWeek);
-            
-            // Bentuk data untuk 7 hari (Ahd - Sab)
-            const weekDays = [];
-            let tepatCount = 0;
-            let lewatCount = 0;
-            let tiadaCount = 0;
-
-            for (let i = 0; i < 7; i++) {
-              const d = new Date(sunday);
-              d.setDate(sunday.getDate() + i);
-              const isToday = d.toDateString() === today.toDateString();
-              const isPast = d <= today;
-              const isWeekend = (i === 0 || i === 6);
-              const dateFormatted = `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
-              
-              let hours = 0;
-              let status = 'tiada'; // 'tepat' | 'lewat' | 'tiada'
-              let inTime = '—';
-              let outTime = '—';
-              let notes = '';
-              let hasServerMatch = false;
-
-              // Cari padanan tarikh di dalam rekod jadual pelayan (serverRows)
-              if (serverRows.length > 0) {
-                const matched = serverRows.find(r => {
-                  const parts = String(r.date || '').split(/[-/]/);
-                  if (parts.length === 3) {
-                    return +parts[0] === d.getDate() && +parts[1] === (d.getMonth() + 1) && +parts[2] === d.getFullYear();
-                  }
-                  return false;
-                });
-
-                if (matched) {
-                  hasServerMatch = true;
-                  inTime = matched.clockIn ? matched.clockIn : (isToday && todayFirst ? todayFirst : '—');
-                  outTime = matched.clockOut ? matched.clockOut : (isToday && todayLast ? todayLast : '—');
-                  notes = matched.notes || '';
-
-                  if (inTime !== '—') {
-                    const mIn = /(\d{1,2}):(\d{2})\s*(AM|PM)?/i.exec(inTime);
-                    let hrIn = 0, mnIn = 0;
-                    if (mIn) {
-                      hrIn = (+mIn[1] % 12) + (/pm/i.test(mIn[3] || '') ? 12 : 0);
-                      mnIn = +mIn[2];
-                    }
-                    const isLate = hrIn > 9 || (hrIn === 9 && mnIn > 0);
-                    status = isLate ? 'lewat' : 'tepat';
-
-                    if (outTime !== '—') {
-                      const mOut = /(\d{1,2}):(\d{2})\s*(AM|PM)?/i.exec(outTime);
-                      if (mIn && mOut) {
-                        const hrOut = (+mOut[1] % 12) + (/pm/i.test(mOut[3] || '') ? 12 : 0);
-                        const mnOut = +mOut[2];
-                        const diffMins = (hrOut * 60 + mnOut) - (hrIn * 60 + mnIn);
-                        hours = diffMins > 0 ? parseFloat((diffMins / 60).toFixed(1)) : 8.0;
-                      } else {
-                        hours = 8.5;
-                      }
-                    } else {
-                      hours = isToday ? 8.0 : 8.0;
-                    }
-                  } else if (notes && /outdoor|kerja luar|cuti|mesyuarat/i.test(notes)) {
-                    inTime = 'Tugasan';
-                    outTime = notes;
-                    hours = 8.0;
-                    status = 'tepat';
-                  } else {
-                    status = 'tiada';
-                    hours = 0;
-                  }
-                }
-              }
-
-              // Jika tiada padanan pelayan (belum sync portal), guna data hari ini atau fallback
-              if (!hasServerMatch) {
-                if (isToday) {
-                  if (todayFirst) {
-                    inTime = todayFirst;
-                    outTime = todayLast || todayFirst;
-                    status = 'tepat';
-                    hours = 8.0;
-                    
-                    const m = /(\d{1,2}):(\d{2})\s*(AM|PM)/i.exec(String(todayFirst));
-                    if (m) {
-                      const hr = (+m[1] % 12) + (/pm/i.test(m[3]) ? 12 : 0);
-                      const mn = +m[2];
-                      if (hr > 9 || (hr === 9 && mn > 0)) {
-                        status = 'lewat';
-                      }
-                    }
-                    if (todayLast && todayLast !== todayFirst) {
-                      const mOut = /(\d{1,2}):(\d{2})\s*(AM|PM)/i.exec(String(todayLast));
-                      if (m && mOut) {
-                        const hIn = (+m[1] % 12) + (/pm/i.test(m[3]) ? 12 : 0) + (+m[2] / 60);
-                        const hOut = (+mOut[1] % 12) + (/pm/i.test(mOut[3]) ? 12 : 0) + (+mOut[2] / 60);
-                        if (hOut > hIn) {
-                          hours = parseFloat((hOut - hIn).toFixed(1));
-                        } else {
-                          hours = 8.5;
-                        }
-                      } else {
-                        hours = 8.5;
-                      }
-                    }
-                  } else {
-                    status = 'tiada';
-                  }
-                } else if (isPast && !isWeekend) {
-                  status = 'tiada';
-                  hours = 0;
-                } else if (isWeekend) {
-                  status = 'tiada';
-                  hours = 0;
-                }
-              }
-
-              if (status === 'tepat') tepatCount++;
-              else if (status === 'lewat') lewatCount++;
-              else tiadaCount++;
-
-              weekDays.push({
-                dayLabel: dayNames[i],
-                fullDay: fullDayNames[i],
-                dateStr: dateFormatted,
-                hours: hours,
-                status: status,
-                inTime: inTime,
-                outTime: outTime,
-                notes: notes,
-                isToday: isToday,
-              });
-            }
-
-            const maxH = Math.max(...weekDays.map(w => w.hours), 9.0);
-
-            return (
-              <View style={{
-                backgroundColor: C.card,
-                borderRadius: 22,
-                padding: 18,
-                borderWidth: 1,
-                borderColor: C.line,
-                elevation: 2,
-                shadowColor: '#000',
-                shadowOpacity: 0.05,
-                shadowRadius: 8,
-              }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <Pressable onPress={() => setShowAllModal(true)} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={{ fontSize: 18, fontWeight: '800', color: C.ink }}>Ringkasan 7 hari</Text>
-                    <MaterialIcons name="grid-view" size={17} color={C.primary} />
-                  </Pressable>
-                  <Pressable onPress={() => setShowAllModal(true)} style={{ backgroundColor: '#E8F5E9', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
-                    <Text style={{ color: '#2E7D4F', fontWeight: '800', fontSize: 12 }}>
-                      {`${tepatCount} TEPAT`}
-                    </Text>
-                  </Pressable>
-                </View>
-
-                {/* Carta Bar Mingguan - Diselaraskan dengan jadual pelayan */}
-                <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 130, paddingTop: 16 }}>
-                  {weekDays.map((item, idx) => {
-                    const barHeight = item.hours > 0 ? Math.max((item.hours / maxH) * 85, 20) : 8;
-                    const barColor = item.status === 'tepat' ? C.primary : item.status === 'lewat' ? '#D97706' : (C.line || '#E0E0E0');
-
-                    return (
-                      <Pressable 
-                        key={idx} 
-                        onPress={() => setSelectedDay(item)}
-                        style={({ pressed }) => [{ alignItems: 'center', flex: 1 }, pressed && { opacity: 0.6 }]}
-                      >
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: item.hours > 0 ? C.ink : 'transparent', marginBottom: 6 }}>
-                          {item.hours > 0 ? item.hours.toFixed(1) : '-'}
-                        </Text>
-                        <View style={{
-                          width: 32,
-                          height: barHeight,
-                          backgroundColor: barColor,
-                          borderRadius: 8,
-                        }} />
-                        <Text style={{ fontSize: 12, fontWeight: item.isToday ? '800' : '600', color: item.isToday ? C.primary : C.mute, marginTop: 8 }}>
-                          {item.dayLabel}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-
-                <View style={{ height: 1, backgroundColor: C.line, marginVertical: 14, opacity: 0.7 }} />
-
-                {/* 3 Statistik di bawah */}
-                <Pressable onPress={() => setShowAllModal(true)} style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' }}>
-                  <View style={{ alignItems: 'center' }}>
-                    <Text style={{ fontSize: 22, fontWeight: '800', color: '#2E7D4F' }}>{tepatCount}</Text>
-                    <Text style={{ fontSize: 12, color: C.mute, marginTop: 3, fontWeight: '600' }}>Tepat masa</Text>
-                  </View>
-                  <View style={{ alignItems: 'center' }}>
-                    <Text style={{ fontSize: 22, fontWeight: '800', color: '#D97706' }}>{lewatCount}</Text>
-                    <Text style={{ fontSize: 12, color: C.mute, marginTop: 3, fontWeight: '600' }}>Lewat</Text>
-                  </View>
-                  <View style={{ alignItems: 'center' }}>
-                    <Text style={{ fontSize: 22, fontWeight: '800', color: C.mute }}>{tiadaCount}</Text>
-                    <Text style={{ fontSize: 12, color: C.mute, marginTop: 3, fontWeight: '600' }}>Tiada rekod</Text>
-                  </View>
-                </Pressable>
-
-                <View style={{ alignItems: 'center', marginTop: 10 }}>
-                  <Text style={{ fontSize: 10, color: C.mute, fontStyle: 'italic' }}>
-                    {serverRows.length > 0 ? '✓ Diselaraskan dengan Portal Pelayan MTIB' : '* Buka tab Sejarah untuk selaraskan rekod rasmi portal'}
-                  </Text>
-                </View>
-
-                {/* MODAL 1: Popup Moden Butiran Satu Hari */}
-                <Modal visible={!!selectedDay} transparent animationType="fade" onRequestClose={() => setSelectedDay(null)}>
-                  <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-                    <View style={{
-                      backgroundColor: C.card,
-                      borderRadius: 24,
-                      width: '100%',
-                      maxWidth: 360,
-                      padding: 20,
-                      borderWidth: 1.5,
-                      borderColor: C.line,
-                      shadowColor: '#000',
-                      shadowOpacity: 0.2,
-                      shadowRadius: 16,
-                      elevation: 8,
-                    }}>
-                      {/* Header Pop-up */}
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: C.line, paddingBottom: 14 }}>
-                        <View>
-                          <Text style={{ fontSize: 20, fontWeight: '800', color: C.ink }}>{selectedDay?.fullDay}</Text>
-                          <Text style={{ fontSize: 13, color: C.mute, marginTop: 2 }}>{selectedDay?.dateStr}</Text>
-                        </View>
-                        <View style={{
-                          paddingHorizontal: 12,
-                          paddingVertical: 6,
-                          borderRadius: 14,
-                          backgroundColor: selectedDay?.status === 'tepat' ? '#E8F5E9' : selectedDay?.status === 'lewat' ? '#FEF3C7' : C.field,
-                          borderWidth: 1,
-                          borderColor: selectedDay?.status === 'tepat' ? '#A7F3D0' : selectedDay?.status === 'lewat' ? '#FDE68A' : C.line
-                        }}>
-                          <Text style={{
-                            fontSize: 12,
-                            fontWeight: '800',
-                            color: selectedDay?.status === 'tepat' ? '#2E7D4F' : selectedDay?.status === 'lewat' ? '#D97706' : C.mute
-                          }}>
-                            {selectedDay?.status === 'tepat' ? 'Tepat Masa' : selectedDay?.status === 'lewat' ? 'Lewat' : 'Tiada Rekod'}
-                          </Text>
-                        </View>
-                      </View>
-
-                      {/* Kotak Grid Waktu Masuk & Keluar */}
-                      <View style={{ flexDirection: 'row', gap: 12, marginVertical: 18 }}>
-                        {/* Kotak Masuk */}
-                        <View style={{
-                          flex: 1,
-                          backgroundColor: C.field,
-                          borderRadius: 16,
-                          padding: 14,
-                          borderWidth: 1,
-                          borderColor: C.line,
-                          alignItems: 'center'
-                        }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                            <MaterialIcons name="login" size={16} color="#2E7D4F" />
-                            <Text style={{ fontSize: 11, fontWeight: '700', color: C.mute, textTransform: 'uppercase' }}>Masuk</Text>
-                          </View>
-                          <Text style={{ fontSize: 17, fontWeight: '800', color: C.ink }}>{selectedDay?.inTime}</Text>
-                        </View>
-
-                        {/* Kotak Keluar */}
-                        <View style={{
-                          flex: 1,
-                          backgroundColor: C.field,
-                          borderRadius: 16,
-                          padding: 14,
-                          borderWidth: 1,
-                          borderColor: C.line,
-                          alignItems: 'center'
-                        }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                            <MaterialIcons name="logout" size={16} color="#C4513A" />
-                            <Text style={{ fontSize: 11, fontWeight: '700', color: C.mute, textTransform: 'uppercase' }}>Keluar</Text>
-                          </View>
-                          <Text style={{ fontSize: 17, fontWeight: '800', color: C.ink }}>{selectedDay?.outTime}</Text>
-                        </View>
-                      </View>
-
-                      {/* Kotak Jumlah Jam / Catatan */}
-                      <View style={{
-                        backgroundColor: C.primarySoft || '#F8E5E1',
-                        borderRadius: 16,
-                        padding: 12,
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: 18,
-                        borderWidth: 1,
-                        borderColor: (C.line || '#E0D0CC') + '80'
-                      }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                          <MaterialIcons name="schedule" size={20} color={C.primary} />
-                          <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink }}>
-                            {selectedDay?.notes ? selectedDay.notes : 'Jumlah Jam Bekerja'}
-                          </Text>
-                        </View>
-                        <Text style={{ fontSize: 15, fontWeight: '800', color: C.primary }}>
-                          {selectedDay?.hours > 0 ? `${selectedDay.hours} Jam` : '—'}
-                        </Text>
-                      </View>
-
-                      {/* Butang Tutup */}
-                      <Btn label="Tutup" onPress={() => setSelectedDay(null)} />
-                    </View>
-                  </View>
-                </Modal>
-
-                {/* MODAL 2: Popup Moden Jadual Lengkap 7 Hari */}
-                <Modal visible={showAllModal} transparent animationType="slide" onRequestClose={() => setShowAllModal(false)}>
-                  <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end' }}>
-                    <View style={{
-                      backgroundColor: C.card,
-                      borderTopLeftRadius: 28,
-                      borderTopRightRadius: 28,
-                      padding: 20,
-                      maxHeight: '85%',
-                      borderWidth: 1,
-                      borderColor: C.line,
-                      shadowColor: '#000',
-                      shadowOpacity: 0.25,
-                      shadowRadius: 16,
-                      elevation: 10,
-                    }}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                        <View>
-                          <Text style={{ fontSize: 20, fontWeight: '800', color: C.ink }}>Jadual Kehadiran 7 Hari</Text>
-                          <Text style={{ fontSize: 12, color: C.mute, marginTop: 2 }}>Rekod mingguan diselaraskan dengan pelayan rasmi</Text>
-                        </View>
-                        <Pressable onPress={() => setShowAllModal(false)} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: C.field, alignItems: 'center', justifyContent: 'center' }}>
-                          <Text style={{ fontSize: 16, color: C.mute, fontWeight: '800' }}>✕</Text>
-                        </Pressable>
-                      </View>
-
-                      <ScrollView style={{ marginVertical: 6 }} showsVerticalScrollIndicator={false}>
-                        {weekDays.map((w, idx) => {
-                          const isTepat = w.status === 'tepat';
-                          const isLewat = w.status === 'lewat';
-                          return (
-                            <View key={idx} style={{
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              backgroundColor: w.isToday ? (C.primarySoft || '#F8E5E1') : C.field,
-                              padding: 12,
-                              borderRadius: 16,
-                              marginBottom: 8,
-                              borderWidth: 1,
-                              borderColor: w.isToday ? C.primary : C.line
-                            }}>
-                              <View style={{ width: 85 }}>
-                                <Text style={{ fontSize: 14, fontWeight: '800', color: C.ink }}>{w.fullDay}</Text>
-                                <Text style={{ fontSize: 11, color: C.mute, marginTop: 1 }}>{w.dateStr}</Text>
-                              </View>
-
-                              <View style={{ alignItems: 'center', flex: 1 }}>
-                                <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink }}>
-                                  {w.inTime} - {w.outTime}
-                                </Text>
-                                <Text style={{ fontSize: 10, color: C.mute, marginTop: 1 }}>
-                                  {w.hours > 0 ? `${w.hours} jam` : (w.notes || 'Tiada masa')}
-                                </Text>
-                              </View>
-
-                              <View style={{
-                                width: 75,
-                                paddingVertical: 4,
-                                borderRadius: 10,
-                                backgroundColor: isTepat ? '#E8F5E9' : isLewat ? '#FEF3C7' : C.card,
-                                borderWidth: 1,
-                                borderColor: isTepat ? '#A7F3D0' : isLewat ? '#FDE68A' : C.line,
-                                alignItems: 'center'
-                              }}>
-                                <Text style={{
-                                  fontSize: 10,
-                                  fontWeight: '800',
-                                  color: isTepat ? '#2E7D4F' : isLewat ? '#D97706' : C.mute
-                                }}>
-                                  {isTepat ? 'TEPAT' : isLewat ? 'LEWAT' : 'TIADA'}
-                                </Text>
-                              </View>
-                            </View>
-                          );
-                        })}
-                      </ScrollView>
-
-                      <View style={{ marginTop: 10 }}>
-                        <Btn label="Tutup Jadual" onPress={() => setShowAllModal(false)} />
-                      </View>
-                    </View>
-                  </View>
-                </Modal>
-              </View>
-            );
-          };
-
-          const HistoryView = ({ sess, back }) => {
-            const { C, s } = useT();
-            const [tab, setTab] = useState('web'); // 'web' | 'local'
-            const [tags, setTags] = useState([]);
-            const [details, setDetails] = useState([]);
-            const [webLoading, setWebLoading] = useState(true);
-            const [syncCount, setSyncCount] = useState(0);
-            const webViewRef = useRef(null);
-
-            useEffect(() => {
-              (async () => {
-                setTags(await getLocalTags());
-                const d = new Date();
-                const detailKey = `TAG_DETAILS_${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-                const dt = await SecureStore.getItemAsync(detailKey);
-                if (dt) setDetails(JSON.parse(dt));
-                const syn = await SecureStore.getItemAsync('SYNCED_SERVER_ATTENDANCE');
-                if (syn) {
-                  const p = JSON.parse(syn);
-                  if (Array.isArray(p)) setSyncCount(p.length);
-                }
-              })();
-            }, []);
-
-            const onWebMessage = async (event) => {
-              try {
-                const msg = JSON.parse(event.nativeEvent.data);
-                if (msg.type === 'ATTENDANCE_TABLE' && Array.isArray(msg.data) && msg.data.length > 0) {
-                  await SecureStore.setItemAsync('SYNCED_SERVER_ATTENDANCE', JSON.stringify(msg.data));
-                  setSyncCount(msg.data.length);
-                }
-              } catch (_) {}
-            };
-
-            const scraperScript = `
-              (function() {
-                function scrape() {
-                  try {
-                    var rows = document.querySelectorAll('table tr');
-                    var results = [];
-                    for (var i = 0; i < rows.length; i++) {
-                      var cells = rows[i].querySelectorAll('td');
-                      if (cells.length >= 4) {
-                        var dateText = cells[0].innerText.trim();
-                        var dayText = cells[1].innerText.trim();
-                        var inText = cells[2].innerText.trim();
-                        var outText = cells[3].innerText.trim();
-                        var diffText = cells.length > 4 ? cells[4].innerText.trim() : '';
-                        var notesText = cells.length > 5 ? cells[5].innerText.trim() : '';
-                        
-                        if (/\\d+[-/\\.]\\d+[-/\\.]\\d+/.test(dateText)) {
-                          var inMatch = /(\\d{1,2}:\\d{2}\\s*(?:AM|PM)?)/i.exec(inText);
-                          var outMatch = /(\\d{1,2}:\\d{2}\\s*(?:AM|PM)?)/i.exec(outText);
-                          results.push({
-                            date: dateText,
-                            day: dayText,
-                            clockIn: inMatch ? inMatch[1] : '',
-                            clockOut: outMatch ? outMatch[1] : '',
-                            diff: diffText,
-                            notes: notesText
-                          });
-                        }
-                      }
-                    }
-                    if (results.length > 0 && window.ReactNativeWebView) {
-                      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ATTENDANCE_TABLE', data: results }));
-                    }
-                  } catch (e) {}
-                }
-                scrape();
-                setTimeout(scrape, 1500);
-                setTimeout(scrape, 3500);
-              })();
-              true;
-            `;
-
-            return (
-              <View style={{ flex: 1, backgroundColor: C.bg }}>
-                <Top title="Rekod Kehadiran" onBack={back} />
-                
-                {/* Tab Switcher */}
-                <View style={{ flexDirection: 'row', padding: 12, backgroundColor: C.card, borderBottomWidth: 1, borderBottomColor: C.line, gap: 8 }}>
-                  <Pressable
-                    onPress={() => setTab('web')}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 10,
-                      borderRadius: 14,
-                      backgroundColor: tab === 'web' ? C.primary : C.field,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderWidth: 1,
-                      borderColor: tab === 'web' ? C.primary : C.line,
-                    }}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <MaterialIcons name="cloud-sync" size={18} color={tab === 'web' ? C.onPrimary : C.ink} />
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: tab === 'web' ? C.onPrimary : C.ink }}>
-                        Portal MTIB (Live)
-                      </Text>
-                    </View>
-                  </Pressable>
-
-                  <Pressable
-                    onPress={() => setTab('local')}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 10,
-                      borderRadius: 14,
-                      backgroundColor: tab === 'local' ? C.primary : C.field,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderWidth: 1,
-                      borderColor: tab === 'local' ? C.primary : C.line,
-                    }}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <MaterialIcons name="devices" size={18} color={tab === 'local' ? C.onPrimary : C.ink} />
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: tab === 'local' ? C.onPrimary : C.ink }}>
-                        Log Peranti
-                      </Text>
-                    </View>
-                  </Pressable>
-                </View>
-
-                {tab === 'web' ? (
-                  <View style={{ flex: 1 }}>
-                    {/* Bar Aksi Pantas Pelayan */}
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: C.field, borderBottomWidth: 1, borderBottomColor: C.line }}>
-                      <Text style={{ fontSize: 11, color: syncCount > 0 ? '#2E7D4F' : C.mute, fontWeight: '700' }}>
-                        {syncCount > 0 ? `✓ ${syncCount} rekod diselaraskan` : '🌐 ihr.mtib.gov.my'}
-                      </Text>
-                      <View style={{ flexDirection: 'row', gap: 8 }}>
-                        <Pressable 
-                          onPress={() => webViewRef.current?.reload()} 
-                          style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: C.card, borderWidth: 1, borderColor: C.line }}
-                        >
-                          <MaterialIcons name="refresh" size={14} color={C.primary} />
-                          <Text style={{ fontSize: 11, fontWeight: '700', color: C.primary, marginLeft: 4 }}>Segar Semula</Text>
-                        </Pressable>
-                        <Pressable 
-                          onPress={() => Linking.openURL(PORTAL)} 
-                          style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: C.card, borderWidth: 1, borderColor: C.line }}
-                        >
-                          <MaterialIcons name="open-in-browser" size={14} color={C.primary} />
-                          <Text style={{ fontSize: 11, fontWeight: '700', color: C.primary, marginLeft: 4 }}>Pelayar</Text>
-                        </Pressable>
-                      </View>
-                    </View>
-
-                    {/* Tetingkap Langsung Portal MTIB dengan Auto-Scrape */}
-                    <WebView
-                      ref={webViewRef}
-                      source={{ uri: PORTAL }}
-                      style={{ flex: 1 }}
-                      injectedJavaScript={scraperScript}
-                      onMessage={onWebMessage}
-                      onLoadStart={() => setWebLoading(true)}
-                      onLoadEnd={() => {
-                        setWebLoading(false);
-                        webViewRef.current?.injectJavaScript(scraperScript);
-                      }}
-                      startInLoadingState={true}
-                      renderLoading={() => (
-                        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg }}>
-                          <ActivityIndicator size="large" color={C.primary} />
-                          <Text style={{ marginTop: 12, color: C.mute, fontSize: 13, fontWeight: '600' }}>
-                            Menyegerakkan rekod kehadiran portal ke aplikasi…
-                          </Text>
-                        </View>
-                      )}
-                      javaScriptEnabled={true}
-                      domStorageEnabled={true}
-                      sharedCookiesEnabled={true}
-                      thirdPartyCookiesEnabled={true}
-                    />
-                  </View>
-                ) : (
-                  <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 14 }}>
-                    <Card title="Log Kehadiran Hari Ini (Peranti)" icon="⏱" tint={C.primary}>
-                      {details.length === 0 ? (
-                        <Text style={{ color: C.mute, fontStyle: 'italic', paddingVertical: 8 }}>
-                          Belum ada imbasan atau geotagging yang dibuat pada peranti hari ini.
-                        </Text>
-                      ) : (
-                        details.map((item, index) => {
-                          const timeStr = new Date(item.t).toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                          const isQr = item.m === 'qr';
-                          return (
-                            <View key={index} style={{ paddingVertical: 10, borderBottomWidth: index === details.length - 1 ? 0 : 1, borderBottomColor: C.line }}>
-                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                  <MaterialIcons name={isQr ? "qr-code-2" : "location-on"} size={20} color={C.primary} />
-                                  <Text style={{ fontSize: 14, fontWeight: '700', color: C.ink }}>
-                                    {isQr ? 'Imbasan Kod QR' : 'Geotagging Foto'}
-                                  </Text>
-                                </View>
-                                <Text style={{ fontSize: 13, fontWeight: '700', color: C.primary }}>{timeStr}</Text>
-                              </View>
-                              <Text style={{ fontSize: 12, color: C.mute, marginTop: 4 }}>
-                                📍 {item.address || (item.lat ? `${item.lat.toFixed(5)}, ${item.lng.toFixed(5)}` : 'Lokasi tidak dikesan')}
-                              </Text>
-                            </View>
-                          );
-                        })
-                      )}
-                    </Card>
-                  </ScrollView>
-                )}
-              </View>
-            );
-          };
-
-          const ProfileView = ({ sess, back, onLogout, photo, data }) => {
-            const { C, s } = useT();
-            const sd = data?.staff_data || {};
-            const name = sd.name || sess.name || 'Pengguna';
-
-            return (
-              <ScrollView keyboardShouldPersistTaps="handled">
-                <Top title="Profil Pengguna" onBack={back} />
-                <View style={{ padding: 16, gap: 14 }}>
-                  <Card title="Maklumat Staf" icon="👤" tint={C.navy}>
-                    <Row icon="📛" k="Nama Penuh" v={name} tint={C.primary} stack={true} />
-                    <Row icon="🔢" k="No. Staf" v={sd.staff_no || sess.staff_no} tint={C.navy} last={!sd.staff_id} />
-                    {sd.staff_id ? <Row icon="🆔" k="ID Staf Pelayan" v={String(sd.staff_id)} tint={C.primary} last /> : null}
-                  </Card>
-
-                  <Card title="Portal & Pautan" icon="🔗" tint={C.primary}>
-                    <Btn 
-                      icon="🌐" 
-                      label="Buka Portal iHR MTIB" 
-                      onPress={() => Linking.openURL('https://ihr.mtib.gov.my')} 
-                      kind="ghost"
-                    />
-                  </Card>
-                </View>
-              </ScrollView>
-            );
-          };
-
           function Cam({ mode, sess, back }) {
             const { C, s } = useT();
             const [perm, ask] = useCameraPermissions(); const ref = useRef(null); const loc = useFix();
@@ -2051,19 +1333,10 @@ jobs:
             const home = () => setView('home');
             
             let body;
-            const doLogout = () => {
-              Alert.alert('Daftar Keluar', 'Adakah anda pasti mahu kembali ke paparan pendaftaran?', [
-                { text: 'Batal', style: 'cancel' },
-                { text: 'Ya', onPress: async () => { await clearSession(); setLogoutData(sess); setSess(null); setView('home'); } }
-              ]);
-            };
-
             if (sess === undefined) body = <View style={s.center}><ActivityIndicator size="large" color={C.primary} /></View>;
             else if (!sess) body = <Register onDone={setSess} initialName={logoutData?.name || ''} initialNo={logoutData?.staff_no || ''} />;
             else if (view === 'qr') body = <Cam mode="qr" sess={sess} back={home} />;
             else if (view === 'geo') body = <Cam mode="photo" sess={sess} back={home} />;
-            else if (view === 'history') body = <HistoryView sess={sess} back={home} />;
-            else if (view === 'profile') body = <ProfileView sess={sess} back={home} onLogout={doLogout} />;
             else body = <Dashboard sess={sess} go={setView} onSess={setSess} onLogout={(oldSess) => { setLogoutData(oldSess); setSess(null); }} />;
             
             return (<ThemeCtx.Provider value={{ C, s, scheme }}><SafeAreaView style={s.root}><StatusBar style={scheme === 'dark' ? 'light' : 'dark'} backgroundColor={C.bg} />{Platform.OS === 'android' ? <View style={{ height: RNBar.currentHeight || 0, backgroundColor: C.bg }} /> : null}{body}</SafeAreaView></ThemeCtx.Provider>);
@@ -2368,3 +1641,14 @@ jobs:
         with:
           name: iHR-apk
           path: app/android/app/build/outputs/apk/release/*.apk
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        with:
+          files: app/android/app/build/outputs/apk/release/*.apk
+          tag_name: ${{ github.ref_name || 'v1.0.6' }}
+          name: iHR Release ${{ github.ref_name || 'v1.0.6' }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
