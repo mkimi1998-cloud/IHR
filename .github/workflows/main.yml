@@ -787,7 +787,7 @@ jobs:
                     <Text style={s.cardT}>{title}</Text>
                     {!open && summary ? <Text numberOfLines={1} style={{ color: warn ? C.bad : strong ? C.ink : C.mute, fontSize: 13, fontWeight: strong ? '600' : '400', marginTop: 2 }}>{summary}</Text> : null}
                   </View>
-                  <Text style={{ color: C.mute }}>{open ? 'â–²' : 'â–¼'}</Text>
+                  <Text style={{ color: C.mute }}>{open ? '▲' : '▼'}</Text>
                 </Pressable>
                 {open ? children : null}
               </View>
@@ -835,7 +835,7 @@ jobs:
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
                   {onBack ? (
                     <Pressable onPress={onBack} hitSlop={12} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.field, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.line }}>
-                      <Text style={{ color: C.ink, fontSize: 24, lineHeight: 28, marginLeft: -2 }}>â€¹</Text>
+                      <Text style={{ color: C.ink, fontSize: 24, lineHeight: 28, marginLeft: -2 }}>‹</Text>
                     </Pressable>
                   ) : null}
                   <Pressable onLongPress={onTitleLongPress}>
@@ -851,7 +851,7 @@ jobs:
               <View style={{ gap: 6 }}>
                 <Pressable onPress={() => setOpen(!open)} style={[s.in, s.sel]}>
                   <Text style={{ color: value ? C.ink : C.mute, fontSize: 16, flex: 1 }}>{value || placeholder}</Text>
-                  <Text style={{ color: C.mute }}>{open ? 'â–²' : 'â–¼'}</Text>
+                  <Text style={{ color: C.mute }}>{open ? '▲' : '▼'}</Text>
                 </Pressable>
                 {open ? (<View style={s.selList}>{options.map((o, i) => (
                   <Pressable key={o} onPress={() => { onPick(o); setOpen(false); }} style={[s.selItem, i === options.length - 1 && { borderBottomWidth: 0 }, o === value && { backgroundColor: C.primarySoft }]}>
@@ -866,7 +866,7 @@ jobs:
               value: parseYMD(value), mode: 'date', minimumDate: min ? parseYMD(min) : undefined,
               onChange: (e, d) => { if (e?.type === 'set' && d) onPick(toYMD(d)); },
             });
-            return (<Pressable onPress={open} style={[s.in, s.sel]}><Text style={{ color: C.ink, fontSize: 16, flex: 1 }}>{toDMY(value)}</Text><Text style={{ fontSize: 16 }}>ðŸ“…</Text></Pressable>);
+            return (<Pressable onPress={open} style={[s.in, s.sel]}><Text style={{ color: C.ink, fontSize: 16, flex: 1 }}>{toDMY(value)}</Text><Text style={{ fontSize: 16 }}>📅</Text></Pressable>);
           };
           
           function Register({ onDone, initialName = '', initialNo = '' }) {
@@ -917,7 +917,7 @@ jobs:
                   </Pressable>
                 </View>
                 <View style={{ padding: 16, gap: 14 }}>
-                  <Card title="Daftar Pengguna Baru" icon="ðŸ‘¤" tint={C.navy}>
+                  <Card title="Daftar Pengguna Baru" icon="👤" tint={C.navy}>
                     <Text style={s.lbl}>Nama penuh</Text>
                     <TextInput style={s.in} value={name} onChangeText={setName} placeholder="Seperti dalam kad pengenalan" placeholderTextColor={C.mute} />
                     <Text style={s.lbl}>Nombor staff</Text>
@@ -925,7 +925,7 @@ jobs:
                     <Err msg={err} />
                     <Btn label={initialNo ? "Log Masuk" : "Daftar"} onPress={submit} busy={busy} />
                   </Card>
-                  {adv ? (<Card title="Tetapan lanjutan" icon="âš™ï¸" tint={C.navy}>
+                  {adv ? (<Card title="Tetapan lanjutan" icon="⚙️" tint={C.navy}>
                     <Text style={s.lbl}>ID peranti. Tukar hanya jika perlu guna ID yang sudah didaftarkan untuk telefon ini.</Text>
                     <TextInput style={s.in} value={dev} onChangeText={setDev} autoCapitalize="none" autoCorrect={false} />
                     <Btn kind="ghost" label="Sudah berdaftar - teruskan" onPress={cont} />
@@ -1023,7 +1023,7 @@ jobs:
               const timeVal = isFirst ? first : last;
               const legacyMethod = isFirst ? firstM : lastM;
               const detail = (isFirst || lastMs === firstMs) ? tagDetails[0] : tagDetails[tagDetails.length - 1];
-              if (!timeVal || timeVal === 'â€”') {
+              if (!timeVal || timeVal === '—') {
                 Alert.alert(title, "Belum ada rekod kehadiran.");
                 return;
               }
@@ -1062,7 +1062,7 @@ jobs:
                   <View style={{ alignItems: 'flex-end' }}>
                     <Pressable onPress={handleLogout} style={s.status}>
                       <View style={[s.dot, { backgroundColor: online == null ? C.mute : online ? C.ok : C.bad }]} />
-                      <Text style={s.statusT}>{online == null ? 'Menyemakâ€¦' : online ? `Dalam talian ${at}` : 'Luar talian'}</Text>
+                      <Text style={s.statusT}>{online == null ? 'Menyemak…' : online ? `Dalam talian ${at}` : 'Luar talian'}</Text>
                     </Pressable>
                     <Pressable onPress={load} disabled={busy} hitSlop={10} style={{ paddingHorizontal: 10, paddingVertical: 6, marginTop: 8, flexDirection: 'row', alignItems: 'center', backgroundColor: C.field, borderRadius: 14, borderWidth: 1, borderColor: C.line }}>
                       {busy ? <ActivityIndicator size="small" color={C.primaryText} /> : (
@@ -1107,23 +1107,23 @@ jobs:
                   <Err msg={err} />
                   {busy && !data ? <ActivityIndicator color={C.primaryText} /> : null}
                   {data ? (
-                    <Card title="Hari ini" icon="ðŸ—“" tint={C.navy}>
+                    <Card title="Hari ini" icon="🗓" tint={C.navy}>
                       <View style={s.statRow}>
-                        <Stat icon="ðŸ“" label="First Tagging" value={first || 'â€”'} tint={C.primary} methodIcon={firstM ? getMethodIcon(firstM) : null} onPress={() => showTagInfo('First Tagging', true)} />
-                        <Stat icon="ðŸ“Œ" label="Last Tagging" value={last || 'â€”'} tint={C.navy} methodIcon={lastM ? getMethodIcon(lastM) : null} onPress={() => showTagInfo('Last Tagging', false)} />
+                        <Stat icon="📍" label="First Tagging" value={first || '—'} tint={C.primary} methodIcon={firstM ? getMethodIcon(firstM) : null} onPress={() => showTagInfo('First Tagging', true)} />
+                        <Stat icon="📌" label="Last Tagging" value={last || '—'} tint={C.navy} methodIcon={lastM ? getMethodIcon(lastM) : null} onPress={() => showTagInfo('Last Tagging', false)} />
                       </View>
                       {!hasSrv ? <Text style={s.note}>Masa tagging direkod daripada app ini sahaja.</Text> : null}
-                      <Pressable onPress={() => Linking.openURL(PORTAL)} hitSlop={8}><Text style={s.link}>ðŸŒ Lihat rekod kehadiran penuh di portal web â€º</Text></Pressable>
+                      <Pressable onPress={() => Linking.openURL(PORTAL)} hitSlop={8}><Text style={s.link}>🌐 Lihat rekod kehadiran penuh di portal web ›</Text></Pressable>
                     </Card>
                   ) : null}
                   <View style={{ gap: 10 }}>
-                    <Btn icon="ðŸ“" label="Geo Tagging" onPress={() => go('geo')} />
-                    <Btn icon="ðŸ“·" label="Imbas QR" onPress={() => go('qr')} />
+                    <Btn icon="📍" label="Geo Tagging" onPress={() => go('geo')} />
+                    <Btn icon="📷" label="Imbas QR" onPress={() => go('qr')} />
                   </View>
                 </View>
                 
                 <View style={{ marginTop: 32, marginBottom: 10, alignItems: 'center' }}>
-                  <Text style={{ color: C.mute, fontSize: 12, fontWeight: '600' }}>Copyright Â© 2026 MTIB</Text>
+                  <Text style={{ color: C.mute, fontSize: 12, fontWeight: '600' }}>Copyright © 2026 MTIB</Text>
                 </View>
               </ScrollView>
             );
@@ -1144,16 +1144,16 @@ jobs:
           
           const Loc = ({ fix, err, get }) => {
             const { C } = useT(); const [open, setOpen] = useState(false);
-            const summary = fix ? `${fix.latitude.toFixed(5)}, ${fix.longitude.toFixed(5)} Â· Â± ${Math.round(fix.accuracy || 0)} m` : (err || 'Mengesan lokasiâ€¦');
+            const summary = fix ? `${fix.latitude.toFixed(5)}, ${fix.longitude.toFixed(5)} · ± ${Math.round(fix.accuracy || 0)} m` : (err || 'Mengesan lokasi…');
             return (
-              <Collapse title="Lokasi semasa" icon="ðŸ›°" tint={C.navy} summary={summary} warn={!fix && !!err} open={open} onToggle={() => setOpen(!open)}>
+              <Collapse title="Lokasi semasa" icon="🛰" tint={C.navy} summary={summary} warn={!fix && !!err} open={open} onToggle={() => setOpen(!open)}>
                 {fix ? <>
-                  <Row icon="ðŸ§­" k="Latitud" v={fix.latitude.toFixed(6)} tint={C.navy} />
-                  <Row icon="ðŸ§­" k="Longitud" v={fix.longitude.toFixed(6)} tint={C.navy} />
-                  <Row icon="ðŸŽ¯" k="Ketepatan" v={`Â± ${Math.round(fix.accuracy || 0)} m`} tint={C.primary} last /></>
-                  : <Text style={{ color: C.mute }}>{err || 'Mengesan lokasiâ€¦'}</Text>}
+                  <Row icon="🧭" k="Latitud" v={fix.latitude.toFixed(6)} tint={C.navy} />
+                  <Row icon="🧭" k="Longitud" v={fix.longitude.toFixed(6)} tint={C.navy} />
+                  <Row icon="🎯" k="Ketepatan" v={`± ${Math.round(fix.accuracy || 0)} m`} tint={C.primary} last /></>
+                  : <Text style={{ color: C.mute }}>{err || 'Mengesan lokasi…'}</Text>}
                 <Err msg={fix ? '' : err} />
-                <Btn kind="ghost" icon="ðŸ”„" label="Kesan semula" onPress={get} />
+                <Btn kind="ghost" icon="🔄" label="Kesan semula" onPress={get} />
               </Collapse>
             );
           };
@@ -1365,18 +1365,18 @@ jobs:
               <ScrollView keyboardShouldPersistTaps="handled">
                 <Top title="Sejarah Kehadiran" onBack={back} />
                 <View style={{ padding: 16, gap: 14 }}>
-                  <Card title="Portal Rekod Kehadiran Rasmi" icon="ðŸŒ" tint={C.navy}>
+                  <Card title="Portal Rekod Kehadiran Rasmi" icon="🌐" tint={C.navy}>
                     <Text style={{ color: C.mute, fontSize: 13, lineHeight: 18 }}>
                       Untuk melihat rekod kehadiran penuh bulanan, waktu fleksi, serta kelulusan kerja luar/BDR, sila buka portal rasmi MTIB.
                     </Text>
                     <Btn 
-                      icon="ðŸ”—" 
+                      icon="🔗" 
                       label="Buka Portal Kehadiran MTIB" 
                       onPress={() => Linking.openURL(PORTAL)} 
                     />
                   </Card>
 
-                  <Card title="Log Kehadiran Hari Ini (Peranti)" icon="â±" tint={C.primary}>
+                  <Card title="Log Kehadiran Hari Ini (Peranti)" icon="⏱" tint={C.primary}>
                     {details.length === 0 ? (
                       <Text style={{ color: C.mute, fontStyle: 'italic', paddingVertical: 8 }}>
                         Belum ada imbasan atau geotagging yang dibuat pada peranti hari ini.
@@ -1397,7 +1397,7 @@ jobs:
                               <Text style={{ fontSize: 13, fontWeight: '700', color: C.primary }}>{timeStr}</Text>
                             </View>
                             <Text style={{ fontSize: 12, color: C.mute, marginTop: 4 }}>
-                              ðŸ“ {item.address || (item.lat ? `${item.lat.toFixed(5)}, ${item.lng.toFixed(5)}` : 'Lokasi tidak dikesan')}
+                              📍 {item.address || (item.lat ? `${item.lat.toFixed(5)}, ${item.lng.toFixed(5)}` : 'Lokasi tidak dikesan')}
                             </Text>
                           </View>
                         );
@@ -1419,16 +1419,16 @@ jobs:
               <ScrollView keyboardShouldPersistTaps="handled">
                 <Top title="Profil Pengguna" onBack={back} />
                 <View style={{ padding: 16, gap: 14 }}>
-                  <Card title="Maklumat Staf" icon="ðŸ‘¤" tint={C.navy}>
-                    <Row icon="ðŸ“›" k="Nama Penuh" v={name} tint={C.primary} />
-                    <Row icon="ðŸ”¢" k="No. Staf" v={sd.staff_no || sess.staff_no} tint={C.navy} />
-                    {sd.staff_id ? <Row icon="ðŸ†”" k="ID Staf Pelayan" v={String(sd.staff_id)} tint={C.primary} /> : null}
-                    <Row icon="ðŸ“±" k="ID Peranti (IMEI)" v={dev} selectable tint={C.navy} last />
+                  <Card title="Maklumat Staf" icon="👤" tint={C.navy}>
+                    <Row icon="📛" k="Nama Penuh" v={name} tint={C.primary} />
+                    <Row icon="🔢" k="No. Staf" v={sd.staff_no || sess.staff_no} tint={C.navy} />
+                    {sd.staff_id ? <Row icon="🆔" k="ID Staf Pelayan" v={String(sd.staff_id)} tint={C.primary} /> : null}
+                    <Row icon="📱" k="ID Peranti (IMEI)" v={dev} selectable tint={C.navy} last />
                   </Card>
 
-                  <Card title="Portal & Pautan" icon="ðŸ”—" tint={C.primary}>
+                  <Card title="Portal & Pautan" icon="🔗" tint={C.primary}>
                     <Btn 
-                      icon="ðŸŒ" 
+                      icon="🌐" 
                       label="Buka Portal iHR MTIB" 
                       onPress={() => Linking.openURL('https://ihr.mtib.gov.my')} 
                       kind="ghost"
@@ -1436,7 +1436,7 @@ jobs:
                   </Card>
 
                   <Btn 
-                    icon="ðŸšª" 
+                    icon="🚪" 
                     label="Daftar Keluar Akaun" 
                     onPress={onLogout} 
                   />
@@ -1581,23 +1581,23 @@ jobs:
                     <Text style={s.lbl}>Manual Longitud</Text>
                     <TextInput style={s.in} keyboardType="numeric" value={String(loc.fix?.longitude || '')} onChangeText={t => loc.setFix(f => ({...f, longitude: parseFloat(t) || 0, accuracy: 1}))} />
                     {mode === 'qr' && (
-                      <Btn label="Muat Naik QR dari Galeri" onPress={pickQr} icon="ðŸ–¼" kind="ghost" />
+                      <Btn label="Muat Naik QR dari Galeri" onPress={pickQr} icon="🖼" kind="ghost" />
                     )}
                   </View>
                 )}
                 <View style={{ padding: 16, gap: 14 }}>
                 {shot ? <Image source={{ uri: shot.uri }} style={s.cam} /> :
                   <CameraView ref={ref} style={s.cam} facing={mode === 'qr' ? 'back' : 'front'} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={mode === 'qr' ? onQr : undefined} />}
-                {mode === 'photo' ? (shot ? <><Btn icon="ðŸ“¤" label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" icon="ðŸ”„" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn icon="ðŸ“·" label="Ambil Gambar" onPress={snap} />)
-                  : (done && !busy ? <Btn kind="ghost" icon="ðŸ”„" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? 'Menghantarâ€¦' : 'Halakan kamera ke kod QR.'}</Text>)}
+                {mode === 'photo' ? (shot ? <><Btn icon="📤" label="Hantar gambar" onPress={sendPhoto} busy={busy} /><Btn kind="ghost" icon="🔄" label="Ambil semula" onPress={() => { setShot(null); setOk(''); }} /></> : <Btn icon="📷" label="Ambil Gambar" onPress={snap} />)
+                  : (done && !busy ? <Btn kind="ghost" icon="🔄" label="Imbas semula" onPress={() => { setDone(false); setErr(''); setOk(''); }} /> : <Text style={s.hint}>{busy ? 'Menghantar…' : 'Halakan kamera ke kod QR.'}</Text>)}
                 <Err msg={err} /><Ok msg={ok} />
                 <Loc {...loc} />
                 {mode === 'photo' ? (
-                  <Collapse title="Jenis kehadiran" icon="ðŸ—‚" tint={C.primary} summary={act ? ACTS.find(([v]) => v === act)[1] : 'Pilih jenis kehadiran'} strong={!!act} open={actOpen} onToggle={() => setActOpen(!actOpen)}>
+                  <Collapse title="Jenis kehadiran" icon="🗂" tint={C.primary} summary={act ? ACTS.find(([v]) => v === act)[1] : 'Pilih jenis kehadiran'} strong={!!act} open={actOpen} onToggle={() => setActOpen(!actOpen)}>
                     {ACTS.map(([v, l]) => (<Pressable key={v} onPress={() => { setAct(v); setActOpen(false); }} style={[s.opt, act === v && s.optOn]}><Text style={{ color: act === v ? C.onPrimary : C.ink, fontWeight: '600' }}>{l}</Text></Pressable>))}
                   </Collapse>
                 ) : null}
-                {mode === 'photo' && act === 3 ? (<Card title="Butiran Kerja Luar" icon="ðŸ§³" tint={C.primary}>
+                {mode === 'photo' && act === 3 ? (<Card title="Butiran Kerja Luar" icon="🧳" tint={C.primary}>
                     <Text style={s.lbl}>Jenis Kerja Luar</Text>
                     <Select value={klType} placeholder="Pilih Jenis Kerja Luar" options={opts.map((o) => o.label)} onPick={setKlType} />
                     <Text style={s.lbl}>Alasan</Text>
@@ -1795,7 +1795,7 @@ jobs:
             if (obj == null || out.length > 30) return out;
             if (typeof obj !== 'object') { out.push([prefix, String(obj)]); return out; }
             Object.entries(obj).forEach(([k, v]) => {
-              const key = prefix ? `${prefix} Â· ${k}` : k;
+              const key = prefix ? `${prefix} · ${k}` : k;
               if (v && typeof v === 'object') rows(v, key, out);
               else if (v !== '' && String(v).length < 120) out.push([key.replace(/_/g, ' '), String(v)]);
             });
