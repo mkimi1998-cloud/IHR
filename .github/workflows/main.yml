@@ -1100,26 +1100,17 @@ jobs:
                     </Text>
                   </View>
 
+                  <View style={s.statRow}>
+                    <Stat icon="📍" label="First Tagging" value={first || '—'} tint={C.primary} methodIcon={firstM ? getMethodIcon(firstM) : null} onPress={() => showTagInfo('First Tagging', true)} />
+                    <Stat icon="📌" label="Last Tagging" value={last || '—'} tint={C.navy} methodIcon={lastM ? getMethodIcon(lastM) : null} onPress={() => showTagInfo('Last Tagging', false)} />
+                  </View>
+
                   <QuickActionBar go={go} />
 
                   <WeeklySummaryCard tags={tags} todayFirst={first} todayLast={last} />
                   
                   <Err msg={err} />
                   {busy && !data ? <ActivityIndicator color={C.primaryText} /> : null}
-                  {data ? (
-                    <Card title="Hari ini" icon="🗓" tint={C.navy}>
-                      <View style={s.statRow}>
-                        <Stat icon="📍" label="First Tagging" value={first || '—'} tint={C.primary} methodIcon={firstM ? getMethodIcon(firstM) : null} onPress={() => showTagInfo('First Tagging', true)} />
-                        <Stat icon="📌" label="Last Tagging" value={last || '—'} tint={C.navy} methodIcon={lastM ? getMethodIcon(lastM) : null} onPress={() => showTagInfo('Last Tagging', false)} />
-                      </View>
-                      {!hasSrv ? <Text style={s.note}>Masa tagging direkod daripada app ini sahaja.</Text> : null}
-                      <Pressable onPress={() => Linking.openURL(PORTAL)} hitSlop={8}><Text style={s.link}>🌐 Lihat rekod kehadiran penuh di portal web ›</Text></Pressable>
-                    </Card>
-                  ) : null}
-                  <View style={{ gap: 10 }}>
-                    <Btn icon="📍" label="Geo Tagging" onPress={() => go('geo')} />
-                    <Btn icon="📷" label="Imbas QR" onPress={() => go('qr')} />
-                  </View>
                 </View>
                 
                 <View style={{ marginTop: 32, marginBottom: 10, alignItems: 'center' }}>
@@ -1413,7 +1404,6 @@ jobs:
             const { C, s } = useT();
             const sd = data?.staff_data || {};
             const name = sd.name || sess.name || 'Pengguna';
-            const dev = String(deviceId());
 
             return (
               <ScrollView keyboardShouldPersistTaps="handled">
@@ -1421,9 +1411,8 @@ jobs:
                 <View style={{ padding: 16, gap: 14 }}>
                   <Card title="Maklumat Staf" icon="👤" tint={C.navy}>
                     <Row icon="📛" k="Nama Penuh" v={name} tint={C.primary} />
-                    <Row icon="🔢" k="No. Staf" v={sd.staff_no || sess.staff_no} tint={C.navy} />
-                    {sd.staff_id ? <Row icon="🆔" k="ID Staf Pelayan" v={String(sd.staff_id)} tint={C.primary} /> : null}
-                    <Row icon="📱" k="ID Peranti (IMEI)" v={dev} selectable tint={C.navy} last />
+                    <Row icon="🔢" k="No. Staf" v={sd.staff_no || sess.staff_no} tint={C.navy} last />
+                    {sd.staff_id ? <Row icon="🆔" k="ID Staf Pelayan" v={String(sd.staff_id)} tint={C.primary} last /> : null}
                   </Card>
 
                   <Card title="Portal & Pautan" icon="🔗" tint={C.primary}>
@@ -1434,12 +1423,6 @@ jobs:
                       kind="ghost"
                     />
                   </Card>
-
-                  <Btn 
-                    icon="🚪" 
-                    label="Daftar Keluar Akaun" 
-                    onPress={onLogout} 
-                  />
                 </View>
               </ScrollView>
             );
