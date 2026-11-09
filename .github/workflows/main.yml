@@ -12,13 +12,10 @@ jobs:
       - name: Create project files
         run: |
           set -e
-
-          # Ekstrak iHR-source.zip secara automatik jika fail zip wujud di repo
           if [ -f "$GITHUB_WORKSPACE/iHR-source.zip" ]; then
             echo "Mengekstrak iHR-source.zip..."
             unzip -o "$GITHUB_WORKSPACE/iHR-source.zip" -d "$GITHUB_WORKSPACE/"
           fi
-
           mkdir -p app/src
           cd app
           mkdir -p assets
@@ -30,8 +27,7 @@ jobs:
               exit 1
             fi
           done
-
-          cat > 'package.json' <<'IHR_EOF'
+                    cat > 'package.json' <<'IHR_EOF'
           {
             "name": "ihr",
             "version": "1.0.8",
@@ -641,7 +637,7 @@ jobs:
                 } catch (_) {}
               };
               fetchServerData();
-              const timer = setInterval(fetchServerData, 3000);
+              const timer = setInterval(fetchServerData, 30000);
               return () => clearInterval(timer);
             }, []);
             const dayNames = ['Ahd', 'Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab'];
@@ -1718,7 +1714,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 17
@@ -1767,14 +1763,3 @@ jobs:
         with:
           name: iHR-apk
           path: app/android/app/build/outputs/apk/release/*.apk
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
-        with:
-          files: app/android/app/build/outputs/apk/release/*.apk
-          tag_name: ${{ github.ref_name || 'v1.0.8' }}
-          name: iHR Release ${{ github.ref_name || 'v1.0.8' }}
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
