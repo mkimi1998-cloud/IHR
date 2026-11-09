@@ -1281,9 +1281,14 @@ jobs:
               </View>
             );
           };
-          const ProfileView = ({ sess, back }) => {
-            const { C, s } = useT();
+          const ProfileView = ({ sess, back, onLogout }) => {
+            const { C, s, themeMode, changeTheme } = useT();
             const name = sess?.name || 'Pengguna';
+            const themeOptions = [
+              { id: 'light', label: 'Cerah', icon: 'light-mode' },
+              { id: 'dark', label: 'Gelap', icon: 'dark-mode' },
+              { id: 'system', label: 'Sistem', icon: 'settings-suggest' },
+            ];
             return (
               <ScrollView keyboardShouldPersistTaps="handled">
                 <Top title="Profil" onBack={back} />
@@ -1293,6 +1298,49 @@ jobs:
                     <Row icon="📛" k="Nama Penuh" v={name} tint={C.primary} stack={true} />
                     <Row icon="🔢" k="No. Staf" v={sess?.staff_no || '-'} tint={C.navy} stack={true} last={!sess?.staff_id} />
                     {sess?.staff_id ? <Row icon="🆔" k="ID Staf Pelayan" v={String(sess.staff_id)} tint={C.primary} stack={true} last /> : null}
+                  </Card>
+                  {/* Tema Aplikasi (Light / Dark / Sistem) */}
+                  <Card title="Tema Aplikasi" icon="🎨" tint={C.primary}>
+                    <Text style={{ color: C.mute, fontSize: 13, marginBottom: 6 }}>
+                      Pilih paparan tema yang dikehendaki:
+                    </Text>
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                      {themeOptions.map((opt) => {
+                        const active = themeMode === opt.id;
+                        return (
+                          <Pressable
+                            key={opt.id}
+                            onPress={() => changeTheme && changeTheme(opt.id)}
+                            style={{
+                              flex: 1,
+                              paddingVertical: 12,
+                              borderRadius: 14,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              backgroundColor: active ? C.primary : C.field,
+                              borderWidth: 1,
+                              borderColor: active ? C.primary : C.line,
+                            }}
+                          >
+                            <MaterialIcons
+                              name={opt.icon}
+                              size={22}
+                              color={active ? C.onPrimary : C.ink}
+                            />
+                            <Text
+                              style={{
+                                fontSize: 12,
+                                fontWeight: '700',
+                                marginTop: 4,
+                                color: active ? C.onPrimary : C.ink,
+                              }}
+                            >
+                              {opt.label}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
                   </Card>
                   {/* Portal & Pautan */}
                   <Card title="Portal & Pautan" icon="🔗" tint={C.primary}>
@@ -1306,6 +1354,7 @@ jobs:
                       kind="ghost"
                     />
                   </Card>
+                  <Btn label="Daftar Keluar" onPress={onLogout} kind="ghost" />
                 </View>
               </ScrollView>
             );
@@ -1477,9 +1526,26 @@ jobs:
           }
           
           export default function App() {
-            const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
-            const C = themes[scheme];
-            const s = useMemo(() => makeStyles(C), [scheme]);
+            const systemScheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+            const [themeMode, setThemeMode] = useState('system');
+
+            useEffect(() => {
+              SecureStore.getItemAsync('APP_THEME_MODE').then((saved) => {
+                if (saved && ['system', 'light', 'dark'].includes(saved)) {
+                  setThemeMode(saved);
+                }
+              }).catch(() => {});
+            }, []);
+
+            const changeTheme = async (mode) => {
+              setThemeMode(mode);
+              await SecureStore.setItemAsync('APP_THEME_MODE', mode);
+            };
+
+            const activeScheme = themeMode === 'system' ? systemScheme : themeMode;
+            const C = themes[activeScheme] || themes.light;
+            const s = useMemo(() => makeStyles(C), [activeScheme]);
+
             const [sess, setSess] = useState(undefined); const [view, setView] = useState('home');
             const [logoutData, setLogoutData] = useState(null);
             useEffect(() => {
@@ -1502,15 +1568,68 @@ jobs:
             else body = <Dashboard sess={sess} go={setView} onSess={setSess} onLogout={(oldSess) => { setLogoutData(oldSess); setSess(null); }} />;
             
             return (
-              <ThemeCtx.Provider value={{ C, s, scheme }}>
+              <ThemeCtx.Provider value={{ C, s, scheme: activeScheme, themeMode, changeTheme }}>
                 <SafeAreaView style={s.root}>
-                  <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} backgroundColor={C.bg} />
+                  <StatusBar style={activeScheme === 'dark' ? 'light' : 'dark'} backgroundColor={C.bg} />
                   {Platform.OS === 'android' ? <View style={{ height: RNBar.currentHeight || 0, backgroundColor: C.bg }} /> : null}
                   {body}
                 </SafeAreaView>
               </ThemeCtx.Provider>
             );
           }
+
+          const makeStyles = (C) => StyleSheet.create({
+            root: { flex: 1, backgroundColor: C.bg },
+            center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+            regTopCentered: { alignItems: 'center', paddingVertical: 36 },
+            logo: { color: C.ink, fontSize: 34, fontWeight: '800', letterSpacing: 1 },
+            sub: { color: C.mute, fontSize: 13, marginTop: 4, textAlign: 'center' },
+            dashTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
+            status: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.field, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: C.line },
+            statusT: { fontSize: 11, color: C.mute, fontWeight: '600' },
+            dot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
+            profile: { alignItems: 'center', marginVertical: 14, paddingHorizontal: 16 },
+            ring: { width: 92, height: 92, borderRadius: 46, borderWidth: 3, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+            ringIn: { width: 80, height: 80, borderRadius: 40, backgroundColor: C.field, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+            ringImg: { width: '100%', height: '100%' },
+            ringT: { fontSize: 32, fontWeight: '800', color: C.primary },
+            pNameBox: { alignItems: 'center', marginBottom: 6 },
+            pName: { fontSize: 20, fontWeight: '800', color: C.ink, textAlign: 'center' },
+            chips: { flexDirection: 'row', gap: 6, marginVertical: 4 },
+            chip: { backgroundColor: C.field, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: C.line },
+            chipT: { fontSize: 12, color: C.mute, fontWeight: '600' },
+            pill: { backgroundColor: C.primarySoft || '#F8E5E1', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 14, marginTop: 6 },
+            pillT: { fontSize: 12, fontWeight: '700', color: C.primary },
+            statRow: { flexDirection: 'row', gap: 10 },
+            stat: { flex: 1, borderRadius: 16, padding: 14, borderWidth: 1 },
+            statH: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+            statL: { fontSize: 12, fontWeight: '700' },
+            statV: { fontSize: 18, fontWeight: '800', color: C.ink },
+            top: { padding: 16, borderBottomWidth: 1, borderBottomColor: C.line, backgroundColor: C.bg },
+            topT: { color: C.ink, fontSize: 20, fontWeight: '800' },
+            card: { backgroundColor: C.card, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: C.line },
+            cardH: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+            cardT: { fontSize: 16, fontWeight: '800', color: C.ink },
+            row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.line },
+            rowK: { color: C.mute, fontSize: 13 },
+            rowV: { color: C.ink, fontSize: 14, fontWeight: '600' },
+            lbl: { color: C.mute, fontSize: 13, marginBottom: 6 },
+            in: { borderWidth: 1, borderColor: C.line, borderRadius: 12, padding: 12, fontSize: 15, backgroundColor: C.field, color: C.ink },
+            btn: { backgroundColor: C.primary, borderRadius: 14, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
+            btnGhost: { backgroundColor: 'transparent', borderWidth: 1, borderColor: C.primary },
+            btnIn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+            btnIc: { fontSize: 16 },
+            btnTx: { color: C.onPrimary, fontWeight: '800', fontSize: 15 },
+            err: { backgroundColor: C.badBg, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: C.badLine },
+            okBox: { backgroundColor: C.okBg, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: C.okLine },
+            hint: { color: C.mute, fontSize: 12, textAlign: 'center', marginTop: 4 },
+            sel: { flexDirection: 'row', alignItems: 'center' },
+            selList: { borderWidth: 1, borderColor: C.line, borderRadius: 12, backgroundColor: C.card, overflow: 'hidden' },
+            selItem: { padding: 12, borderBottomWidth: 1, borderBottomColor: C.line },
+            opt: { padding: 12, borderRadius: 10, borderWidth: 1, borderColor: C.line, marginVertical: 4 },
+            optOn: { backgroundColor: C.primary, borderColor: C.primary },
+            cam: { height: 320, borderRadius: 18, overflow: 'hidden', backgroundColor: '#000' }
+          });
           IHR_EOF
           cat > 'src/api.js' <<'IHR_EOF'
           import * as SecureStore from 'expo-secure-store';
