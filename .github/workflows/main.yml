@@ -27,7 +27,7 @@ jobs:
               exit 1
             fi
           done
-                    cat > 'package.json' <<'IHR_EOF'
+          cat > 'package.json' <<'IHR_EOF'
           {
             "name": "ihr",
             "version": "1.0.8",
@@ -356,7 +356,7 @@ jobs:
           }
           
           function Dashboard({ sess, go, onSess, onLogout }) {
-            const { C, s } = useT();
+            const { C, s, themeMode, changeTheme } = useT();
             const [data, setData] = useState(null); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
             const [online, setOnline] = useState(null); const [at, setAt] = useState(''); const [tags, setTags] = useState([]);
             const [photo, setPhoto] = useState(null); const [badPhoto, setBadPhoto] = useState(false);
@@ -481,14 +481,19 @@ jobs:
                       <View style={[s.dot, { backgroundColor: online == null ? C.mute : online ? C.ok : C.bad }]} />
                       <Text style={s.statusT}>{online == null ? 'Menyemak…' : online ? `Dalam talian ${at}` : 'Luar talian'}</Text>
                     </Pressable>
-                    <Pressable onPress={load} disabled={busy} hitSlop={10} style={{ paddingHorizontal: 10, paddingVertical: 6, marginTop: 8, flexDirection: 'row', alignItems: 'center', backgroundColor: C.field, borderRadius: 14, borderWidth: 1, borderColor: C.line }}>
-                      {busy ? <ActivityIndicator size="small" color={C.primaryText} /> : (
-                        <>
-                          <MaterialIcons name="sync" size={16} color={C.primaryText} />
-                          <Text style={{ fontSize: 12, color: C.primaryText, fontWeight: '700', marginLeft: 4 }}>Muat Semula</Text>
-                        </>
-                      )}
-                    </Pressable>
+                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+                      <Pressable onPress={() => changeTheme(themeMode === 'dark' ? 'light' : 'dark')} hitSlop={10} style={{ paddingHorizontal: 8, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', backgroundColor: C.field, borderRadius: 14, borderWidth: 1, borderColor: C.line }}>
+                        <MaterialIcons name={themeMode === 'dark' ? 'light-mode' : 'dark-mode'} size={15} color={C.primaryText} />
+                      </Pressable>
+                      <Pressable onPress={load} disabled={busy} hitSlop={10} style={{ paddingHorizontal: 10, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', backgroundColor: C.field, borderRadius: 14, borderWidth: 1, borderColor: C.line }}>
+                        {busy ? <ActivityIndicator size="small" color={C.primaryText} /> : (
+                          <>
+                            <MaterialIcons name="sync" size={16} color={C.primaryText} />
+                            <Text style={{ fontSize: 12, color: C.primaryText, fontWeight: '700', marginLeft: 4 }}>Muat Semula</Text>
+                          </>
+                        )}
+                      </Pressable>
+                    </View>
                   </View>
                 </View>
                 <View style={s.profile}>
@@ -621,8 +626,13 @@ jobs:
             const { C, s } = useT();
             const [selectedDay, setSelectedDay] = useState(null);
             const [showAllModal, setShowAllModal] = useState(false);
-            const [monthSel, setMonthSel] = useState('last30');
             const [serverRows, setServerRows] = useState([]);
+            const [dropdownOpen, setDropdownOpen] = useState(false);
+            
+            const today = new Date();
+            const currentYear = today.getFullYear();
+            const currentMonth = today.getMonth();
+            const [monthSel, setMonthSel] = useState(`${currentYear}-${currentMonth}`);
             
             useEffect(() => {
               const fetchServerData = async () => {
@@ -640,11 +650,10 @@ jobs:
               const timer = setInterval(fetchServerData, 30000);
               return () => clearInterval(timer);
             }, []);
+
             const dayNames = ['Ahd', 'Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab'];
             const fullDayNames = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
-            const today = new Date();
             const currentDayOfWeek = today.getDay();
-            
             const sunday = new Date(today);
             sunday.setDate(today.getDate() - currentDayOfWeek);
             
@@ -652,6 +661,7 @@ jobs:
             let tepatCount = 0;
             let lewatCount = 0;
             let tiadaCount = 0;
+
             const buildDay = (d) => {
               const i = d.getDay();
               const isToday = d.toDateString() === today.toDateString();
@@ -665,6 +675,7 @@ jobs:
               let outTime = '—';
               let notes = '';
               let hasServerMatch = false;
+
               if (serverRows.length > 0) {
                 const matched = serverRows.find(r => {
                   const parts = String(r.date || '').split(/[-/]/);
@@ -711,6 +722,7 @@ jobs:
                   }
                 }
               }
+
               if (!hasServerMatch) {
                 if (isToday) {
                   if (todayFirst) {
@@ -752,6 +764,7 @@ jobs:
                   hours = 0;
                 }
               }
+
               return {
                 dayLabel: dayNames[i],
                 fullDay: fullDayNames[i],
@@ -765,6 +778,7 @@ jobs:
                 synced: hasServerMatch,
               };
             };
+
             for (let i = 0; i < 7; i++) {
               const d = new Date(sunday);
               d.setDate(sunday.getDate() + i);
@@ -774,40 +788,47 @@ jobs:
               else tiadaCount++;
               weekDays.push(item);
             }
-            const monthDays = [];
-            let mTepat = 0, mLewat = 0, mTiada = 0;
-            for (let i = 0; i < 30; i++) {
-              const d = new Date(today);
-              d.setDate(today.getDate() - i);
-              const item = buildDay(d);
-              if (item.status === 'tepat') mTepat++;
-              else if (item.status === 'lewat') mLewat++;
-              else mTiada++;
-              monthDays.push(item);
+
+            const monthNames = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'];
+            
+            // Bina senarai bulan: sekurang-kurangnya 12 bulan ke belakang dari hari ini + sebarang rekod server
+            const monthSet = new Set();
+            for (let b = 0; b < 12; b++) {
+              const pastD = new Date(currentYear, currentMonth - b, 1);
+              monthSet.add(`${pastD.getFullYear()}-${pastD.getMonth()}`);
             }
-            const monthNames = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
-            const monthSet = new Set([`${today.getFullYear()}-${today.getMonth()}`]);
             serverRows.forEach((r) => {
               const pp = String(r.date || '').split(/[-/.]/);
-              if (pp.length === 3 && +pp[1] >= 1 && +pp[1] <= 12 && +pp[2] > 1000) monthSet.add(`${+pp[2]}-${+pp[1] - 1}`);
-            });
-            const monthChips = [...monthSet].map((k) => { const [yy, mm] = k.split('-').map(Number); return { k, y: yy, m: mm }; })
-              .sort((a, b) => (b.y - a.y) || (b.m - a.m));
-            let modalDays = monthDays;
-            let modalTitle = 'Jadual Kehadiran 30 Hari';
-            if (monthSel !== 'last30') {
-              const [sy, sm] = monthSel.split('-').map(Number);
-              modalDays = [];
-              const dim = new Date(sy, sm + 1, 0).getDate();
-              for (let dd = dim; dd >= 1; dd--) {
-                if (new Date(sy, sm, dd) > today) continue;
-                modalDays.push(buildDay(new Date(sy, sm, dd, 12, 0, 0)));
+              if (pp.length === 3 && +pp[1] >= 1 && +pp[1] <= 12 && +pp[2] > 1000) {
+                monthSet.add(`${+pp[2]}-${+pp[1] - 1}`);
               }
-              modalTitle = `Jadual ${monthNames[sm]} ${sy}`;
+            });
+
+            const monthList = [...monthSet].map((k) => {
+              const [yy, mm] = k.split('-').map(Number);
+              return { k, y: yy, m: mm, label: `Bulan ${mm + 1} (${monthNames[mm]} ${yy})` };
+            }).sort((a, b) => (b.y - a.y) || (b.m - a.m));
+
+            // Jana hari mengikut bulan kalendar yang dipilih (contoh: Bulan 11 mempunyai 30 hari penuh)
+            const [sy, sm] = (monthSel || `${currentYear}-${currentMonth}`).split('-').map(Number);
+            const totalDaysInMonth = new Date(sy, sm + 1, 0).getDate();
+            const modalDays = [];
+            for (let dd = totalDaysInMonth; dd >= 1; dd--) {
+              modalDays.push(buildDay(new Date(sy, sm, dd, 12, 0, 0)));
             }
+
+            const selectedMonthObj = monthList.find(item => item.k === monthSel) || monthList[0];
+            const modalTitle = `Jadual Bulan ${sm + 1} (${monthNames[sm]} ${sy})`;
+
             let mdTepat = 0, mdLewat = 0, mdTiada = 0;
-            modalDays.forEach((x) => { if (x.status === 'tepat') mdTepat++; else if (x.status === 'lewat') mdLewat++; else mdTiada++; });
+            modalDays.forEach((x) => {
+              if (x.status === 'tepat') mdTepat++;
+              else if (x.status === 'lewat') mdLewat++;
+              else mdTiada++;
+            });
+
             const maxH = Math.max(...weekDays.map(w => w.hours), 9.0);
+
             return (
               <View style={{
                 backgroundColor: C.card,
@@ -879,7 +900,8 @@ jobs:
                     {serverRows.length > 0 ? '✓ Diselaraskan dengan Portal Pelayan MTIB' : '* Buka tab Sejarah untuk selaraskan rekod rasmi portal'}
                   </Text>
                 </View>
-                {/* MODAL 1: Popup Moden Butiran Satu Hari */}
+
+                {/* MODAL 1: Butiran Satu Hari */}
                 <Modal visible={!!selectedDay} transparent animationType="fade" onRequestClose={() => setSelectedDay(null)}>
                   <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
                     <View style={{
@@ -974,15 +996,16 @@ jobs:
                     </View>
                   </View>
                 </Modal>
-                {/* MODAL 2: Popup Moden Jadual Lengkap 30 Hari */}
-                <Modal visible={showAllModal} transparent animationType="slide" onRequestClose={() => setShowAllModal(false)}>
+
+                {/* MODAL 2: Jadual Mengikut Bulan Pilihan */}
+                <Modal visible={showAllModal} transparent animationType="slide" onRequestClose={() => { setShowAllModal(false); setDropdownOpen(false); }}>
                   <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end' }}>
                     <View style={{
                       backgroundColor: C.card,
                       borderTopLeftRadius: 28,
                       borderTopRightRadius: 28,
                       padding: 20,
-                      maxHeight: '85%',
+                      maxHeight: '88%',
                       borderWidth: 1,
                       borderColor: C.line,
                       shadowColor: '#000',
@@ -990,26 +1013,101 @@ jobs:
                       shadowRadius: 16,
                       elevation: 10,
                     }}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                        <View>
-                          <Text style={{ fontSize: 20, fontWeight: '800', color: C.ink }}>{modalTitle}</Text>
-                          <Text style={{ fontSize: 12, color: C.mute, marginTop: 2 }}>{`${mdTepat} tepat · ${mdLewat} lewat · ${mdTiada} tiada rekod`}</Text>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 19, fontWeight: '800', color: C.ink }}>{modalTitle}</Text>
+                          <Text style={{ fontSize: 12, color: C.mute, marginTop: 2 }}>{`${totalDaysInMonth} hari · ${mdTepat} tepat · ${mdLewat} lewat · ${mdTiada} tiada rekod`}</Text>
                         </View>
-                        <Pressable onPress={() => setShowAllModal(false)} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: C.field, alignItems: 'center', justifyContent: 'center' }}>
+                        <Pressable onPress={() => { setShowAllModal(false); setDropdownOpen(false); }} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: C.field, alignItems: 'center', justifyContent: 'center' }}>
                           <Text style={{ fontSize: 16, color: C.mute, fontWeight: '800' }}>✕</Text>
                         </Pressable>
                       </View>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: 8 }} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
-                        {[{ k: 'last30', label: '30 Hari' }, ...monthChips.map((c) => ({ k: `${c.y}-${c.m}`, label: `${monthNames[c.m]} ${c.y}` }))].map((c) => {
-                          const on = monthSel === c.k;
-                          return (
-                            <Pressable key={c.k} onPress={() => setMonthSel(c.k)} style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: 14, backgroundColor: on ? C.primary : C.field, borderWidth: 1, borderColor: on ? C.primary : C.line }}>
-                              <Text style={{ fontSize: 12, fontWeight: '800', color: on ? C.onPrimary : C.ink }}>{c.label}</Text>
-                            </Pressable>
-                          );
-                        })}
-                      </ScrollView>
-                      <ScrollView style={{ marginVertical: 6 }} showsVerticalScrollIndicator={false}>
+
+                      {/* Dropdown Pemilih Bulan */}
+                      <View style={{ marginBottom: 12, zIndex: 10 }}>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: C.mute, textTransform: 'uppercase', marginBottom: 4 }}>
+                          Pilih Bulan Rekod:
+                        </Text>
+                        <Pressable
+                          onPress={() => setDropdownOpen(!dropdownOpen)}
+                          style={{
+                            flexDirection: 'row',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            backgroundColor: C.field,
+                            borderRadius: 14,
+                            paddingHorizontal: 14,
+                            paddingVertical: 12,
+                            borderWidth: 1.5,
+                            borderColor: dropdownOpen ? C.primary : C.line
+                          }}
+                        >
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <MaterialIcons name="calendar-month" size={20} color={C.primary} />
+                            <Text style={{ fontSize: 14, fontWeight: '800', color: C.ink }}>
+                              {selectedMonthObj ? selectedMonthObj.label : 'Pilih Bulan'}
+                            </Text>
+                          </View>
+                          <MaterialIcons name={dropdownOpen ? "expand-less" : "expand-more"} size={22} color={C.ink} />
+                        </Pressable>
+
+                        {/* Senarai Pilihan Dropdown Terbuka */}
+                        {dropdownOpen && (
+                          <View style={{
+                            backgroundColor: C.card,
+                            borderRadius: 16,
+                            marginTop: 6,
+                            borderWidth: 1.5,
+                            borderColor: C.line,
+                            maxHeight: 180,
+                            shadowColor: '#000',
+                            shadowOpacity: 0.15,
+                            shadowRadius: 10,
+                            elevation: 8,
+                            overflow: 'hidden'
+                          }}>
+                            <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={true}>
+                              {monthList.map((c, idx) => {
+                                const on = monthSel === c.k;
+                                return (
+                                  <Pressable
+                                    key={c.k}
+                                    onPress={() => {
+                                      setMonthSel(c.k);
+                                      setDropdownOpen(false);
+                                    }}
+                                    style={{
+                                      flexDirection: 'row',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      paddingHorizontal: 16,
+                                      paddingVertical: 12,
+                                      borderBottomWidth: idx === monthList.length - 1 ? 0 : 1,
+                                      borderBottomColor: C.line,
+                                      backgroundColor: on ? (C.primarySoft || '#F8E5E1') : 'transparent'
+                                    }}
+                                  >
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                                      <MaterialIcons
+                                        name="event"
+                                        size={18}
+                                        color={on ? C.primary : C.mute}
+                                      />
+                                      <Text style={{ fontSize: 13, fontWeight: on ? '800' : '600', color: on ? C.primary : C.ink }}>
+                                        {c.label}
+                                      </Text>
+                                    </View>
+                                    {on && <MaterialIcons name="check" size={18} color={C.primary} />}
+                                  </Pressable>
+                                );
+                              })}
+                            </ScrollView>
+                          </View>
+                        )}
+                      </View>
+
+                      {/* Senarai Rekod Kehadiran Harian Bulan Yang Dipilih */}
+                      <ScrollView style={{ marginVertical: 4 }} showsVerticalScrollIndicator={false}>
                         {modalDays.map((w, idx) => {
                           const isTepat = w.status === 'tepat';
                           const isLewat = w.status === 'lewat';
@@ -1029,11 +1127,11 @@ jobs:
                                 <Text style={{ fontSize: 14, fontWeight: '800', color: C.ink }}>{w.fullDay}</Text>
                                 <Text style={{ fontSize: 11, color: C.mute, marginTop: 1 }}>{w.dateStr}</Text>
                               </View>
-                              <View style={{ alignItems: 'center', flex: 1 }}>
-                                <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink }}>
+                              <View style={{ alignItems: 'center', flex: 1, paddingHorizontal: 6 }}>
+                                <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink, textAlign: 'center' }}>
                                   {w.inTime} - {w.outTime}
                                 </Text>
-                                <Text style={{ fontSize: 10, color: C.mute, marginTop: 1 }}>
+                                <Text style={{ fontSize: 10, color: C.mute, marginTop: 1, textAlign: 'center' }}>
                                   {w.hours > 0 ? `${w.hours} jam` : (w.notes || (w.synced || w.isToday ? 'Tiada masa' : 'Belum diselaraskan'))}
                                 </Text>
                               </View>
@@ -1059,7 +1157,7 @@ jobs:
                         })}
                       </ScrollView>
                       <View style={{ marginTop: 10 }}>
-                        <Btn label="Tutup Jadual" onPress={() => setShowAllModal(false)} />
+                        <Btn label="Tutup Jadual" onPress={() => { setShowAllModal(false); setDropdownOpen(false); }} />
                       </View>
                     </View>
                   </View>
