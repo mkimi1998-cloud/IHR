@@ -12,6 +12,13 @@ jobs:
       - name: Create project files
         run: |
           set -e
+
+          # Ekstrak iHR-source.zip secara automatik jika fail zip wujud di repo
+          if [ -f "$GITHUB_WORKSPACE/iHR-source.zip" ]; then
+            echo "Mengekstrak iHR-source.zip..."
+            unzip -o "$GITHUB_WORKSPACE/iHR-source.zip" -d "$GITHUB_WORKSPACE/"
+          fi
+
           mkdir -p app/src
           cd app
           mkdir -p assets
@@ -23,7 +30,8 @@ jobs:
               exit 1
             fi
           done
-                    cat > 'package.json' <<'IHR_EOF'
+
+          cat > 'package.json' <<'IHR_EOF'
           {
             "name": "ihr",
             "version": "1.0.8",
