@@ -1991,7 +1991,15 @@ jobs:
             echo "Retrying in 30s (try $((n+1)) of 3)..."; sleep 30
           done
         working-directory: app/android
-      - uses: actions/upload-artifact@v4
+      - name: Create Release and Upload APK
+        uses: softprops/action-gh-release@v2
+        if: success()
         with:
-          name: iHR-apk
-          path: app/android/app/build/outputs/apk/release/*.apk
+          tag_name: "v1.0.8-${{ github.run_number }}"
+          name: "iHR APK Build #${{ github.run_number }}"
+          body: "APK iHR dibina secara automatik melalui GitHub Actions."
+          draft: false
+          prerelease: false
+          files: app/android/app/build/outputs/apk/release/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
