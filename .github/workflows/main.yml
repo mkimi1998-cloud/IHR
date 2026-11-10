@@ -1379,7 +1379,7 @@ jobs:
               </View>
             );
           };
-          const ProfileView = ({ sess, back, onLogout }) => {
+          const ProfileView = ({ sess, back }) => {
             const { C, s, themeMode, changeTheme } = useT();
             const name = sess?.name || 'Pengguna';
             const themeOptions = [
@@ -1387,22 +1387,33 @@ jobs:
               { id: 'dark', label: 'Gelap', icon: 'dark-mode' },
               { id: 'system', label: 'Sistem', icon: 'settings-suggest' },
             ];
+
             return (
-              <ScrollView keyboardShouldPersistTaps="handled">
+              <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 32 }}>
                 <Top title="Profil" onBack={back} />
-                <View style={{ padding: 16, gap: 14 }}>
+                <View style={{ padding: 16, gap: 16 }}>
                   {/* Maklumat Staf */}
                   <Card title="Maklumat Staf" icon="👤" tint={C.navy}>
                     <Row icon="📛" k="Nama Penuh" v={name} tint={C.primary} stack={true} />
-                    <Row icon="🔢" k="No. Staf" v={sess?.staff_no || '-'} tint={C.navy} stack={true} last={!sess?.staff_id} />
-                    {sess?.staff_id ? <Row icon="🆔" k="ID Staf Pelayan" v={String(sess.staff_id)} tint={C.primary} stack={true} last /> : null}
+                    <Row icon="🔢" k="No. Staf" v={sess?.staff_no || '-'} tint={C.navy} stack={true} last={true} />
                   </Card>
-                  {/* Tema Aplikasi (Light / Dark / Sistem) */}
+
+                  {/* Tema Aplikasi (Segmented Toggle Modern) */}
                   <Card title="Tema Aplikasi" icon="🎨" tint={C.primary}>
-                    <Text style={{ color: C.mute, fontSize: 13, marginBottom: 6 }}>
+                    <Text style={{ color: C.mute, fontSize: 13, marginBottom: 12 }}>
                       Pilih paparan tema yang dikehendaki:
                     </Text>
-                    <View style={{ flexDirection: 'row', gap: 10 }}>
+
+                    {/* Container Segmented Toggle Switch */}
+                    <View style={{
+                      flexDirection: 'row',
+                      backgroundColor: C.field,
+                      padding: 4,
+                      borderRadius: 18,
+                      borderWidth: 1,
+                      borderColor: C.line,
+                      alignItems: 'center',
+                    }}>
                       {themeOptions.map((opt) => {
                         const active = themeMode === opt.id;
                         return (
@@ -1411,26 +1422,30 @@ jobs:
                             onPress={() => changeTheme && changeTheme(opt.id)}
                             style={{
                               flex: 1,
-                              paddingVertical: 12,
-                              borderRadius: 14,
+                              flexDirection: 'row',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              backgroundColor: active ? C.primary : C.field,
-                              borderWidth: 1,
-                              borderColor: active ? C.primary : C.line,
+                              paddingVertical: 10,
+                              borderRadius: 14,
+                              backgroundColor: active ? C.primary : 'transparent',
+                              gap: 6,
+                              elevation: active ? 2 : 0,
+                              shadowColor: active ? '#000' : 'transparent',
+                              shadowOpacity: active ? 0.15 : 0,
+                              shadowRadius: 4,
+                              shadowOffset: { width: 0, height: 2 },
                             }}
                           >
                             <MaterialIcons
                               name={opt.icon}
-                              size={22}
-                              color={active ? C.onPrimary : C.ink}
+                              size={18}
+                              color={active ? C.onPrimary : C.mute}
                             />
                             <Text
                               style={{
-                                fontSize: 12,
-                                fontWeight: '700',
-                                marginTop: 4,
-                                color: active ? C.onPrimary : C.ink,
+                                fontSize: 13,
+                                fontWeight: active ? '800' : '600',
+                                color: active ? C.onPrimary : C.mute,
                               }}
                             >
                               {opt.label}
@@ -1440,9 +1455,10 @@ jobs:
                       })}
                     </View>
                   </Card>
+
                   {/* Portal & Pautan */}
                   <Card title="Portal & Pautan" icon="🔗" tint={C.primary}>
-                    <Text style={{ color: C.mute, fontSize: 12, marginBottom: 4 }}>
+                    <Text style={{ color: C.mute, fontSize: 12, marginBottom: 10 }}>
                       Akses terus ke sistem kehadiran dan cuti rasmi MTIB melalui pelayar peranti anda.
                     </Text>
                     <Btn 
@@ -1452,7 +1468,6 @@ jobs:
                       kind="ghost"
                     />
                   </Card>
-                  <Btn label="Daftar Keluar" onPress={onLogout} kind="ghost" />
                 </View>
               </ScrollView>
             );
@@ -1662,7 +1677,7 @@ jobs:
             else if (view === 'qr') body = <Cam mode="qr" sess={sess} back={home} />;
             else if (view === 'geo') body = <Cam mode="photo" sess={sess} back={home} />;
             else if (view === 'history') body = <HistoryView sess={sess} back={home} />;
-            else if (view === 'profile') body = <ProfileView sess={sess} back={home} onLogout={doLogout} />;
+            else if (view === 'profile') body = <ProfileView sess={sess} back={home} />;
             else body = <Dashboard sess={sess} go={setView} onSess={setSess} onLogout={(oldSess) => { setLogoutData(oldSess); setSess(null); }} />;
             
             return (
