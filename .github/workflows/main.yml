@@ -1,18 +1,18 @@
-name: Build iHR Store Release (Android AAB & APK)
+name: Build iHR iOS Store Release (IPA via EAS / macOS Xcode)
 on:
   workflow_dispatch:
     inputs:
-      build_type:
-        description: 'Build format (aab for Google Play Store, apk for internal testing)'
+      build_method:
+        description: 'iOS build method (eas for Expo EAS cloud signed IPA, macos_unsigned for local Xcode archive)'
         required: true
-        default: 'aab'
+        default: 'eas'
         type: choice
         options:
-          - aab
-          - apk
+          - eas
+          - macos_unsigned
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build-ios:
+    runs-on: macos-latest
     timeout-minutes: 60
     permissions:
       contents: write
@@ -86,7 +86,8 @@ jobs:
                 "supportsTablet": false,
                 "infoPlist": {
                   "NSCameraUsageDescription": "Membenarkan iHR mengakses kamera untuk mengimbas kod QR dan mengambil gambar kehadiran.",
-                  "NSLocationWhenInUseUsageDescription": "Membenarkan iHR menggunakan lokasi semasa anda untuk merekod kehadiran geotagging."
+                  "NSLocationWhenInUseUsageDescription": "Membenarkan iHR menggunakan lokasi semasa anda untuk merekod kehadiran geotagging.",
+                  "ITSAppUsesNonExemptEncryption": false
                 }
               },
               "android": {
@@ -121,8 +122,25 @@ jobs:
             }
           }
           IHR_EOF
-          sed -i "s/"versionCode": [0-9]*/"versionCode": $BUILD_NUM/" app.json
-          sed -i "s/"buildNumber": "[0-9]*"/"buildNumber": "$BUILD_NUM"/" app.json
+          cat > 'eas.json' <<'IHR_EOF'
+          {
+            "cli": {
+              "version": ">= 10.0.0"
+            },
+            "build": {
+              "production": {
+                "ios": {
+                  "resourceClass": "m-medium"
+                }
+              }
+            },
+            "submit": {
+              "production": {}
+            }
+          }
+          IHR_EOF
+          sed -i '' "s/\"versionCode\": [0-9]*/\"versionCode\": $BUILD_NUM/" app.json
+          sed -i '' "s/\"buildNumber\": \"[0-9]*\"/\"buildNumber\": \"$BUILD_NUM\"/" app.json
           cat > 'App.js' <<'IHR_EOF'
           import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
           import { ActivityIndicator, Alert, BackHandler, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as RNBar, StyleSheet, Text, TextInput, useColorScheme, View, Modal } from 'react-native';
@@ -133,10 +151,10 @@ jobs:
           import { CameraView, useCameraPermissions } from 'expo-camera';
           import { MaterialIcons } from '@expo/vector-icons';
           import * as ImageManipulator from 'expo-image-manipulator';
-          import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+          import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
           import { WebView } from 'react-native-webview';
           import { themes } from './src/theme';
-          import { EP, addLocalTag, call, clearSession, deviceId, findPhoto, getLocalTags, kerjaLuarFields, loadSession, parseReference, peek, saveSession, unwrap } from './src/api';
+          import { EP, addLocalTag, call, clearSession, deviceId, findPhoto, getLocalTags, initDeviceId, kerjaLuarFields, loadSession, parseReference, peek, saveSession, unwrap } from './src/api';
 
           const pad = (n) => String(n).padStart(2, '0');
           const t12 = (h, m) => `${pad(h % 12 || 12)}:${pad(m)} ${h < 12 ? 'AM' : 'PM'}`;
@@ -302,16 +320,39 @@ jobs:
             );
           };
           const DateField = ({ value, onPick, min }) => {
-            const { C, s } = useT();
+            const { C, s, scheme } = useT();
+            const [iosOpen, setIosOpen] = useState(false);
             const open = () => {
               if (Platform.OS === 'android') {
                 DateTimePickerAndroid.open({
                   value: parseYMD(value), mode: 'date', minimumDate: min ? parseYMD(min) : undefined,
                   onChange: (e, d) => { if (e?.type === 'set' && d) onPick(toYMD(d)); },
                 });
+              } else {
+                setIosOpen(!iosOpen);
               }
             };
-            return (<Pressable onPress={open} style={[s.in, s.sel]}><Text style={{ color: C.ink, fontSize: 16, flex: 1 }}>{toDMY(value)}</Text><Text style={{ fontSize: 16 }}>📅</Text></Pressable>);
+            return (
+              <View style={{ gap: 6 }}>
+                <Pressable onPress={open} style={[s.in, s.sel]}>
+                  <Text style={{ color: C.ink, fontSize: 16, flex: 1 }}>{toDMY(value)}</Text>
+                  <Text style={{ fontSize: 16 }}>📅</Text>
+                </Pressable>
+                {Platform.OS === 'ios' && iosOpen ? (
+                  <View style={{ backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.line, padding: 8 }}>
+                    <DateTimePicker
+                      value={parseYMD(value)}
+                      mode="date"
+                      display="inline"
+                      themeVariant={scheme}
+                      minimumDate={min ? parseYMD(min) : undefined}
+                      onChange={(_, d) => { if (d) onPick(toYMD(d)); }}
+                    />
+                    <Btn kind="ghost" label="Selesai" onPress={() => setIosOpen(false)} />
+                  </View>
+                ) : null}
+              </View>
+            );
           };
 
           function Register({ onDone, initialName = '', initialNo = '' }) {
@@ -332,7 +373,8 @@ jobs:
                 return onDone(sess);
               }
               try {
-                const r = unwrap(await call(EP.register, { name: formattedName, staff_no: no.trim(), imei: deviceId() }));
+                const id = await initDeviceId();
+                const r = unwrap(await call(EP.register, { name: formattedName, staff_no: no.trim(), imei: id }));
                 const sess = { staff_no: no.trim(), staff_id: r?.staff_id ?? r?.id ?? '', name: formatName(r?.name ?? formattedName) };
                 await saveSession(sess);
                 onDone(sess);
@@ -1526,6 +1568,7 @@ jobs:
             const systemScheme = useColorScheme() === 'dark' ? 'dark' : 'light';
             const [themeMode, setThemeMode] = useState('system');
             useEffect(() => {
+              initDeviceId().catch(() => {});
               SecureStore.getItemAsync('APP_THEME_MODE').then((saved) => {
                 if (saved && ['system', 'light', 'dark'].includes(saved)) {
                   setThemeMode(saved);
@@ -1542,7 +1585,7 @@ jobs:
             const [sess, setSess] = useState(undefined); const [view, setView] = useState('home');
             const [logoutData, setLogoutData] = useState(null);
             useEffect(() => {
-              loadSession().then(setSess).catch(() => setSess(null));
+              initDeviceId().then(() => loadSession()).then(setSess).catch(() => setSess(null));
             }, []);
             const home = () => setView('home');
 
@@ -1637,6 +1680,7 @@ jobs:
           });
           IHR_EOF
           cat > 'src/api.js' <<'IHR_EOF'
+          import { Platform } from 'react-native';
           import * as SecureStore from 'expo-secure-store';
           import * as Application from 'expo-application';
           export const BASE_URL = 'https://ihr.mtib.gov.my/';
@@ -1649,10 +1693,31 @@ jobs:
             reason:    { path: 'api/reason',            method: 'POST', code: 'P', flip: true, retry: true },
             reference: { path: 'api/reference',         method: 'GET',  code: 'P', flip: true, retry: true },
           };
-          export const deviceId = () => Application.getAndroidId() || 'unknown';
+          let cachedDeviceId = null;
+          export async function initDeviceId() {
+            if (cachedDeviceId) return cachedDeviceId;
+            if (Platform.OS === 'android') {
+              cachedDeviceId = Application.getAndroidId() || 'unknown';
+              return cachedDeviceId;
+            }
+            try {
+              const saved = await SecureStore.getItemAsync('IOS_VENDOR_DEVICE_ID');
+              if (saved) { cachedDeviceId = saved; return saved; }
+              const idfv = await Application.getIosIdForVendorAsync();
+              const finalId = idfv || `ios-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+              await SecureStore.setItemAsync('IOS_VENDOR_DEVICE_ID', finalId);
+              cachedDeviceId = finalId;
+              return finalId;
+            } catch (_) {
+              cachedDeviceId = 'ios-unknown';
+              return cachedDeviceId;
+            }
+          }
+          export const deviceId = () => cachedDeviceId || (Platform.OS === 'android' ? (Application.getAndroidId() || 'unknown') : 'ios-pending');
           async function once(ep, body, kind, signal) {
             const get = ep.method === 'GET';
-            const headers = { Accept: 'application/json', imei: String(deviceId()) };
+            const id = await initDeviceId();
+            const headers = { Accept: 'application/json', imei: String(id) };
             const clean = Object.entries(body).filter(([, v]) => v !== undefined && v !== null);
             let payload, qs = '';
             if (get) qs = '?' + clean.map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
@@ -1797,69 +1862,52 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
       - name: Install packages
         run: npm install --legacy-peer-deps
         working-directory: app
-      - name: Generate Android project
-        run: npx expo prebuild --platform android --no-install
-        working-directory: app
-      - name: Fix missing splash color
-        run: |
-          F=android/app/src/main/res/values/colors.xml
-          mkdir -p "$(dirname "$F")"
-          [ -f "$F" ] || printf '<resources>\n</resources>\n' > "$F"
-          grep -q splashscreen_background "$F" || sed -i 's|</resources>|  <color name="splashscreen_background">#FFFFFF</color>\n</resources>|' "$F"
-          cat "$F"
-        working-directory: app
-      - name: Point Gradle at the SDK and harden downloads
-        run: |
-          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
-          {
-            echo "systemProp.org.gradle.internal.http.connectionTimeout=180000"
-            echo "systemProp.org.gradle.internal.http.socketTimeout=180000"
-            echo "systemProp.org.gradle.internal.repository.max.retries=8"
-            echo "systemProp.org.gradle.internal.repository.initial.backoff=2000"
-          } >> android/gradle.properties
-        working-directory: app
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('app/package.json') }}
-          restore-keys: gradle-${{ runner.os }}-
-      - name: Build Android Release (AAB for Play Store / APK for testing)
+      - name: Build Signed iOS IPA via Expo EAS (Recommended for App Store)
+        if: ${{ (github.event.inputs.build_method || 'eas') == 'eas' }}
         env:
-          BUILD_TYPE: ${{ github.event.inputs.build_type || 'aab' }}
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          chmod +x gradlew
-          TASK="bundleRelease"
-          if [ "$BUILD_TYPE" = "apk" ]; then
-            TASK="assembleRelease"
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "ERROR: EXPO_TOKEN secret is missing. Add EXPO_TOKEN in GitHub Repository -> Settings -> Secrets and variables -> Actions."
+            exit 1
           fi
-          n=0
-          until ./gradlew "$TASK" --no-daemon; do
-            n=$((n+1))
-            if [ "$n" -ge 3 ]; then echo "Build failed after $n tries"; exit 1; fi
-            echo "Retrying in 30s (try $((n+1)) of 3)..."; sleep 30
-          done
-        working-directory: app/android
-      - name: Create Release and Upload Build Artifacts
+          npx --yes eas-cli build --platform ios --profile production --non-interactive
+        working-directory: app
+      - name: Generate iOS Xcode Project & Build Unsigned Archive (macOS)
+        if: ${{ github.event.inputs.build_method == 'macos_unsigned' }}
+        run: |
+          npx expo prebuild --platform ios --no-install
+          cd ios
+          pod install
+          WORKSPACE=$(ls -d *.xcworkspace | head -n 1)
+          SCHEME="${WORKSPACE%.xcworkspace}"
+          xcodebuild -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath "$PWD/build/iHR.xcarchive" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            archive
+          mkdir -p build/Payload
+          cp -r build/iHR.xcarchive/Products/Applications/*.app build/Payload/
+          cd build
+          zip -r iHR-ios-unsigned.ipa Payload
+        working-directory: app
+      - name: Upload Unsigned IPA Artifact
         uses: softprops/action-gh-release@v2
-        if: success()
+        if: ${{ success() && github.event.inputs.build_method == 'macos_unsigned' }}
         with:
-          tag_name: "v1.1.0-store-${{ github.run_number }}"
-          name: "iHR Store Release v1.1.0 #${{ github.run_number }}"
-          body: "Store-compliant release build for Google Play Store (AAB) and App Store."
+          tag_name: "v1.1.0-ios-${{ github.run_number }}"
+          name: "iHR iOS Build v1.1.0 #${{ github.run_number }}"
+          body: "iOS unsigned IPA archive generated on macOS runner (sign with Apple Distribution certificate before App Store Connect upload)."
           draft: false
           prerelease: false
           files: |
-            app/android/app/build/outputs/bundle/release/*.aab
-            app/android/app/build/outputs/apk/release/*.apk
+            app/ios/build/iHR-ios-unsigned.ipa
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
