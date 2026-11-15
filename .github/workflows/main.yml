@@ -400,9 +400,7 @@ jobs:
                 if (sd?.staff_id && String(sd.staff_id) !== String(sess.staff_id)) { const ns = { staff_no: String(sd.staff_no ?? sess.staff_no), staff_id: String(sd.staff_id), name: sd.name || sess.name }; saveSession(ns); onSess && onSess(ns); }
               } catch (e) {
                 setOnline(false);
-                setErr(e.message.includes('HTTP 500') ? e.message + '
-
-Peranti ini belum dikaitkan dengan akaun di pelayan.' : e.message);
+                setErr(e.message.includes('HTTP 500') ? e.message + '\n\nPeranti ini belum dikaitkan dengan akaun di pelayan.' : e.message);
               } finally { setBusy(false); }
             }, [sess]);
 
@@ -464,25 +462,18 @@ Peranti ini belum dikaitkan dengan akaun di pelayan.' : e.message);
                 const methodName = detail.m === 'qr' ? 'Imbas QR' : 'Geo Tagging';
                 Alert.alert(
                   `Maklumat ${title}`,
-                  `Kaedah: ${methodName}
-Masa: ${timeVal}
-Lokasi: ${detail.address || 'Lokasi tidak dikesan'}`
+                  `Kaedah: ${methodName}\nMasa: ${timeVal}\nLokasi: ${detail.address || 'Lokasi tidak dikesan'}`
                 );
               } else if (legacyMethod) {
                 const methodName = legacyMethod === 'qr' ? 'Imbas QR' : 'Geo Tagging';
                 Alert.alert(
                   `Maklumat ${title}`,
-                  `Kaedah: ${methodName}
-Masa: ${timeVal}
-
-*Lokasi terperinci tidak ditemui untuk sesi ini.*`
+                  `Kaedah: ${methodName}\nMasa: ${timeVal}\n\n*Lokasi terperinci tidak ditemui untuk sesi ini.*`
                 );
               } else {
                 Alert.alert(
                   `Maklumat ${title}`,
-                  `Masa: ${timeVal}
-
-Rekod ini daripada pelayan web. Maklumat lokasi peranti tidak tersedia.`
+                  `Masa: ${timeVal}\n\nRekod ini daripada pelayan web. Maklumat lokasi peranti tidak tersedia.`
                 );
               }
             };
@@ -1707,8 +1698,7 @@ Rekod ini daripada pelayan web. Maklumat lokasi peranti tidak tersedia.`
             let msg = null; try { const j = JSON.parse(last.text); if (typeof j === 'string') msg = j; else if (j && typeof j.message === 'string' && last.status !== 500) msg = j.message; } catch (_) {}
             if (msg) throw new Error(`${msg}`);
             const snip = String(last.text).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 220);
-            throw new Error(`[${ep.code}00${last.status === 404 ? 1 : 2}] Ralat. Sila hubungi Bahagian Sumber Manusia untuk bantuan
-HTTP ${last.status}: ${snip}`);
+            throw new Error(`[${ep.code}00${last.status === 404 ? 1 : 2}] Ralat. Sila hubungi Bahagian Sumber Manusia untuk bantuan\nHTTP ${last.status}: ${snip}`);
           }
           const K = { no: 'STAFF_NO', id: 'STAFF_ID', name: 'STAFF_NAME' };
           export async function loadSession() {
@@ -1821,11 +1811,8 @@ HTTP ${last.status}: ${snip}`);
         run: |
           F=android/app/src/main/res/values/colors.xml
           mkdir -p "$(dirname "$F")"
-          [ -f "$F" ] || printf '<resources>
-</resources>
-' > "$F"
-          grep -q splashscreen_background "$F" || sed -i 's|</resources>|  <color name="splashscreen_background">#FFFFFF</color>
-</resources>|' "$F"
+          [ -f \"$F\" ] || printf '<resources>\n</resources>\n' > \"$F\"
+          grep -q splashscreen_background \"$F\" || sed -i 's|</resources>|  <color name=\"splashscreen_background\">#FFFFFF</color>\n</resources>|' \"$F\"
           cat "$F"
         working-directory: app
       - name: Point Gradle at the SDK and harden downloads
@@ -1875,3 +1862,4 @@ HTTP ${last.status}: ${snip}`);
             app/android/app/build/outputs/apk/release/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
