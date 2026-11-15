@@ -23,9 +23,9 @@ jobs:
           BUILD_NUM: ${{ github.run_number }}
         run: |
           set -e
-          if [ -f "$GITHUB_WORKSPACE/iHR-source.zip" ]; then
-            echo "Extracting iHR-source.zip..."
-            unzip -o "$GITHUB_WORKSPACE/iHR-source.zip" -d "$GITHUB_WORKSPACE/"
+          if [ -f "$GITHUB_WORKSPACE/iHR-source (1).zip" ]; then
+            echo "Extracting iHR-source (1).zip..."
+            unzip -o "$GITHUB_WORKSPACE/iHR-source (1).zip" -d "$GITHUB_WORKSPACE/"
           fi
           mkdir -p app/src
           cd app
