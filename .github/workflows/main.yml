@@ -1811,8 +1811,8 @@ jobs:
         run: |
           F=android/app/src/main/res/values/colors.xml
           mkdir -p "$(dirname "$F")"
-          [ -f \"$F\" ] || printf '<resources>\n</resources>\n' > \"$F\"
-          grep -q splashscreen_background \"$F\" || sed -i 's|</resources>|  <color name=\"splashscreen_background\">#FFFFFF</color>\n</resources>|' \"$F\"
+          [ -f "$F" ] || printf '<resources>\n</resources>\n' > "$F"
+          grep -q splashscreen_background "$F" || sed -i 's|</resources>|  <color name="splashscreen_background">#FFFFFF</color>\n</resources>|' "$F"
           cat "$F"
         working-directory: app
       - name: Point Gradle at the SDK and harden downloads
