@@ -2325,8 +2325,7 @@ jobs:
               }
           }'''
           if "release {" not in g:
-              g = g.replace("signingConfigs {", "signingConfigs {
-" + release_signing, 1)
+              g = g.replace("signingConfigs {", "signingConfigs {\n" + release_signing, 1)
           g = g.replace("signingConfig signingConfigs.debug", "signingConfig signingConfigs.release")
           with open("android/app/build.gradle", "w") as f:
               f.write(g)
