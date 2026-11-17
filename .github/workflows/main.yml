@@ -2331,12 +2331,6 @@ jobs:
               f.write(g)
           PY
         working-directory: app
-      - name: Backup Upload Keystore Artifact (Save safely!)
-        uses: actions/upload-artifact@v4
-        with:
-          name: mtib-playstore-upload-keystore
-          path: app/android/app/mtib-upload-key.keystore
-          retention-days: 90
       - name: Build Play Store AAB & Signed APK (retries on network errors)
         run: |
           chmod +x gradlew
@@ -2359,5 +2353,6 @@ jobs:
           files: |
             app/android/app/build/outputs/bundle/release/*.aab
             app/android/app/build/outputs/apk/release/*.apk
+            app/android/app/mtib-upload-key.keystore
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
