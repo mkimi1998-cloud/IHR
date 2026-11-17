@@ -2314,6 +2314,7 @@ jobs:
           MYAPP_UPLOAD_KEY_PASSWORD=${KEY_PASS}
           EOF
           python3 - <<'PY'
+          import re
           with open("android/app/build.gradle", "r") as f:
               g = f.read()
           release_signing = '''        release {
@@ -2324,9 +2325,16 @@ jobs:
                   keyPassword MYAPP_UPLOAD_KEY_PASSWORD
               }
           }'''
-          if "release {" not in g:
-              g = g.replace("signingConfigs {", "signingConfigs {\n" + release_signing, 1)
-          g = g.replace("signingConfig signingConfigs.debug", "signingConfig signingConfigs.release")
+          if re.search(r'signingConfigs\s*\{', g):
+              g = re.sub(r'(signingConfigs\s*\{)', r'\1\n' + release_signing, g, count=1)
+          else:
+              g = re.sub(r'(android\s*\{)', r'\1\n    signingConfigs {\n' + release_signing + '\n    }', g, count=1)
+          g = re.sub(
+              r'(buildTypes\s*\{[\s\S]*?release\s*\{[\s\S]*?)signingConfig\s+signingConfigs\.debug',
+              r'\1signingConfig signingConfigs.release',
+              g,
+              count=1
+          )
           with open("android/app/build.gradle", "w") as f:
               f.write(g)
           PY
