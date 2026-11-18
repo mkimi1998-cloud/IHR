@@ -5,6 +5,8 @@ jobs:
   android:
     name: Build Android (AAB & APK)
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -2410,22 +2412,27 @@ jobs:
             echo "Retrying in 30s (try $((n+1)) of 3)..."; sleep 30
           done
         working-directory: app/android
-      - name: Prepare Android Release Files
-        run: |
-          mkdir -p release-files
-          cp app/android/app/build/outputs/bundle/release/*.aab release-files/
-          cp app/android/app/build/outputs/apk/release/*.apk release-files/
-          cp app/android/app/mtib-upload-key.keystore release-files/
-      - name: Upload Android Artifacts
-        uses: actions/upload-artifact@v4
+      - name: Publish Android (.aab, .apk & keystore) to GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: success()
         with:
-          name: android-release-artifacts
-          path: release-files/*
-          retention-days: 30
+          tag_name: "v1.1.0-store-${{ github.run_number }}"
+          name: "iHR Store Release v1.1.0 #${{ github.run_number }} (IPA + AAB + APK)"
+          body: "Unified Store Release containing Apple iOS (.ipa), Google Play Store (.aab), Signed Android (.apk), and Upload Keystore."
+          draft: false
+          prerelease: false
+          files: |
+            app/android/app/build/outputs/bundle/release/*.aab
+            app/android/app/build/outputs/apk/release/*.apk
+            app/android/app/mtib-upload-key.keystore
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   ios:
     name: Build iOS (IPA)
     runs-on: macos-latest
+    permissions:
+      contents: write
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -4808,40 +4815,15 @@ jobs:
             cd "$PWD/build" && zip -r "iHR-v1.1.0-unsigned.ipa" Payload
           fi
         working-directory: app
-      - name: Upload iOS Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-release-artifacts
-          path: app/ios/build/*.ipa
-          retention-days: 30
-
-  release:
-    name: Publish Combined Release (IPA + AAB + APK)
-    needs: [android, ios]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Download Android Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: android-release-artifacts
-          path: combined-release
-      - name: Download iOS Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: ios-release-artifacts
-          path: combined-release
-      - name: List Combined Release Files
-        run: ls -lh combined-release/
-      - name: Create Unified Release (.ipa, .aab, .apk)
+      - name: Attach iOS (.ipa) to GitHub Release
         uses: softprops/action-gh-release@v2
+        if: success()
         with:
           tag_name: "v1.1.0-store-${{ github.run_number }}"
           name: "iHR Store Release v1.1.0 #${{ github.run_number }} (IPA + AAB + APK)"
           body: "Unified Store Release containing Apple iOS (.ipa), Google Play Store (.aab), Signed Android (.apk), and Upload Keystore."
           draft: false
           prerelease: false
-          files: combined-release/*
+          files: app/ios/build/*.ipa
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
